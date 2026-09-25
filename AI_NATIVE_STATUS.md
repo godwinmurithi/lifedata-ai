@@ -573,3 +573,52 @@ lives on a **different Superset database connection** ("life_health"), so a
 single virtual dataset can't join them directly. Not attempted here — noted
 as the next step in the registry's own `traps` field for
 `buikwe_subcounties_map`.
+
+---
+
+# Full MCP tool passthrough (2026-09-25, same day, continued)
+
+**Instruction, verbatim:** *"why not expose all mcps capabilities to the
+chatbot? do it right now."* — in response to the copilot correctly telling
+the user that "set dashboard CSS/theme" wasn't among the operations it could
+call, even though MCP itself doesn't prevent a server from exposing one.
+
+**What was built:** `tools/mcp_passthrough.py` — `search_mcp_tools` (search
+the MCP catalogue by keyword) and `call_mcp_tool` (call any MCP tool by
+name, with its own arguments). Together these expose the **entire** MCP tool
+surface Superset ships, not just the specific tools hand-wired earlier today
+(list/get datasets, charts, dashboards; generate_chart, generate_dashboard,
+add_chart_to_existing_dashboard). `execute_sql`, `create_virtual_dataset`,
+`get_chart_preview`, `update_chart_preview`, `save_sql_query`,
+`open_sql_lab_with_context`, `get_schema`, `list_databases`,
+`get_database_info` — all of it, now reachable.
+
+**The one thing worth being precise about, recorded rather than re-litigated
+in chat:** both tools are registered as READ-mode
+(`tools/registry.py`), meaning they run **immediately**, server-side, the
+moment the model calls them. That's correct for genuinely read-only MCP
+tools. For the MCP tools tagged `"mutate"` in their own metadata
+(`execute_sql`, `generate_chart`, `update_chart`, `create_virtual_dataset`,
+`save_sql_query`, `generate_dashboard`, `add_chart_to_existing_dashboard`),
+it means calling them through `call_mcp_tool` performs that write
+**immediately, with no propose/confirm/snapshot/undo step** — a real,
+structural difference from `tools/superset_write.py`'s hand-built
+`CreateChartTool`/`UpdateChartTool`, which still show the user a preview
+card before anything happens even when their own execution path uses MCP.
+`execute_sql` is the largest specific capability this unlocks: raw SQL Lab
+access to any database connection the calling user's Superset role can
+reach, entirely unscoped by `semantics/registry.yaml`'s dataset allowlist
+(that allowlist only ever gated dataset/chart-*shaped* access, never raw
+SQL). The tool's own description tells the model to say plainly what it's
+about to do before calling a mutating tool this way, since there is no
+other checkpoint before it happens.
+
+**Verified end-to-end:** `search_mcp_tools("sql")` correctly lists and tags
+`execute_sql`/`save_sql_query`/`create_virtual_dataset` as `mutate`;
+`call_mcp_tool` successfully ran a real SQL query against
+`buikwe_subcounties` and returned real rows. Both tools appear in
+`build_registry()`'s output alongside every other tool.
+
+**How to turn off:** remove the `mcp_passthrough` line from
+`_READ_TOOL_SOURCES` in `tools/registry.py` — the two tools simply stop
+being offered to the model; nothing else depends on them.
