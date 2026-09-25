@@ -2,7 +2,14 @@
 
 from django.urls import path
 
-from lifedata_ai.views import action_result, chat, conversations, health, undo
+from lifedata_ai.views import (
+    action_result,
+    chat,
+    conversations,
+    execute_mcp_action,
+    health,
+    undo,
+)
 
 app_name = "lifedata_ai"
 
@@ -23,4 +30,14 @@ urlpatterns = [
     # an undo envelope here. Neither endpoint performs a Superset write.
     path("api/action-result/", action_result.action_result, name="action-result"),
     path("api/undo/", undo.undo, name="undo"),
+    # MCP write pipeline: for execution_mode="mcp" actions only (see
+    # tools/mcp_write_dispatch.py). This one DOES perform the Superset write,
+    # server-side, via the caller's own minted MCP identity -- see
+    # views/execute_mcp_action.py's docstring for why that's still per-user,
+    # not a service account.
+    path(
+        "api/execute-mcp-action/",
+        execute_mcp_action.execute_mcp_action,
+        name="execute-mcp-action",
+    ),
 ]

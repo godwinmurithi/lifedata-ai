@@ -47,6 +47,7 @@
   var ORCHESTRATOR = "/lifedata-ai";
   var CHAT_URL = ORCHESTRATOR + "/api/chat/";
   var ACTION_RESULT_URL = ORCHESTRATOR + "/api/action-result/";
+  var EXECUTE_MCP_ACTION_URL = ORCHESTRATOR + "/api/execute-mcp-action/";
   var UNDO_URL = ORCHESTRATOR + "/api/undo/";
   var CONVERSATIONS_URL = ORCHESTRATOR + "/api/conversations/";
   var STYLESHEET_URL = ORCHESTRATOR + "/static/panel/panel.css";
@@ -529,12 +530,23 @@
    * The outcome is reported to /lifedata-ai/api/action-result/ so the audit
    * trail records what actually happened, not merely what was proposed.
    *
+   * When `action.execution_mode === "mcp"`, none of the above applies: the
+   * server itself performs the write via native MCP (its own minted identity
+   * for this user, not this browser's cookie) and reports the outcome in the
+   * same response, so this function just asks and displays the result --
+   * see `executeMcpAction` below. That path exists for action types
+   * tools/mcp_write_dispatch.py covers (create_chart, create_dashboard,
+   * add_chart_to_dashboard); everything else still comes through here.
+   *
    * @param {{action_id: string, action_type: string, envelope: string,
-   *          summary: string, calls: Array<any>}} action
+   *          summary: string, calls: Array<any>, execution_mode?: string}} action
    * @param {any} transcript
    * @returns {Promise<{ok: boolean}>}
    */
   function executeAction(action, transcript) {
+    if (action && action.execution_mode === "mcp") {
+      return executeMcpAction(action, transcript);
+    }
     var calls = (action && action.calls) || [];
     if (!calls.length) {
       transcript.addError({
@@ -638,6 +650,57 @@
         transcript.addError({
           title: err instanceof PanelError ? err.message : "The change could not be applied.",
           detail: err instanceof PanelError ? err.detail : String(err),
+        });
+        return { ok: false };
+      });
+  }
+
+  /**
+   * Confirm an execution_mode="mcp" action. The server performs the actual
+   * Superset write (see views/execute_mcp_action.py) -- this just asks and
+   * shows the result. Only `action_id` is sent: every detail of the write
+   * already lives server-side in the ActionRecord WriteTool.run() created,
+   * so there's nothing here for a tampered request to change.
+   *
+   * @param {{action_id: string, summary: string}} action
+   * @param {any} transcript
+   * @returns {Promise<{ok: boolean}>}
+   */
+  function executeMcpAction(action, transcript) {
+    var line = transcript.addToolLine("applying: " + (action.summary || action.action_type));
+    return fetch(EXECUTE_MCP_ACTION_URL, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action_id: action.action_id }),
+    })
+      .then(function (response) {
+        return response.json().catch(function () {
+          return {};
+        });
+      })
+      .then(function (result) {
+        line.complete(!result.ok);
+        if (result.ok) {
+          transcript.addActionApplied(
+            action,
+            { id: result.superset_object_id, url: result.url },
+            result
+          );
+          refreshSupersetView();
+        } else {
+          transcript.addError({
+            title: "Superset refused this change.",
+            detail: result.error || result.message || "The MCP call failed.",
+          });
+        }
+        return { ok: !!result.ok };
+      })
+      .catch(function (err) {
+        line.complete(true);
+        transcript.addError({
+          title: "The change could not be applied.",
+          detail: String(err),
         });
         return { ok: false };
       });

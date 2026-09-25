@@ -33,7 +33,7 @@ from django.db import transaction
 from lifedata_ai.actions.envelopes import build_envelope, sign_envelope
 from lifedata_ai.models import ActionRecord, Snapshot
 from lifedata_ai.superset_client import SupersetError
-from lifedata_ai.tools import compile_check
+from lifedata_ai.tools import compile_check, mcp_write_dispatch
 from lifedata_ai.tools.base import Tool, ToolContext, ToolError, ToolMode
 from lifedata_ai.validation.layout import compile_operations
 from lifedata_ai.validation.validator import ValidationContext, validate_action
@@ -567,6 +567,21 @@ class WriteTool(Tool):
         note = approved.pop(self.VERIFICATION_KEY, None)
         summary = self.summarise(approved)
 
+        # Which path the panel takes on confirm: "mcp" means the server
+        # performs the write itself via superset_mcp_client.py (see
+        # views/execute_mcp_action.py); "browser" is the original path, where
+        # the panel replays `calls` against Superset with the user's own
+        # cookie. Decided per-action, not just per-flag: a create_chart whose
+        # config mcp_chart_config.py can't translate still falls back to
+        # "browser" even with the flag on, rather than failing at confirm
+        # time. See tools/mcp_write_dispatch.py.
+        execution_mode = (
+            "mcp"
+            if settings.LIFEDATA_AI_USE_MCP_WRITES
+            and mcp_write_dispatch.can_execute_via_mcp(self.action_type, approved)
+            else "browser"
+        )
+
         verdict = result.to_payload() if hasattr(result, "to_payload") else {}
         if note:
             verdict["verification"] = note
@@ -579,6 +594,7 @@ class WriteTool(Tool):
         # stay executable in a stale tab.
         verdict["calls"] = calls
         verdict["summary"] = summary
+        verdict["execution_mode"] = execution_mode
 
         with transaction.atomic():
             record = ActionRecord.objects.create(
@@ -603,6 +619,7 @@ class WriteTool(Tool):
             "action_type": self.action_type,
             "risk": record.risk,
             "summary": summary,
+            "execution_mode": execution_mode,
             # The signed token travels with the action and comes back on the
             # result report, where the server verifies the panel executed the
             # decision that was actually approved.
@@ -610,6 +627,8 @@ class WriteTool(Tool):
             # The calls the panel performs, against Superset, directly and in
             # order. It must send exactly these and nothing else — the
             # orchestrator never issues a Superset write itself (spec §1).
+            # Only meaningful when execution_mode is "browser"; ignored by the
+            # panel on the "mcp" path, which sends only the action_id.
             "calls": calls,
             # The compile-check note joins the warnings rather than getting its
             # own field: the model already knows to relay warnings, and one more

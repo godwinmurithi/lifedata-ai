@@ -216,6 +216,15 @@ MCP_JWT_AUDIENCE = "superset-mcp"
 #: original REST client (superset_client.py) when false. No redeploy needed
 #: to flip -- just restart the django container with the new env value.
 LIFEDATA_AI_USE_MCP_READS = _env_bool("LIFEDATA_AI_USE_MCP_READS", True)
+#: Same idea, for the write path (create_chart, create_dashboard,
+#: add_chart_to_dashboard only -- see tools/mcp_write_dispatch.py for why the
+#: others aren't covered yet). When true, WriteTool.run() marks a proposal
+#: execution_mode="mcp" and the panel confirms it through
+#: /api/execute-mcp-action/ (server executes via MCP) instead of the panel
+#: performing raw REST calls itself with the user's cookie. Full MCP
+#: authorization for staging, per explicit instruction (2026-09-25) -- see
+#: AI_NATIVE_STATUS.md.
+LIFEDATA_AI_USE_MCP_WRITES = _env_bool("LIFEDATA_AI_USE_MCP_WRITES", True)
 
 #: Secrets come from the environment only, never from code (spec §9).
 ANTHROPIC_API_KEY = _env("ANTHROPIC_API_KEY")

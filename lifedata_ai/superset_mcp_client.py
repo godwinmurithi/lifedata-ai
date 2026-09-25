@@ -149,6 +149,59 @@ class SupersetMCPClient:
             raise SupersetError(payload.get("message", "get_chart_data failed"))
         return payload
 
+    # -- writes ---------------------------------------------------------
+    #
+    # Covers create_chart, create_dashboard and add_chart_to_dashboard --
+    # the 2026-09-25 scoping decision (see AI_NATIVE_STATUS.md) left
+    # update_chart/rename_*/layout tools on the existing browser-executed
+    # REST path: MCP's chart `config` is a typed, chart-type-specific
+    # schema (tools/mcp_chart_config.py translates our params into it) that
+    # has no concept of a *partial* update, and update_chart's whole
+    # contract is "merge these keys over the existing chart" -- translating
+    # that correctly needs the full current config, which MCP has no way to
+    # hand back (get_chart_info returns form_data, not typed config).
+    # Wrong on this dimension is worse than not-yet-covered, so it's not
+    # attempted here.
+
+    def generate_chart(
+        self, dataset_id: int, config: dict[str, Any], chart_name: str
+    ) -> dict[str, Any]:
+        """Create and save a chart via MCP's generate_chart. Returns the raw
+        GenerateChartResponse dict -- callers pull out what they need (id, url)."""
+        payload = self._call(
+            "generate_chart",
+            {
+                "dataset_id": dataset_id,
+                "config": config,
+                "chart_name": chart_name,
+                "save_chart": True,
+                "generate_preview": False,
+            },
+        )
+        if payload.get("error") or not payload.get("success", True):
+            raise SupersetError(payload.get("error") or "generate_chart failed")
+        return payload
+
+    def generate_dashboard(self, chart_ids: list[int], dashboard_title: str) -> dict[str, Any]:
+        """Create a dashboard from existing chart ids via MCP's own layout logic
+        (not our layout compiler -- MCP has no equivalent entry point for that)."""
+        payload = self._call(
+            "generate_dashboard",
+            {"chart_ids": chart_ids, "dashboard_title": dashboard_title},
+        )
+        if payload.get("error"):
+            raise SupersetError(payload.get("error") or "generate_dashboard failed")
+        return payload
+
+    def add_chart_to_existing_dashboard(self, dashboard_id: int, chart_id: int) -> dict[str, Any]:
+        payload = self._call(
+            "add_chart_to_existing_dashboard",
+            {"dashboard_id": dashboard_id, "chart_id": chart_id},
+        )
+        if payload.get("error") or payload.get("permission_denied"):
+            raise SupersetError(payload.get("error") or "permission denied")
+        return payload
+
 
 def _search_request(q: str | None) -> dict[str, Any]:
     # page_size matches the REST client's _listing() (superset_client.py) --
