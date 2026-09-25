@@ -198,6 +198,25 @@ LIFEDATA_AI_SUPERSET_INTERNAL_URL = _env(
     "LIFEDATA_AI_SUPERSET_INTERNAL_URL", "http://localhost:8080"
 ).rstrip("/")
 
+#: Native Superset MCP service (superset/mcp_service/, Superset 6.1.0+),
+#: reached container-to-container -- never exposed on the host or publicly.
+#: Read tools call through here instead of raw REST when
+#: LIFEDATA_AI_USE_MCP_READS is on. See lifedata_ai/superset_mcp_client.py.
+LIFEDATA_AI_MCP_URL = _env(
+    "LIFEDATA_AI_MCP_URL", "http://superset-staging-mcp4cti:5008/mcp/"
+)
+#: Shared HS256 secret with Superset's MCP_JWT_SECRET (superset-staging/.env).
+#: Mints a short-lived per-user token per tool call -- see
+#: superset-staging/mcp_auth_bridge.py for how Superset resolves it back to
+#: a real Superset user (g.user), never a shared service account.
+MCP_JWT_SECRET = _env("MCP_JWT_SECRET")
+MCP_JWT_ISSUER = "lifedata-ai"
+MCP_JWT_AUDIENCE = "superset-mcp"
+#: Feature flag (hard rule 4): read tools use native MCP when true, the
+#: original REST client (superset_client.py) when false. No redeploy needed
+#: to flip -- just restart the django container with the new env value.
+LIFEDATA_AI_USE_MCP_READS = _env_bool("LIFEDATA_AI_USE_MCP_READS", True)
+
 #: Secrets come from the environment only, never from code (spec §9).
 ANTHROPIC_API_KEY = _env("ANTHROPIC_API_KEY")
 

@@ -157,7 +157,8 @@ class ListDatabasesTool(Tool):
     }
 
     def run(self, context: ToolContext) -> dict[str, Any]:
-        rows = context.superset_client().list_databases()
+        client = context.superset_mcp_client() if context.use_mcp_reads else context.superset_client()
+        rows = client.list_databases()
         items, truncated = _truncate_list(rows, MAX_LISTING_ITEMS)
         return {
             "databases": [
@@ -204,7 +205,8 @@ class ListDatasetsTool(Tool):
     }
 
     def run(self, context: ToolContext, q: str) -> dict[str, Any]:
-        rows = context.superset_client().list_datasets(q or None)
+        client = context.superset_mcp_client() if context.use_mcp_reads else context.superset_client()
+        rows = client.list_datasets(q or None)
         items, truncated = _truncate_list(rows, MAX_LISTING_ITEMS)
         registry = context.registry()
         datasets = []
@@ -256,7 +258,8 @@ class GetDatasetTool(Tool):
     }
 
     def run(self, context: ToolContext, dataset_id: int) -> dict[str, Any]:
-        payload = context.superset_client().get_dataset(dataset_id)
+        client = context.superset_mcp_client() if context.use_mcp_reads else context.superset_client()
+        payload = client.get_dataset(dataset_id)
         if not payload:
             raise ToolError(
                 f"No dataset with id {dataset_id} is visible to you.",
@@ -338,7 +341,8 @@ class ListChartsTool(Tool):
     }
 
     def run(self, context: ToolContext, q: str) -> dict[str, Any]:
-        rows = context.superset_client().list_charts(q or None)
+        client = context.superset_mcp_client() if context.use_mcp_reads else context.superset_client()
+        rows = client.list_charts(q or None)
         items, truncated = _truncate_list(rows, MAX_LISTING_ITEMS)
         return {
             "charts": [
@@ -380,7 +384,8 @@ class GetChartTool(Tool):
     }
 
     def run(self, context: ToolContext, chart_id: int) -> dict[str, Any]:
-        payload = context.superset_client().get_chart(chart_id)
+        client = context.superset_mcp_client() if context.use_mcp_reads else context.superset_client()
+        payload = client.get_chart(chart_id)
         if not payload:
             raise ToolError(
                 f"No chart with id {chart_id} is visible to you.", code="not_found"
@@ -516,7 +521,8 @@ class ListDashboardsTool(Tool):
     }
 
     def run(self, context: ToolContext, q: str) -> dict[str, Any]:
-        rows = context.superset_client().list_dashboards(q or None)
+        client = context.superset_mcp_client() if context.use_mcp_reads else context.superset_client()
+        rows = client.list_dashboards(q or None)
         items, truncated = _truncate_list(rows, MAX_LISTING_ITEMS)
         return {
             "dashboards": [
@@ -775,6 +781,34 @@ class GetChartDataTool(Tool):
     }
 
     def run(self, context: ToolContext, chart_id: int) -> dict[str, Any]:
+        if context.use_mcp_reads:
+            return self._run_mcp(context, chart_id)
+        return self._run_rest(context, chart_id)
+
+    def _run_mcp(self, context: ToolContext, chart_id: int) -> dict[str, Any]:
+        """Native-MCP path: calls Superset's own get_chart_data tool by chart id.
+
+        DELIBERATELY HAS NO REGISTRY GATE. The REST path below (`_run_rest`)
+        carries the one that closed the exact gap documented in
+        semantics/registry.sandbox.yaml -- a table chart built over a
+        row-level, PII-bearing dataset (farmers, sickle_cells_disease_
+        questionnaire, etc.) would otherwise hand real names and clinical
+        values straight to the model. That check is not reproduced here.
+        This is a deliberate, explicit product decision (2026-09-25), not an
+        oversight -- gating is deferred to a production pass. See
+        AI_NATIVE_STATUS.md and superset_mcp_client.py's module docstring
+        before pointing this at any dataset with real patient data.
+        """
+        mcp = context.superset_mcp_client()
+        try:
+            payload = mcp.get_chart_data_by_id(chart_id, row_limit=_cap_row_limit())
+        except SupersetError as exc:
+            raise ToolError(
+                f"Could not run chart {chart_id}: {exc}", code="query_failed"
+            ) from exc
+        return _summarise_mcp_chart_data(payload)
+
+    def _run_rest(self, context: ToolContext, chart_id: int) -> dict[str, Any]:
         client = context.superset_client()
         chart = client.get_chart(chart_id)
         if not chart:
@@ -798,6 +832,9 @@ class GetChartDataTool(Tool):
         # holding names, dates of birth and clinical results beside them.
         #
         # Same verdict as the write path, for the same reason.
+        #
+        # NOTE: this check is NOT reproduced in the MCP path (_run_mcp above)
+        # -- see that method's docstring.
         dataset_id = _chart_dataset_id(chart)
         if context.registry().dataset_by_superset_id(dataset_id) is None:
             raise ToolError(
@@ -998,6 +1035,59 @@ def _summarise_chart_data(
         )
     if len(results) > 1:
         result["additional_query_results_ignored"] = len(results) - 1
+    return result
+
+
+def _summarise_mcp_chart_data(payload: dict[str, Any]) -> dict[str, Any]:
+    """Truncate and describe native MCP's `get_chart_data` ChartData response.
+
+    Superset builds and runs the query server-side here (unlike the REST path,
+    which replays a stored query_context this process assembles) -- row_count/
+    total_rows/columns/data come back already shaped, so there is less to do
+    than `_summarise_chart_data`, not more.
+    """
+    colnames = [c.get("name") for c in payload.get("columns") or [] if isinstance(c, dict)]
+    rows = payload.get("data") or []
+
+    kept_columns, columns_truncated = _truncate_list(colnames, _cap_columns())
+    kept_rows, rows_truncated = _truncate_list(rows, _cap_rows())
+
+    column_set = set(kept_columns)
+    trimmed_rows = [
+        {key: value for key, value in row.items() if key in column_set}
+        if isinstance(row, dict)
+        else row
+        for row in kept_rows
+    ]
+
+    total_rows = payload.get("total_rows")
+    row_count = payload.get("row_count", len(rows))
+    complete_result = not (rows_truncated or columns_truncated) and (
+        total_rows is None or total_rows <= row_count
+    )
+
+    result: dict[str, Any] = {
+        "chart_id": payload.get("chart_id"),
+        "chart_name": payload.get("chart_name"),
+        "viz_type": payload.get("chart_type"),
+        "columns": kept_columns,
+        "rows": trimmed_rows,
+        "rows_returned": row_count,
+        "rows_shown": len(trimmed_rows),
+        "complete_result": complete_result,
+        "summary": payload.get("summary"),
+        "insights": payload.get("insights") or [],
+    }
+    if not complete_result:
+        total = total_rows if total_rows is not None else row_count
+        result["note"] = (
+            f"Showing {len(trimmed_rows)} of {total} rows"
+            f"{' and a subset of columns' if columns_truncated else ''}. "
+            "Say so if you quote these figures — this is not the complete result."
+        )
+    cache_status = payload.get("cache_status")
+    if cache_status:
+        result["from_cache"] = cache_status
     return result
 
 

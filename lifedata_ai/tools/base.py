@@ -278,10 +278,24 @@ class ToolContext:
     _client: SupersetClient | None = field(
         default=None, init=False, repr=False, compare=False
     )
+    _mcp_client: Any = field(default=None, init=False, repr=False, compare=False)
 
     @property
     def username(self) -> str:
         return self.identity.username
+
+    @property
+    def use_mcp_reads(self) -> bool:
+        """Feature flag (hard rule 4): native MCP vs. the original REST client.
+
+        Per-tool, not global -- a tool whose MCP equivalent can't yet produce
+        an equivalent result (get_dashboard's layout outline) checks this and
+        falls back to `superset_client()` regardless of the flag. See
+        superset_mcp_client.py's module docstring.
+        """
+        from django.conf import settings
+
+        return bool(settings.LIFEDATA_AI_USE_MCP_READS)
 
     def superset_client(self) -> SupersetClient:
         """A Superset client bound to this user's session, built once per turn.
@@ -293,6 +307,19 @@ class ToolContext:
         if self._client is None:
             self._client = SupersetClient(session_cookie=self.superset_session_cookie)
         return self._client
+
+    def superset_mcp_client(self):
+        """A Superset MCP client bound to this user's identity (never a service account).
+
+        See superset_mcp_client.py's module docstring for how identity is
+        carried (a minted JWT, not the session cookie) and for the one
+        deliberate gap (get_chart_data has no registry-allowlist gate here).
+        """
+        if self._mcp_client is None:
+            from lifedata_ai.superset_mcp_client import SupersetMCPClient
+
+            self._mcp_client = SupersetMCPClient(username=self.username)
+        return self._mcp_client
 
     def registry(self) -> Registry:
         """The semantics registry (spec §8).
