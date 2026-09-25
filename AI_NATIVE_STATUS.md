@@ -326,3 +326,123 @@ the abstract:
   attempted.
 - Trust & evals (Phase 6), thumbnails (Phase 5), client actions/canvas
   (Phase 7), and everything in Phases 10–12 — none started.
+
+---
+
+# Full write-path authorization (2026-09-25, same day, continued)
+
+**Instruction, verbatim, after the read-path work above:** *"why are you
+making decisions for us, give mcp full authorization, again this is staging
+and we are testing it out, we will decide which limitations to put
+ourselves. Please MCP needs to work fully with the chatbot"* — followed by
+confirmation to deprioritize RLS and the `superset-chat` question in favor of
+this. Proceeded without further gating questions on MCP scope/authorization
+decisions specifically, per that instruction.
+
+## What was actually missing
+
+The read-path swap (previous section) only covered background lookups
+(`list_datasets`, `get_chart`, etc.). The chatbot's actual core capability —
+building charts and dashboards — still ran entirely through the original
+browser-executed REST path, untouched. That gap, not anything MCP-specific,
+is what the user was seeing as "limitations."
+
+## What's now wired to MCP
+
+`create_chart`, `create_dashboard`, `add_chart_to_dashboard` — the three
+action types with both a real MCP tool to call and a payload shape this
+system can translate correctly:
+
+- **`tools/mcp_chart_config.py`** (new): translates our validated chart
+  params into MCP's own typed `config` schema (a *different* shape again —
+  MCP's `generate_chart`/`update_chart` take a discriminated union keyed on
+  `chart_type`: `xy`, `pie`, `table`, `big_number`, not Superset's raw
+  form_data and not our own `{metrics, groupby, adhoc_filters}` shape
+  either). Covers all 5 viz types `semantics/registry.yaml`'s
+  `viz_allowlist` permits — the entire set this system's validator lets the
+  model create in the first place, so this is complete coverage of the
+  reachable surface, not a partial slice. Returns `None` (→ fall back to the
+  REST path) when a specific payload can't be translated, rather than
+  guessing.
+- **`tools/mcp_write_dispatch.py`** (new): `action_type` → MCP tool call
+  (`generate_chart`, `generate_dashboard`, `add_chart_to_existing_dashboard`).
+- **`superset_mcp_client.py`**: write methods for the above.
+- **`tools/superset_write.py`**: `WriteTool.run()` now decides, per proposal,
+  `execution_mode = "mcp"` or `"browser"` — `LIFEDATA_AI_USE_MCP_WRITES`
+  (default on) **and** a per-payload translatability check. A chart the
+  translator can't handle still gets `"browser"` even with the flag on,
+  rather than failing at confirm time. Everything upstream of that decision
+  (schema validation, ownership check, ActionRecord/Snapshot creation for
+  undo) is **unchanged** — only what happens when the user clicks confirm
+  differs.
+- **`views/execute_mcp_action.py`** (new) + `urls.py`: the confirm endpoint
+  for `execution_mode="mcp"` actions. `action_result.py` only *records* what
+  the browser already did; this one *performs* the write, server-side, via
+  the caller's own minted MCP identity — same per-user invariant as the read
+  path, never a service account. The request carries nothing but
+  `action_id`: every detail of the write comes from the `ActionRecord` this
+  server already validated in `WriteTool.run()`, so there is nothing
+  user-supplied to tamper with.
+- **`panel.js`**: `executeAction` branches on `execution_mode`. The `"mcp"`
+  path (`executeMcpAction`) just POSTs `action_id` and shows the result,
+  skipping the raw-calls-against-Superset loop entirely for these three
+  action types.
+
+## Deliberately NOT wired to MCP, and why
+
+`update_chart`, `rename_chart`, `rename_dashboard`,
+`remove_chart_from_dashboard`, the layout tools (move/resize), and native
+filters — all still on the original REST/browser path, unconditionally,
+regardless of the flag. Not an oversight:
+
+- MCP's chart `config` has no concept of a *partial* update.
+  `update_chart`'s whole contract is "merge these keys over the chart's
+  existing configuration" (`tools/superset_write.py`'s own docstring on
+  `UpdateChartTool`) — translating that correctly needs the chart's full
+  current config, and MCP has no tool that hands back a chart in config
+  form (`get_chart_info` returns form_data-ish fields, not a typed config).
+  Getting a merge subtly wrong (silently dropping a filter, say) is a worse
+  outcome than leaving this on a path that is already known-correct.
+- MCP has no dashboard-layout-manipulation tools at all (move/resize/remove
+  a component, add a native filter) — nothing to wire to. Same finding as
+  `get_dashboard`'s `position_json` gap in the read-path section above.
+
+## Verified, end-to-end, against live staging data
+
+- `CreateChartTool` on dataset 18 (`buikwe_level1_facilities`, registered,
+  non-PII), pie chart grouped by `subcounty` → `execution_mode` came back
+  `"mcp"` → confirmed through the actual `execute_mcp_action` view function
+  → **chart 327** exists in Superset with correct data (11 subcounties,
+  correct counts) **and is correctly owned by the calling user** — MCP's
+  `generate_chart` assigns ownership by default, which is actually *better*
+  than the REST path (which needs `_owned_by_caller`, a manual workaround
+  for a real Superset API quirk: `POST /api/v1/chart/` leaves `owners` empty
+  unless told).
+- `CreateDashboardTool` with `chart_ids=[327]` → **dashboard 32** created,
+  chart correctly attached — verified against `superset.dashboard_slices`
+  directly in Postgres, not just trusting the API response.
+- Fallback logic verified separately and directly: a `big_number_total`
+  with two metrics, an `xy` chart with no derivable x-axis, and a `pie` with
+  no dimension all correctly return `None` from the translator (→
+  `execution_mode="browser"`), rather than crashing or half-translating.
+- `ruff check` clean on every touched Python file; `node --check` clean on
+  `panel.js`.
+- Test chart 327 and test dashboard 32 are left on staging, clearly
+  labeled (`"MCP Test..."`) — no delete tool exists on either the REST
+  client or MCP's tool set to clean them up programmatically. Harmless, but
+  worth knowing they're there.
+
+**Known gap, flagged not fixed:** an MCP-created chart's REST-shaped
+`get_chart()` reports `datasource_id: None` — MCP's chart doesn't populate
+`form_data.datasource` in the `"{id}__type"` form the REST-shape adapter
+parses. Doesn't affect `get_chart_data` or the write path itself, but means
+`GetChartTool`'s `semantics` (registry) annotation is silently empty for
+MCP-created charts specifically. Follow-up, not attempted here.
+
+## How to turn off
+
+`LIFEDATA_AI_USE_MCP_WRITES=false` in `deploy/sandbox/.env` +
+`docker compose up -d django` — every write action falls back to the
+original, unchanged browser-executed REST path. `update_chart` and the
+layout tools are unaffected either way; they never used the MCP path in the
+first place.
