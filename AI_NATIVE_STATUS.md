@@ -105,3 +105,224 @@ row-level-security as its privacy boundary. What's actually here:
 **No destructive, migration, or auth-changing commands have been run.** Only
 read-only discovery (`docker ps/inspect`, file reads, `git log`, `\dn`/`\dt`)
 has happened so far.
+
+---
+
+# Phase 0–2 implementation update (2026-09-25, same day)
+
+Decisions made with the user after the discovery above, before any of this
+was built:
+
+- **GeoNode OAuth (open question above): skipped.** Keep Superset's existing
+  self-registration + manual-approval auth (`custom_sm.py`) as-is. Not
+  revisited below.
+- **Native MCP: adopt it, not the custom tool loop.** Superset 6.1.0 ships a
+  real, extensive first-party MCP implementation (`superset/mcp_service/` —
+  `list_datasets`, `get_dataset_info`, `generate_chart`, `update_chart`,
+  `get_chart_data`, `list_dashboards`, `generate_dashboard`, `execute_sql`,
+  screenshots, OAuth2/JWT auth), gated only behind installing the `fastmcp`
+  PyPI extra. Turning it on is config + a dependency, not a Superset core
+  fork (satisfies the task's Hard Rule 6). Decided to switch to it rather
+  than keep extending the hand-built tool loop.
+- **The registry.yaml allowlist gate: explicitly NOT ported in front of MCP,
+  for now.** This was a direct instruction, given with the consequence
+  spelled out and confirmed twice: *"switch to native mcp, remove the gating
+  fix, we will gate later on in production."* Concretely, this means
+  `GetChartDataTool`'s MCP path (see below) can return row-level data from
+  any of the 5 PII-bearing datasets identified in the discovery section
+  above, to any user whose Superset role can already reach that chart/
+  dataset via ordinary Superset RBAC. See "What the no-gate decision
+  actually exposes today" below for what was verified, not assumed, about
+  the current blast radius.
+
+## Phase 0: native MCP enabled on staging Superset — DONE
+
+**Where:** `~/projects/superset-staging/` (own git repo now, see below).
+
+**What changed:**
+- `Dockerfile`: added `fastmcp>=3.1.0,<4.0`.
+- `docker-compose.yml`: new `superset-mcp` service, same image, running
+  `superset mcp run --host 0.0.0.0 --port 5008`. **No `ports:` — not on the
+  host, not public.** Reachable only by name (`superset-staging-mcp4cti:5008`)
+  from containers on `cti_geonode_default`/`db-staging_default`, i.e. by
+  `lifedata-ai4cti`.
+- `superset_config.py`: `MCP_AUTH_ENABLED = True`, HS256 JWT
+  (`MCP_JWT_SECRET`, shared with the orchestrator via `.env` on both sides —
+  generated with `openssl rand -base64 42`, never committed).
+- `mcp_auth_bridge.py` (new, mounted like `custom_sm.py`): **a real,
+  isolated patch**, not pure config — flagged per Hard Rule 6. Registered via
+  `MCP_AUTH_FACTORY`. Fixes two confirmed bugs/gaps in Superset 6.1.0's
+  shipped MCP+JWT integration (both reproduced directly against the running
+  service before writing the fix, not guessed):
+  1. `MCP_JWT_DEBUG_ERRORS = True` uses `DetailedJWTVerifier`, which calls
+     `self.jwt.decode(...)` — an attribute that doesn't exist on the class.
+     Every token fails validation with a generic "Token validation failed,"
+     valid or not. Avoided (left at default `False`); the plain `JWTVerifier`
+     validates correctly.
+  2. Even with a verifying token, the verified identity never reaches
+     `g.user` outside Preset's proprietary SaaS middleware —
+     `default_user_resolver()` in `mcp_config.py` is defined but never called
+     from anywhere in the auth path (traced every call site). Without a fix,
+     JWT auth only works as `MCP_DEV_USERNAME` — a single shared account,
+     which is exactly the "service account" pattern forbidden. Fixed with a
+     `contextvars.ContextVar` (not `g` — `mcp_auth_hook` deliberately pushes
+     a fresh Flask app context per tool call, which resets `g`) plus a
+     monkeypatch of `get_user_from_request`, the one function actually
+     consulted per call.
+
+**Tested:** minted a JWT for `sub=admin`, connected over `streamable-http`,
+called `list_datasets` through the `search_tools`/`call_tool` dispatcher —
+got real staging dataset metadata back, RBAC intact (Superset's own
+`security_manager.can_access`, per-user). Then did the same as `aremo`
+(non-admin, Alpha role) — succeeded independently, confirming per-user
+identity, not a shared token. Web Superset smoke-tested after the rebuild:
+login page 200, `/health` OK, unauthenticated `/api/v1/dashboard/` correctly
+401s, `/sqllab/` redirects — no regressions from adding the MCP service
+alongside it.
+
+**How to turn off:** `docker compose stop superset-mcp` (orchestrator falls
+back to the REST client automatically once `LIFEDATA_AI_USE_MCP_READS=false`
+is set — see below) or delete the `superset-mcp` service block from
+`docker-compose.yml` entirely; nothing else depends on it existing.
+
+**Git:** `~/projects/superset-staging` had no `.git` either (same gap noted
+in discovery for `lifedata-ai`) — initialized, committed baseline + this
+work, branch `feat/ai-native-staging`.
+
+## Phase 2 (partial): orchestrator read tools wired to MCP — DONE
+
+**Where:** `~/projects/lifedata-ai/`.
+
+`tools/base.py`'s own docstring anticipated exactly this swap: *"Spec §2
+requires that tools sit behind a thin interface so a Superset MCP backend
+can replace the direct REST calls later without the agent loop changing."*
+That held — `agent/loop.py` (1347 lines) was not touched at all.
+
+**What changed:**
+- `superset_mcp_client.py` (new): mirrors `superset_client.py`'s (REST)
+  method names, but mints a short-lived per-user JWT and calls Superset's
+  MCP tools instead of REST endpoints. Translates MCP's response shape back
+  into the same REST-shaped dicts `tools/superset_read.py` already parses,
+  so most tool bodies needed **zero changes**.
+- `tools/base.py`: `ToolContext.superset_mcp_client()` +
+  `ToolContext.use_mcp_reads` (reads `settings.LIFEDATA_AI_USE_MCP_READS`,
+  **feature flag, default on, per hard rule 4**).
+- `tools/superset_read.py`: 6 of 8 read tools (`list_databases`,
+  `list_datasets`, `get_dataset`, `list_charts`, `get_chart`,
+  `list_dashboards`) now pick MCP or REST per the flag, one line each,
+  output shape unchanged either way.
+- **`get_dashboard` stays REST-only, on purpose, regardless of the flag.**
+  Verified: MCP's `DashboardInfo` schema has no `position_json` field or
+  equivalent, so the layout-outline feature (rows/columns/tabs/widget
+  widths — `_summarise_position`) has no MCP source in this Superset
+  version. Said so rather than silently dropping it (Hard Rule 7).
+- **`get_chart_data` gets a real MCP path**, calling Superset's own
+  `get_chart_data` tool by chart id (it builds and runs the query
+  server-side — richer than the REST path's replay-a-stored-query-context
+  approach, and comes with a free `summary`/`insights` the REST path never
+  had). **This is the one tool where the registry gate mattered and was
+  removed** — see `GetChartDataTool._run_mcp`'s docstring in the code, which
+  says so explicitly, and the section below on what that exposes today.
+
+**Two real bugs found and fixed while testing against live data, before
+calling this done** (not caught by reading the code — only by running it):
+1. MCP's list tools default to `page_size=10`. Undetected, this would have
+   silently under-reported `list_datasets` (17+ datasets → 10) and
+   `list_charts` (50+ → 10) below the tools' own, intentional
+   `MAX_LISTING_ITEMS=50` cap — the wrong kind of truncation, silent instead
+   of flagged. Fixed by requesting `page_size=100` explicitly, matching what
+   the REST client always did.
+2. `has_stored_query_context` (surfaced by `get_chart` to tell the model
+   whether `get_chart_data` will work) was derived from a REST-only field
+   that's always empty under MCP, so it would have always reported `False`
+   — telling the model a chart's data can't be read when, via MCP, it
+   actually can. Fixed by deriving it from `form_data` presence instead
+   under the MCP path.
+
+**Tested (satisfies the task's Phase 2 acceptance test — "same question,
+two users, scope-correct answers"):** ran the actual `Tool` classes (not
+just the client) through the real Django app as two different real Superset
+users, `admin` and `aremo` (Alpha role, not Admin) — both got real,
+independent results (`list_datasets`, `list_charts`, `get_chart`,
+`get_chart_data`), each authenticated by their own minted JWT resolving to
+their own `g.user`, not a shared identity.
+
+**Full pytest suite: not run.** This sandbox deployment's Postgres user
+correctly lacks `CREATEDB` on the shared staging database (`db-staging4cti`
+also serves other live projects), so `pytest-django`'s test-DB bootstrap
+fails on `setup_databases()` regardless of anything in this change —
+confirmed this is pre-existing, not something broken here. `ruff check` is
+clean on every touched file. Live, end-to-end testing against the real
+running stack (above) is the actual verification for this phase.
+
+**How to turn off:** set `LIFEDATA_AI_USE_MCP_READS=false` in
+`deploy/sandbox/.env` and recreate the container (`docker compose up -d
+django` — a plain `restart` does **not** reload `.env`, confirmed the hard
+way mid-session). Every read tool falls back to the original REST client
+with zero code changes needed. `get_dashboard` is unaffected either way.
+
+**Git:** `~/projects/lifedata-ai` had no `.git` — initialized, committed
+baseline, branch `feat/ai-native-staging`, then this work as a second
+commit on that branch.
+
+## What the no-gate decision actually exposes today — verified, not assumed
+
+Checked directly against live staging data rather than reasoning about it in
+the abstract:
+
+- Of **50 registered charts**, **30 read one of the 5 datasets** the
+  registry deliberately excludes (mostly the `farmers` dataset, id 4, and
+  `farmers_crop_breakdown`, id 6).
+- Of those 30, **29 are aggregate charts** (pie/bar/big-number — grouped
+  counts, averages) — e.g. a "Gender" pie chart over `farmers` returns
+  `{Female: 507, Male: 848}`, not individual rows. Confirmed by running it.
+- **One, chart 65 ("Farmer Records"), is a raw-mode `table` chart** —
+  `query_mode: "raw"`, listing individual columns
+  (`agro_tracker_id, gender_norm, age_band_norm, other_crop,
+  scale_of_production, income_num, yield_num, employees_num, created_at`)
+  with no aggregation. This is the exact shape the registry.yaml gate was
+  built to stop. **Currently it fails via MCP** — Superset's own
+  `get_chart_data` tool looks for a `columns` key in `form_data` and this
+  chart's raw-mode field is named `all_columns`, so it errors
+  `MissingQueryContext` instead of returning rows. **This is an accidental
+  Superset-side parsing quirk, not a safety control** — it is not something
+  this project built or can rely on, and a different raw-mode chart, a
+  future Superset point release, or a different viz plugin's field-naming
+  convention could easily not hit it. Treat the exposure as real and only
+  incidentally not triggered by this one example.
+- `execute_sql` (raw SQL Lab) is registered as an MCP tool on the Superset
+  side but was **not** wired into any `Tool` the orchestrator's agent loop
+  can call — the model has no path to it today. If a future phase adds it,
+  it would bypass this entire discussion (any table the calling user's
+  Superset role can reach becomes queryable directly), and should not be
+  added without the gating conversation happening first.
+
+## Toggle summary
+
+| Component | Off switch |
+|---|---|
+| Native MCP service on Superset | `docker compose stop superset-mcp` (in `~/projects/superset-staging/`) |
+| MCP auth bridge patch | Remove `MCP_AUTH_FACTORY` line from `superset_config.py` — falls back to `MCP_DEV_USERNAME`/no-JWT-identity behavior, do not do this without also disabling the MCP service, since that reintroduces a shared-identity path |
+| Orchestrator using MCP for reads | `LIFEDATA_AI_USE_MCP_READS=false` in `deploy/sandbox/.env` + `docker compose up -d django` |
+| registry.yaml gate on get_chart_data | Not currently togglable — it simply isn't there on the MCP path. Re-adding it means porting the `dataset_by_superset_id` check from `GetChartDataTool._run_rest` into `_run_mcp` (or into `superset_mcp_client.py` itself, so it also covers any future MCP tool) |
+
+## Still open (not decided, not built)
+
+- Phases 8, 9, 13 (react-dnd→@dnd-kit migration, remaining chart-plugin
+  wrappers, dependency cleanup) require forking Superset's actual frontend/
+  dependency tree — a standing cost this project has otherwise avoided
+  entirely. Raised as a fork-in-the-road question; not yet answered.
+- RLS (Phase 1 minus GeoNode) — still nothing built. Could be done on
+  Superset's native roles now that MCP/RBAC is confirmed working per-user,
+  independent of the GeoNode question.
+- The older `superset-chat` stack (`superset-chat-web4cti`/
+  `superset-chat-api4cti`) — still running, still unreconciled with this
+  project.
+- No dbt project exists on this box — Phase 4's semantic-layer sync has
+  nothing to sync from; `registry.yaml` remains the closest thing to a
+  semantic layer.
+- Producing the actual registry-gate fix for `get_chart_data` under MCP
+  (see toggle table above) — deferred to "production," per instruction, not
+  attempted.
+- Trust & evals (Phase 6), thumbnails (Phase 5), client actions/canvas
+  (Phase 7), and everything in Phases 10–12 — none started.
