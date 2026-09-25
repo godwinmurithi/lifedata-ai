@@ -1,0 +1,1082 @@
+/*
+ * LifeData AI copilot panel — styles (spec §7).
+ *
+ * Loaded as a same-origin <link> injected by panel.js rather than as an inline
+ * <style>. Superset's Talisman config does allow 'unsafe-inline' for style-src
+ * today (deploy/superset/superset_config.py), but a linked stylesheet keeps
+ * working if that allowance is ever tightened, and it is cacheable.
+ *
+ * Everything is scoped under .ld-scope / .ld-panel / .ld-toggle. Superset ships
+ * broad global CSS (antd + emotion), so this file sets its own box-sizing,
+ * font and line-height instead of inheriting whatever the host page has.
+ */
+
+/* --- Design tokens ------------------------------------------------------ */
+/*
+ * Both root elements (toggle and panel) carry .ld-scope because they are
+ * siblings on <body>; there is no shared wrapper to hang variables off, and a
+ * wrapper spanning the viewport would swallow clicks meant for Superset.
+ */
+.ld-scope {
+  --ld-surface: #ffffff;
+  --ld-surface-raised: #f6f7f9;
+  --ld-surface-sunken: #eef1f4;
+  --ld-border: #e3e6eb;
+  --ld-border-strong: #ccd3db;
+  --ld-text: #1f2733;
+  --ld-text-muted: #5b6675;
+  --ld-accent: #0f7b8a;
+  --ld-accent-hover: #0c6673;
+  --ld-accent-contrast: #ffffff;
+  --ld-accent-soft: #e6f2f4;
+  --ld-danger: #a52216;
+  --ld-danger-soft: #fdeceb;
+  --ld-focus: #0f7b8a;
+  --ld-shadow: 0 6px 24px rgba(16, 24, 40, 0.12);
+  --ld-radius: 8px;
+
+  box-sizing: border-box;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ld-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.ld-scope *,
+.ld-scope *::before,
+.ld-scope *::after {
+  box-sizing: inherit;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ld-scope {
+    --ld-surface: #14181d;
+    --ld-surface-raised: #1b2027;
+    --ld-surface-sunken: #10141a;
+    --ld-border: #2a313a;
+    --ld-border-strong: #3a434e;
+    --ld-text: #e6eaef;
+    --ld-text-muted: #97a2b0;
+    --ld-accent: #3fb3c4;
+    --ld-accent-hover: #55c4d4;
+    --ld-accent-contrast: #0b1114;
+    --ld-accent-soft: #16333a;
+    --ld-danger: #ff9d94;
+    --ld-danger-soft: #3a1f1d;
+    --ld-focus: #6fd2e0;
+    --ld-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* --- Stacking ----------------------------------------------------------- */
+/*
+ * 980 is deliberate. antd (which Superset uses for modals, drawers and
+ * dropdowns) starts its overlays at z-index 1000, so anything Superset opens
+ * still lands ON TOP of the copilot rather than being obscured by it — the
+ * "do not obstruct Superset's own drawers" requirement. It is still well above
+ * Superset's own sticky dashboard chrome (~100).
+ */
+.ld-toggle,
+.ld-panel {
+  position: fixed;
+  z-index: 980;
+}
+
+/* --- Toggle ------------------------------------------------------------- */
+
+.ld-toggle {
+  right: 20px;
+  bottom: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px 9px 12px;
+  border: 1px solid var(--ld-border-strong);
+  border-radius: 999px;
+  background: var(--ld-surface);
+  color: var(--ld-text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--ld-shadow);
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.ld-toggle:hover {
+  background: var(--ld-surface-raised);
+  border-color: var(--ld-accent);
+}
+
+.ld-toggle__icon {
+  color: var(--ld-accent);
+  flex: none;
+}
+
+/* The panel occupies the bottom-right corner while open, so the launcher gets
+   out of the way; the panel header's close button takes over. */
+.ld-toggle[aria-expanded="true"] {
+  display: none;
+}
+
+/* --- Panel shell -------------------------------------------------------- */
+
+.ld-panel {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(380px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--ld-surface);
+  border-left: 1px solid var(--ld-border);
+  box-shadow: var(--ld-shadow);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform 160ms ease, visibility 0s linear 160ms;
+}
+
+.ld-panel.is-open {
+  transform: translateX(0);
+  visibility: visible;
+  transition: transform 160ms ease, visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ld-panel,
+  .ld-panel.is-open {
+    transition: none;
+  }
+}
+
+.ld-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 10px 14px;
+  border-bottom: 1px solid var(--ld-border);
+  background: var(--ld-surface-raised);
+}
+
+.ld-brand {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+.ld-badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--ld-border-strong);
+  border-radius: 4px;
+  background: var(--ld-surface);
+  color: var(--ld-text-muted);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+}
+
+.ld-context {
+  margin-left: auto;
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--ld-text-muted);
+  font-size: 11.5px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 26x26 is well under the 44x44 minimum tap target, and these sit in a header
+ * where a mis-tap closes the panel mid-sentence. The visible chip stays small —
+ * a 44px button in a 13px header would dominate it — and the hit area is grown
+ * with a transparent ::before, which costs nothing visually.
+ */
+.ld-iconbtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ld-text-muted);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ld-iconbtn::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+.ld-iconbtn:hover {
+  background: var(--ld-surface-sunken);
+  color: var(--ld-text);
+}
+
+/* --- Message list ------------------------------------------------------- */
+
+.ld-messages {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--ld-surface);
+}
+
+.ld-intro {
+  color: var(--ld-text-muted);
+  font-size: 12.5px;
+}
+
+.ld-intro p {
+  margin: 0 0 8px;
+}
+
+.ld-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ld-suggestion {
+  padding: 5px 10px;
+  border: 1px solid var(--ld-border-strong);
+  border-radius: 999px;
+  background: var(--ld-surface);
+  color: var(--ld-text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ld-suggestion:hover {
+  border-color: var(--ld-accent);
+  background: var(--ld-accent-soft);
+}
+
+.ld-msg {
+  position: relative;
+  max-width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius);
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+
+.ld-msg--user {
+  align-self: flex-end;
+  max-width: 90%;
+  border-color: transparent;
+  background: var(--ld-accent-soft);
+  /* The user's own words are inserted with textContent and never parsed as
+     markdown, so their newlines have to survive as whitespace. Assistant text
+     goes through markdown.js, which builds real block elements — `pre-wrap`
+     there would double every paragraph break. */
+  white-space: pre-wrap;
+}
+
+.ld-msg--assistant {
+  background: var(--ld-surface);
+}
+
+/* --- Rendered markdown -------------------------------------------------- */
+/*
+ * A deliberately small subset (see markdown.js): paragraphs, three heading
+ * levels, one list level, bold, italic, code, blockquote and tables. No links,
+ * no images, no HTML passthrough — model output is untrusted input, and each of
+ * those is an injection surface not worth having in a 380px panel.
+ *
+ * Tables are the exception that was wrongly grouped with them. A <table> built
+ * from createElement is no more dangerous than a <p>; what made it awkward was
+ * width, which is a layout problem and is solved below by letting it scroll.
+ */
+
+.ld-msg__body > *:first-child {
+  margin-top: 0;
+}
+
+.ld-msg__body > *:last-child {
+  margin-bottom: 0;
+}
+
+.ld-msg__body p {
+  margin: 0 0 8px;
+}
+
+/*
+ * Tables.
+ *
+ * `display: block` on the table itself is what makes it scrollable without a
+ * wrapper element — and there is no wrapper deliberately, because styling one
+ * would need a class, and markdown.js renders NO attributes at all (see the
+ * note in that file, and the DOM-walking test that enforces it).
+ *
+ * The trade is that `display: block` drops the automatic equal-width column
+ * algorithm, so columns size to their content. In a 380px panel that is the
+ * better behaviour anyway: numbers are the point of these tables, and cells
+ * kept on one line with the table moving sideways beats every column squeezed
+ * to two characters.
+ */
+.ld-msg__body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0 0 8px;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ld-msg__body th,
+.ld-msg__body td {
+  padding: 5px 9px;
+  text-align: left;
+  white-space: nowrap;
+  border: 1px solid var(--ld-border);
+}
+
+.ld-msg__body thead th {
+  background: var(--ld-surface-raised);
+  color: var(--ld-text-muted);
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.ld-msg__body tbody tr:nth-child(even) {
+  /* Zebra striping earns its keep here: the eye loses the row when scrolled
+     sideways away from the label column. */
+  background: var(--ld-surface-raised);
+}
+
+.ld-msg__body h3,
+.ld-msg__body h4,
+.ld-msg__body h5 {
+  margin: 12px 0 5px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.ld-msg__body ul,
+.ld-msg__body ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.ld-msg__body li {
+  margin-bottom: 3px;
+}
+
+.ld-msg__body code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--ld-surface-sunken);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.ld-msg__body pre {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--ld-border);
+  border-radius: 6px;
+  background: var(--ld-surface-sunken);
+  overflow-x: auto;
+}
+
+.ld-msg__body pre code {
+  padding: 0;
+  background: none;
+  white-space: pre;
+}
+
+.ld-msg__body blockquote {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--ld-border-strong);
+  color: var(--ld-text-muted);
+}
+
+.ld-msg__copy {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ld-text-muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.ld-msg:hover .ld-msg__copy,
+.ld-msg__copy:focus-visible {
+  opacity: 1;
+}
+
+.ld-msg__copy:hover {
+  background: var(--ld-surface-sunken);
+  color: var(--ld-text);
+}
+
+.ld-msg__role {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ld-text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* --- Tool activity ------------------------------------------------------ */
+
+.ld-tool {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding-left: 2px;
+  color: var(--ld-text-muted);
+  font-size: 12px;
+}
+
+.ld-tool__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--ld-accent);
+  animation: ld-pulse 1.1s ease-in-out infinite;
+}
+
+.ld-tool.is-done .ld-tool__dot {
+  background: var(--ld-border-strong);
+  animation: none;
+}
+
+.ld-tool.is-error {
+  color: var(--ld-danger);
+}
+
+.ld-tool.is-error .ld-tool__dot {
+  background: var(--ld-danger);
+  animation: none;
+}
+
+/* The `.ld-thinking` row and its `.ld-stop` button are gone. The row was
+   destroyed on the first text delta, taking Stop with it — so once the model
+   spoke there was no way to cancel a turn that then worked for another minute.
+   Stop now lives in the composer, where it cannot be destroyed, and the status
+   strip carries progress. */
+
+@keyframes ld-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ld-tool__dot {
+    animation: none;
+    opacity: 0.75;
+  }
+}
+
+/* --- Write actions ------------------------------------------------------ */
+
+/* A change the copilot proposes but will not make until the user says so.
+   Deliberately visually distinct from an assistant message: this is the moment
+   the user is being asked to authorise something, not read prose. */
+.ld-action {
+  padding: 10px 12px;
+  border: 1px solid var(--ld-accent);
+  border-left-width: 3px;
+  border-radius: var(--ld-radius);
+  background: var(--ld-accent-soft);
+  font-size: 12.5px;
+}
+
+.ld-action__title {
+  font-weight: 600;
+  color: var(--ld-accent);
+  margin-bottom: 3px;
+}
+
+.ld-action__summary {
+  color: var(--ld-text);
+  margin-bottom: 4px;
+}
+
+/* `--ld-muted` was never declared — the token is `--ld-text-muted` — so this
+   declaration and the one on `.ld-applied` were both invalid and silently
+   dropped, leaving both elements at the inherited body colour. */
+.ld-action__detail {
+  font-size: 11px;
+  color: var(--ld-text-muted);
+  margin-bottom: 8px;
+}
+
+.ld-action__warning {
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  color: var(--ld-text-muted);
+}
+
+.ld-action__buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.ld-action__apply,
+.ld-action__cancel,
+.ld-applied__undo {
+  font: inherit;
+  padding: 5px 12px;
+  border-radius: var(--ld-radius);
+  cursor: pointer;
+  border: 1px solid var(--ld-border);
+  background: var(--ld-surface);
+  color: var(--ld-text);
+}
+
+.ld-action__apply {
+  background: var(--ld-accent);
+  border-color: var(--ld-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.ld-action__apply:disabled,
+.ld-action__cancel:disabled,
+.ld-applied__undo:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ld-action.is-cancelled {
+  opacity: 0.6;
+  border-color: var(--ld-border);
+  background: transparent;
+}
+
+/* The panel has set `is-applied` since the write pipeline landed and nothing
+   ever styled it, so pressing Apply looked identical to not pressing it until
+   the outcome row arrived seconds later. */
+.ld-action.is-applied {
+  border-color: var(--ld-border-strong);
+  background: var(--ld-surface-raised);
+}
+
+.ld-action.is-applied .ld-action__title::after {
+  content: " — applying";
+  font-weight: 400;
+  color: var(--ld-text-muted);
+}
+
+.ld-applied {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 7px 11px;
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius);
+  font-size: 12.5px;
+  color: var(--ld-text-muted);
+}
+
+.ld-applied__text {
+  flex: 1 1 100%;
+}
+
+/* "The thing exists, here it is" is where the product earns its keep. */
+.ld-applied__open {
+  padding: 4px 10px;
+  border: 1px solid var(--ld-accent);
+  border-radius: var(--ld-radius);
+  background: var(--ld-accent);
+  color: var(--ld-accent-contrast);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.ld-applied__open:hover {
+  background: var(--ld-accent-hover);
+  border-color: var(--ld-accent-hover);
+}
+
+/* The inverse of a creation. Styled as a quiet outline until armed, then as the
+   destructive action it is — deletion is unundoable, so it must not look like
+   Undo, which restores. */
+.ld-applied__delete {
+  padding: 4px 10px;
+  border: 1px solid var(--ld-border-strong);
+  border-radius: var(--ld-radius);
+  background: var(--ld-surface);
+  color: var(--ld-text-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ld-applied__delete:hover {
+  border-color: var(--ld-danger);
+  color: var(--ld-danger);
+}
+
+.ld-applied__delete.is-armed {
+  border-color: var(--ld-danger);
+  background: var(--ld-danger-soft);
+  color: var(--ld-danger);
+  font-weight: 600;
+}
+
+.ld-applied__delete:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* --- Clarification card ------------------------------------------------- */
+/*
+ * Mounted in the transcript rather than the actions rail: this belongs in
+ * reading order beside the question it answers, unlike an Apply card, which
+ * must stay reachable above the composer.
+ */
+
+.ld-ask {
+  padding: 10px 12px;
+  border: 1px solid var(--ld-border);
+  border-left: 3px solid var(--ld-accent);
+  border-radius: var(--ld-radius);
+  background: var(--ld-surface-raised);
+  font-size: 12.5px;
+}
+
+.ld-ask__group + .ld-ask__group {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ld-border);
+}
+
+.ld-ask__question {
+  margin-bottom: 7px;
+  font-weight: 600;
+  color: var(--ld-text);
+}
+
+.ld-ask__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Reuses .ld-suggestion, which already has hover and inherits the focus ring. */
+.ld-ask__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  border-radius: var(--ld-radius);
+}
+
+.ld-ask__option[aria-pressed="true"] {
+  border-color: var(--ld-accent);
+  background: var(--ld-accent-soft);
+}
+
+.ld-ask__label {
+  font-weight: 500;
+}
+
+.ld-ask__hint {
+  color: var(--ld-text-muted);
+  font-size: 11px;
+}
+
+.ld-ask__continue {
+  margin-top: 10px;
+  padding: 5px 14px;
+  border: 1px solid var(--ld-accent);
+  border-radius: var(--ld-radius);
+  background: var(--ld-accent);
+  color: var(--ld-accent-contrast);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ld-ask__continue:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Answering does not remove the card: someone scrolling back should be able to
+   see what they chose. */
+.ld-ask.is-answered {
+  opacity: 0.75;
+}
+
+.ld-ask.is-answered .ld-ask__option:disabled {
+  cursor: default;
+}
+
+/* --- Status strip ------------------------------------------------------- */
+/*
+ * Two-minute turns are normal and silence is not an option. This is also the
+ * one region that announces activity, which is what lets the transcript drop
+ * `aria-relevant: text` and stop re-announcing every completed tool line.
+ */
+
+.ld-status {
+  display: none;
+  padding: 6px 14px;
+  border-top: 1px solid var(--ld-border);
+  background: var(--ld-surface-raised);
+  color: var(--ld-text-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ld-status.is-visible {
+  display: block;
+}
+
+/* --- History ------------------------------------------------------------ */
+
+.ld-history {
+  max-height: 40%;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--ld-border);
+  background: var(--ld-surface-raised);
+}
+
+.ld-history__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 14px;
+}
+
+.ld-history__row + .ld-history__row {
+  border-top: 1px solid var(--ld-border);
+}
+
+.ld-history__open {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 0;
+  border: 0;
+  background: none;
+  color: var(--ld-text);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ld-history__open:hover {
+  color: var(--ld-accent);
+}
+
+.ld-history__delete {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--ld-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ld-history__delete:hover {
+  background: var(--ld-danger-soft);
+  color: var(--ld-danger);
+}
+
+.ld-history__empty {
+  margin: 0;
+  padding: 10px 14px;
+  color: var(--ld-text-muted);
+  font-size: 12px;
+}
+
+/* --- Errors ------------------------------------------------------------- */
+
+.ld-error {
+  padding: 9px 11px;
+  border: 1px solid var(--ld-danger);
+  border-radius: var(--ld-radius);
+  background: var(--ld-danger-soft);
+  color: var(--ld-danger);
+  font-size: 12.5px;
+}
+
+.ld-error__title {
+  display: block;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+
+.ld-error__detail {
+  display: block;
+  margin-top: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  opacity: 0.85;
+  overflow-wrap: anywhere;
+}
+
+.ld-error__action {
+  margin-top: 7px;
+  padding: 4px 10px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* --- The actions rail --------------------------------------------------- */
+/*
+ * Pending proposals mount here, above the composer and below the transcript, so
+ * Apply is always reachable without scrolling. This was styled and completely
+ * dead: preview cards appended into the message list and scrolled away, so on a
+ * build that kept talking the approve button ended up above the fold.
+ *
+ * Only PENDING cards live here. Outcomes move into the transcript on
+ * resolution, where they belong in reading order.
+ */
+.ld-actions:empty {
+  display: none;
+}
+
+.ld-actions {
+  padding: 10px 14px;
+  border-top: 1px solid var(--ld-border);
+  background: var(--ld-surface-raised);
+}
+
+/* --- Composer ----------------------------------------------------------- */
+
+.ld-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ld-border);
+  background: var(--ld-surface-raised);
+}
+
+.ld-input {
+  flex: 1 1 auto;
+  min-height: 34px;
+  max-height: 140px;
+  padding: 7px 9px;
+  border: 1px solid var(--ld-border-strong);
+  border-radius: 6px;
+  background: var(--ld-surface);
+  color: var(--ld-text);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.4;
+  resize: none;
+  overflow-y: auto;
+}
+
+.ld-input::placeholder {
+  color: var(--ld-text-muted);
+}
+
+.ld-input:disabled {
+  opacity: 0.6;
+}
+
+.ld-send {
+  flex: none;
+  padding: 8px 14px;
+  border: 1px solid var(--ld-accent);
+  border-radius: 6px;
+  background: var(--ld-accent);
+  color: var(--ld-accent-contrast);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ld-send:hover:not(:disabled) {
+  background: var(--ld-accent-hover);
+  border-color: var(--ld-accent-hover);
+}
+
+.ld-send:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Send becomes Stop in the same slot while a turn runs. Stop used to live in
+   the thinking row, which is destroyed on the first text delta — so once the
+   model started talking there was no way to cancel, even though a build
+   commonly speaks and then works for another minute. */
+.ld-send.is-stop {
+  background: var(--ld-surface);
+  border-color: var(--ld-border-strong);
+  color: var(--ld-text-muted);
+}
+
+.ld-send.is-stop:hover {
+  border-color: var(--ld-danger);
+  color: var(--ld-danger);
+  background: var(--ld-surface);
+}
+
+.ld-footnote {
+  margin: 0;
+  padding: 0 14px 10px;
+  background: var(--ld-surface-raised);
+  color: var(--ld-text-muted);
+  font-size: 11px;
+}
+
+/* --- Focus and screen-reader helpers ------------------------------------ */
+
+.ld-scope :focus-visible,
+.ld-scope:focus-visible {
+  outline: 2px solid var(--ld-focus);
+  outline-offset: 2px;
+}
+
+.ld-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* --- Narrow viewports --------------------------------------------------- */
+/*
+ * There was not one `@media (max-width)` query in this file. A fixed 380px
+ * right-hand drawer on a 360px phone covers the whole application, and the
+ * toggle it replaces sits under the panel it opened.
+ *
+ * Under 640px the panel becomes a bottom sheet: it keeps the transcript,
+ * composer and action rail, gives back the top third of the screen so the user
+ * can still see the dashboard being built, and drops the header chips that have
+ * nowhere to go.
+ */
+@media (max-width: 640px) {
+  .ld-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 72vh;
+    border-left: 0;
+    border-top: 1px solid var(--ld-border);
+    border-radius: var(--ld-radius) var(--ld-radius) 0 0;
+    transform: translateY(100%);
+  }
+
+  .ld-panel.is-open {
+    transform: translateY(0);
+  }
+
+  /* The trust badge and the page label both lose to the buttons for space, and
+     the context is visible in the page behind the sheet anyway. */
+  .ld-badge,
+  .ld-context {
+    display: none;
+  }
+
+  .ld-toggle {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .ld-msg--user {
+    max-width: 100%;
+  }
+
+  /* Thumb-sized on a touch screen, where these are the two things a user
+     actually presses. */
+  .ld-input,
+  .ld-send {
+    min-height: 44px;
+  }
+
+  .ld-suggestion {
+    padding: 9px 12px;
+  }
+}
+
+/* Superset content changed underneath the page; offer the reload rather than
+   taking it, so nobody loses what they were reading or typing. */
+.ld-stale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 11px;
+  border: 1px dashed var(--ld-accent);
+  border-radius: var(--ld-radius);
+  font-size: 12.5px;
+  color: var(--ld-accent);
+}
+
+.ld-stale__reload {
+  font: inherit;
+  padding: 4px 10px;
+  border-radius: var(--ld-radius);
+  border: 1px solid var(--ld-accent);
+  background: var(--ld-accent);
+  color: #fff;
+  cursor: pointer;
+}

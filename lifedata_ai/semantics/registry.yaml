@@ -1,0 +1,405 @@
+# LifeData semantics registry — sandbox.lifehealth.app.
+#
+# This file replaces the synthetic `rpt_*` registry for the CTI deployment. The
+# dataset ids are the LIVE ids in the staging Superset (db-staging4cti); check
+# them after any metadata restore.
+#
+# ---------------------------------------------------------------------------
+# WHAT IS DELIBERATELY ABSENT, AND WHY IT MATTERS MORE THAN WHAT IS HERE
+#
+# The validator refuses any dataset this file does not declare. That makes
+# omission the strongest control in the system, and it is used here as one.
+#
+# Five of the seventeen datasets registered in this Superset hold ROW-LEVEL
+# records about identifiable people:
+#
+#   farmers (4)                            first_name, last_name, date_of_birth,
+#                                          gender, disability, income
+#   farmers_crop_breakdown (6)             farmer_id-linked income and yield
+#   sickle_cells_disease_questionnaire (3) individual health responses, consent
+#   arise_hcp (7)                          individual provider responses
+#   sandbox_join_2 (11)                    individual clinical results — hba1c,
+#                                          fasting_glucose, blood_group, bmi,
+#                                          diag_symptoms — beside an email column
+#   latest_data_join (10)                  staff emails plus sex/age-band counts
+#
+# Spec §1 draws this system's privacy boundary at "no tool may return row-level
+# records", and the synthetic deployment held that line in the DATABASE: the
+# reporting views aggregated, suppressed small cells, and exposed no identifier
+# for a query to reach. None of that is true here. These are raw tables, and the
+# copilot is bounded only by what the validator refuses.
+#
+# So they are not declared, and until a data owner decides otherwise they are
+# uncharterable by the copilot. That is a decision recorded, not a gap.
+#
+# It is NOT sufficient on its own. `get_chart_data` replays an EXISTING chart's
+# stored query context and is not gated by this file — a table chart a person
+# already built over `farmers` would return names to the model. Closing that is
+# a code change, not a registry change. See the deployment notes.
+# ---------------------------------------------------------------------------
+#
+# Column `role` values, enforced as an ALLOWLIST (only `dimension` and
+# `temporal` may be grouped by; an undeclared column is refused outright):
+#   dimension      — may be a groupby or an x_axis. Shown in the catalogue.
+#   temporal       — a date/period column.
+#   measure_source — numeric, aggregated over; never a grouping.
+#   key            — an identifier. NEVER groupable, never shown.
+#   internal       — a derived helper users should not see or chart.
+#
+# Personal contact columns on the facility datasets below — the in-charge's
+# name, phone and email — are marked `key` for exactly that reason. They
+# describe a named member of staff, not the institution, and no executive
+# question needs them. Marked rather than omitted so the next person to read
+# this file sees that the choice was made.
+
+datasets:
+  - name: buikwe_level1_facilities
+    label: "Buikwe level 1 health facilities"
+    superset_dataset_id: 18
+    grain: facility
+    one_row_is: "one health facility in Buikwe district"
+    subject_areas: [facilities, infrastructure, services, coverage]
+    synonyms: [facility, facilities, health facility, health facilities, clinic,
+               clinics, buikwe, level 1, services, beds, infrastructure,
+               equipment, staffing, coverage, where are]
+    sensitivity: aggregate_ok
+    geography: facility
+    default_dimension: subcounty
+    notes: >-
+      One row per health facility surveyed in Buikwe district. Facilities are
+      institutions, not people, so counting rows counts facilities. Service
+      columns record what the facility reported offering at survey time, which
+      is a statement about availability, not about volume or quality of care.
+    traps: >-
+      A service recorded as absent means the facility did not report it at
+      survey time. It does not establish that patients cannot obtain that
+      service, nor that the facility never provides it.
+    columns:
+      - {name: id, role: key}
+      - {name: facility_name, label: "Facility", role: dimension}
+      - {name: facility_level, label: "Facility level", role: dimension,
+         note: "The tier of the facility, e.g. HC II / HC III / HC IV"}
+      - {name: facility_type, label: "Facility type", role: dimension}
+      - {name: ownership, label: "Ownership", role: dimension,
+         note: "Government, private, PNFP and so on"}
+      - {name: district, label: "District", role: dimension}
+      - {name: county, label: "County", role: dimension}
+      - {name: subcounty, label: "Subcounty", role: dimension}
+      - {name: parish, label: "Parish", role: dimension}
+      - {name: village, label: "Village", role: dimension}
+      - {name: hours_of_operation, label: "Hours of operation", role: dimension}
+      - {name: electricity_access, label: "Electricity access", role: dimension}
+      - {name: internet_access, label: "Internet access", role: dimension}
+      - {name: ambulance, label: "Ambulance", role: dimension}
+      - {name: laboratory_services, label: "Laboratory services", role: dimension}
+      - {name: dental_services, label: "Dental services", role: dimension}
+      - {name: radiology_services, label: "Radiology services", role: dimension}
+      - {name: maternal_child_health, label: "Maternal and child health", role: dimension}
+      - {name: hiv_tb_services, label: "HIV and TB services", role: dimension}
+      - {name: surgery, label: "Surgery", role: dimension}
+      - {name: beds, label: "Beds", role: measure_source}
+      - {name: submitted_at, label: "Surveyed on", role: temporal}
+      - {name: lat, role: measure_source}
+      - {name: lng, role: measure_source}
+      # Personal contact details of a named member of staff. Never groupable,
+      # never rendered. See the header.
+      - {name: incharge_name, role: key, note: "Personal data. Not for charting."}
+      - {name: incharge_phone, role: key, note: "Personal data. Not for charting."}
+      - {name: incharge_email, role: key, note: "Personal data. Not for charting."}
+    metrics:
+      - {name: buikwe_facilities, label: "Facilities", expression: "COUNT(*)", d3format: ",d",
+         indicator: facility_count_buikwe}
+      - {name: buikwe_total_beds, label: "Total beds", expression: "SUM(beds)", d3format: ",d"}
+      - {name: buikwe_mean_beds, label: "Average beds per facility", expression: "AVG(beds)",
+         d3format: ".1f"}
+
+  - name: trans_nzoia_level_one_facilities
+    label: "Trans Nzoia level 1 facilities"
+    superset_dataset_id: 9
+    grain: facility
+    one_row_is: "one health facility in Trans Nzoia county"
+    subject_areas: [facilities, infrastructure, services, coverage, staffing]
+    synonyms: [trans nzoia, transnzoia, kenya, facility, facilities, clinic,
+               clinics, staffing, staff, services, coverage]
+    sensitivity: aggregate_ok
+    geography: facility
+    default_dimension: hub
+    notes: >-
+      One row per health facility in Trans Nzoia. Staff-count columns are the
+      numbers reported at survey time; a facility reporting zero clinicians may
+      not have reported staffing at all.
+    traps: >-
+      Missing staffing is not the same as absent staffing. Treat a zero as
+      unreported unless the survey is known to be complete.
+    columns:
+      - {name: ogc_fid, role: key}
+      - {name: name_facility, label: "Facility", role: dimension}
+      - {name: facility_type, label: "Facility type", role: dimension}
+      - {name: hf_level, label: "Facility level", role: dimension}
+      - {name: ownership, label: "Ownership", role: dimension}
+      - {name: hub, label: "Hub", role: dimension}
+      - {name: community_health_units, label: "Community health units", role: dimension}
+      - {name: electricity, label: "Electricity", role: dimension}
+      - {name: internet, label: "Internet", role: dimension}
+      - {name: dental, label: "Dental services", role: dimension}
+      - {name: surgery, label: "Surgery", role: dimension}
+      - {name: maternal_childhealth, label: "Maternal and child health", role: dimension}
+      - {name: phc, label: "Primary health care", role: dimension}
+      - {name: pcn, label: "Primary care network", role: dimension}
+      - {name: admin_staff, label: "Administrative staff", role: measure_source}
+      - {name: clinicians, label: "Clinicians", role: measure_source}
+      - {name: labstaff, label: "Laboratory staff", role: measure_source}
+      - {name: created_at, label: "Created", role: temporal}
+      - {name: updated_at, label: "Updated", role: temporal}
+      - {name: lat, role: measure_source}
+      - {name: lon, role: measure_source}
+      - {name: geometry, role: internal}
+      - {name: name_incharge, role: key, note: "Personal data. Not for charting."}
+      - {name: telephone, role: key, note: "Personal data. Not for charting."}
+    metrics:
+      - {name: trans_nzoia_facilities, label: "Facilities", expression: "COUNT(*)", d3format: ",d",
+         indicator: facility_count_trans_nzoia}
+      - {name: trans_nzoia_clinicians, label: "Total clinicians", expression: "SUM(clinicians)",
+         d3format: ",d"}
+      - {name: trans_nzoia_lab_staff, label: "Total laboratory staff", expression: "SUM(labstaff)",
+         d3format: ",d"}
+
+  - name: hf_census_layer_hf_census
+    label: "Health facility census"
+    superset_dataset_id: 8
+    grain: facility
+    one_row_is: "one health facility recorded in the census"
+    subject_areas: [facilities, census, infrastructure, services, beds]
+    synonyms: [census, health facility census, facility census, facilities,
+               beds, wards, theatre, mortuary, services, infrastructure]
+    sensitivity: aggregate_ok
+    geography: facility
+    default_dimension: district
+    notes: >-
+      One row per facility in the health facility census. The `number_*` columns
+      count service points or staff of that kind at the facility; the matching
+      text column records whether the service was reported at all.
+    traps: >-
+      A `number_*` column of zero and a missing service are recorded
+      differently and mean different things. Say which one a figure is built
+      from.
+    columns:
+      - {name: ogc_fid, role: key}
+      - {name: objectid, role: key}
+      - {name: globalid, role: key}
+      - {name: name_facility, label: "Facility", role: dimension}
+      - {name: facility_type, label: "Facility type", role: dimension}
+      - {name: hf_level, label: "Facility level", role: dimension}
+      - {name: ownership_facility, label: "Ownership", role: dimension}
+      - {name: district, label: "District", role: dimension}
+      - {name: county, label: "County", role: dimension}
+      - {name: subcounty, label: "Subcounty", role: dimension}
+      - {name: parish, label: "Parish", role: dimension}
+      - {name: village, label: "Village", role: dimension}
+      - {name: hours_operation, label: "Hours of operation", role: dimension}
+      - {name: electricity, label: "Electricity", role: dimension}
+      - {name: internet, label: "Internet", role: dimension}
+      - {name: waste_management, label: "Waste management", role: dimension}
+      - {name: ambulance, label: "Ambulance", role: dimension}
+      - {name: labaratory, label: "Laboratory", role: dimension}
+      - {name: dental, label: "Dental", role: dimension}
+      - {name: radiology, label: "Radiology", role: dimension}
+      - {name: theatre, label: "Theatre", role: dimension}
+      - {name: mortuary, label: "Mortuary", role: dimension}
+      - {name: optical, label: "Optical", role: dimension}
+      - {name: surgery, label: "Surgery", role: dimension}
+      - {name: hiv_tb, label: "HIV and TB", role: dimension}
+      - {name: maternal_childhealth, label: "Maternal and child health", role: dimension}
+      - {name: specialised, label: "Specialised services", role: dimension}
+      - {name: no_beds, label: "Beds", role: measure_source}
+      - {name: number_lab, label: "Laboratory points", role: measure_source}
+      - {name: number_theatre, label: "Theatres", role: measure_source}
+      - {name: number_mch, label: "Maternal and child health points", role: measure_source}
+      - {name: number_ambulance, label: "Ambulances", role: measure_source}
+      - {name: number_dental, label: "Dental points", role: measure_source}
+      - {name: number_rad, label: "Radiology points", role: measure_source}
+      - {name: number_surgery, label: "Surgery points", role: measure_source}
+      - {name: number_tb, label: "TB points", role: measure_source}
+      - {name: number_mortuary, label: "Mortuary points", role: measure_source}
+      - {name: number_optical, label: "Optical points", role: measure_source}
+      - {name: number_sps, label: "Specialised points", role: measure_source}
+      - {name: lat, role: measure_source}
+      - {name: lon, role: measure_source}
+      - {name: geometry, role: internal}
+      # Every `email*`, `incharge_*` and `name_incharge` column on this dataset
+      # is a named individual's contact detail. They are declared as keys so the
+      # allowlist covers them explicitly rather than by silence.
+      - {name: name_incharge, role: key, note: "Personal data. Not for charting."}
+      - {name: email, role: key, note: "Personal data. Not for charting."}
+      - {name: telephone, role: key, note: "Personal data. Not for charting."}
+      - {name: enumerator_name, role: key, note: "Personal data. Not for charting."}
+    metrics:
+      - {name: census_facilities, label: "Facilities", expression: "COUNT(*)", d3format: ",d",
+         indicator: facility_count_census}
+      - {name: census_total_beds, label: "Total beds", expression: "SUM(no_beds)", d3format: ",d"}
+      - {name: census_mean_beds, label: "Average beds per facility", expression: "AVG(no_beds)",
+         d3format: ".1f"}
+
+  - name: buikwe_hf_disease_breakdown
+    label: "Buikwe disease breakdown"
+    superset_dataset_id: 15
+    grain: disease_category
+    one_row_is: "one disease within one category, already aggregated"
+    subject_areas: [disease, morbidity, breakdown, buikwe]
+    synonyms: [disease, diseases, morbidity, breakdown, burden, cases,
+               conditions, buikwe disease]
+    sensitivity: aggregate_only
+    geography: none
+    default_dimension: disease
+    notes: >-
+      Already aggregated. One row per disease within a category, carrying a
+      single value. There is no patient identifier and no encounter grain here,
+      so this cannot be broken down further than it already is.
+    traps: >-
+      `value` is a reported count for the category, not a rate and not a
+      prevalence. It says nothing about the population at risk, so never present
+      it as a proportion of the population.
+    columns:
+      - {name: category, label: "Category", role: dimension}
+      - {name: disease, label: "Disease", role: dimension}
+      - {name: value, label: "Reported cases", role: measure_source}
+    metrics:
+      - {name: buikwe_reported_cases, label: "Reported cases", expression: "SUM(value)",
+         d3format: ",d", indicator: reported_cases_buikwe}
+
+  - name: trans_nzoia_disease_breakdown
+    label: "Trans Nzoia disease breakdown"
+    superset_dataset_id: 14
+    grain: disease_category
+    one_row_is: "one disease within one category, already aggregated"
+    subject_areas: [disease, morbidity, breakdown, trans nzoia]
+    synonyms: [disease, diseases, morbidity, breakdown, burden, cases,
+               conditions, trans nzoia disease]
+    sensitivity: aggregate_only
+    geography: none
+    default_dimension: disease
+    notes: >-
+      Already aggregated. One row per disease within a category, carrying a
+      single value.
+    traps: >-
+      `value` is a reported count, not a rate and not a prevalence. Never
+      present it as a proportion of the population.
+    columns:
+      - {name: category, label: "Category", role: dimension}
+      - {name: disease, label: "Disease", role: dimension}
+      - {name: value, label: "Reported cases", role: measure_source}
+    metrics:
+      - {name: trans_nzoia_reported_cases, label: "Reported cases", expression: "SUM(value)",
+         d3format: ",d", indicator: reported_cases_trans_nzoia}
+
+# ---------------------------------------------------------------------------
+# Governed indicator definitions. `explain_indicator` returns these verbatim.
+#
+# DELIBERATELY MINIMAL. Only definitions that follow from the arithmetic are
+# stated here. The clinical and programmatic indicators this deployment will
+# eventually want — service-availability rates, staffing ratios, catchment
+# coverage — depend on how each survey encodes its answers, and inventing a
+# definition is exactly the failure this file exists to prevent. A domain owner
+# should author them, in this file, reviewed like code.
+# ---------------------------------------------------------------------------
+indicators:
+  - name: facility_count_buikwe
+    dataset: buikwe_level1_facilities
+    definition: "The number of health facilities surveyed in Buikwe district."
+    expression: "COUNT(*)"
+    unit: count
+    counts: facilities
+    caveats: >-
+      Counts facilities as surveyed, not as licensed or as currently open. A
+      facility missing from a survey is absent from this count without being
+      absent from the district.
+
+  - name: facility_count_trans_nzoia
+    dataset: trans_nzoia_level_one_facilities
+    definition: "The number of health facilities recorded in Trans Nzoia."
+    expression: "COUNT(*)"
+    unit: count
+    counts: facilities
+    caveats: >-
+      Counts facilities as surveyed, not as licensed or as currently open. A
+      facility missing from a survey is absent from this count without being
+      absent from the district.
+
+  - name: facility_count_census
+    dataset: hf_census_layer_hf_census
+    definition: "The number of health facilities recorded in the facility census."
+    expression: "COUNT(*)"
+    unit: count
+    counts: facilities
+    caveats: >-
+      Counts facilities as surveyed, not as licensed or as currently open. A
+      facility missing from a survey is absent from this count without being
+      absent from the district.
+
+  - name: reported_cases_buikwe
+    dataset: buikwe_hf_disease_breakdown
+    definition: "The sum of reported case values for the selected diseases in Buikwe."
+    expression: "SUM(value)"
+    unit: count
+    counts: reported cases
+    caveats: >-
+      A reported count, dependent on reporting completeness. It is not a rate,
+      not a prevalence, and not comparable between areas of different
+      population without a denominator this data does not carry.
+
+  - name: reported_cases_trans_nzoia
+    dataset: trans_nzoia_disease_breakdown
+    definition: "The sum of reported case values for the selected diseases in Trans Nzoia."
+    expression: "SUM(value)"
+    unit: count
+    counts: reported cases
+    caveats: >-
+      A reported count, dependent on reporting completeness. It is not a rate,
+      not a prevalence, and not comparable between areas of different
+      population without a denominator this data does not carry.
+
+# ---------------------------------------------------------------------------
+# Allowlists. The validator rejects anything not named here (spec §6).
+# ---------------------------------------------------------------------------
+# `country_map` is NOT here, and its absence is deliberate. It renders by
+# joining on an ISO 3166-2 region code; these datasets carry `district`,
+# `county` and `subcounty` as free text with no verified boundary key, so a
+# country_map built on them renders blank while returning 2xx — the exact
+# failure mode the allowlist doctrine exists to prevent. Add it only once a
+# join key is confirmed AND a chart has been built and looked at.
+#
+# ADDING ONE IS NOT A CONFIG CHANGE: build a chart of that type from what the
+# pipeline actually writes, open it, and look. See docs/runbook.md §16.
+viz_allowlist:
+  - big_number_total
+  - echarts_timeseries_line
+  - echarts_timeseries_bar
+  - pie
+  - table
+
+patient_geography_forbidden_viz:
+  - deck_scatter
+  - deck_heatmap
+  - deck_hex
+  - deck_geojson
+  - deck_path
+  - mapbox
+
+# Superset built-ins, verified present in 6.1.0. The `lifedata` brand palette
+# defined in the production superset_config.py is NOT listed: it is registered
+# through EXTRA_CATEGORICAL_COLOR_SCHEMES, and this staging instance carries
+# different branding. Add it once confirmed present on the instance being
+# deployed to, or a chart silently falls back to Superset's default.
+color_schemes:
+  - supersetColors
+  - d3Category10
+  - googleCategory10c
+  - lyftColors
+  - bnbColors
+  - echarts4Colors
+
+layout_presets:
+  - id: executive_overview
+    description: KPI row → trends → breakdowns → detail
+  - id: facility_infrastructure
+    description: Facility and bed KPIs → service availability → per-area comparison

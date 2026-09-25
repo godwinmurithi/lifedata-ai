@@ -1,0 +1,63 @@
+[project]
+name = "lifedata"
+version = "0.1.0"
+description = "LifeData AI Copilot — conversational orchestrator for an Apache Superset analytics deployment"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.2,<6.0",
+    "psycopg[binary]>=3.2",
+    "httpx>=0.28",
+    "anthropic>=0.40",
+    "jsonschema>=4.23",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "respx>=0.21",
+    # Browser tests run on the HOST, not in the django container: the panel is
+    # injected by nginx and must be exercised through the same origin a real
+    # user sees (http://localhost:8080), with a real Superset session cookie.
+    "playwright>=1.48",
+]
+
+[tool.uv]
+# LifeData is an application, not a distributable library.
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".venv", "venv", "**/migrations/*", "staticfiles", "lifedata_ai/static"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "DJ"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "lifedata.settings"
+python_files = ["test_*.py", "tests.py"]
+
+# `tests_browser` used to be excluded, so the ONLY coverage of the write path
+# was never run by anything: the files were `def main()` scripts and the
+# `superset_live` marker was unregistered. They are collected now, and the
+# markers below keep the default run unchanged.
+testpaths = ["lifedata_ai/tests", "tests_browser"]
+
+markers = [
+    "superset_live: needs the whole docker-compose stack and a real Superset session",
+    "live_model: makes a real, billed Anthropic call",
+]
+
+# The default run is the unit suite plus the markdown tests, which need only
+# Chromium. Everything requiring infrastructure is opted into explicitly:
+#
+#   uv run pytest                          # unit + markdown
+#   uv run pytest -m superset_live         # against a running stack
+#   uv run pytest -m live_model            # with a real key, manual
+addopts = "-m 'not superset_live and not live_model'"

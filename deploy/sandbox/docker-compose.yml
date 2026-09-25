@@ -1,0 +1,88 @@
+# LifeData AI orchestrator — sandbox.lifehealth.app (CTI-GEONODE).
+#
+# This compose file deploys ONLY the orchestrator. Everything else it needs is
+# already running on that host and is deliberately reused rather than recreated:
+#
+#   superset-staging4cti   the Superset 6.1.0 it drives  (project: superset-staging)
+#   db-staging4cti         the Postgres holding Superset's metadata AND, in its
+#                          own `lifedata_ai` schema, our audit tables
+#   nginx4cti_geonode      terminates TLS for sandbox.lifehealth.app and routes
+#                          /lifedata-ai/ here  (project: cti_geonode)
+#
+# There is no postgres service, no redis service and no nginx service here. The
+# root deploy/docker-compose.yml is the self-contained development stack; this
+# one adopts an existing deployment, which is why the two are separate files
+# rather than one file with overrides.
+#
+#   docker compose --env-file .env -f docker-compose.yml up -d --build
+#
+# NOTE the two external networks. `cti_geonode_default` is how nginx reaches us
+# and how we reach Superset; `db-staging_default` is how we reach the staging
+# database. Both are created by other projects and must already exist.
+
+name: lifedata-ai
+
+services:
+  django:
+    build:
+      context: ../..
+      dockerfile: deploy/django/Dockerfile
+    image: lifedata/orchestrator:sandbox
+    container_name: lifedata-ai4cti
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - cti_geonode_default
+      - db-staging_default
+    volumes:
+      # Source is bind-mounted, matching every other project on this host: the
+      # semantics registry is edited far more often than the image is rebuilt,
+      # and `runserver` picks the change up on its own.
+      - ../..:/app
+      # Keep the image's virtualenv — do not let the bind mount shadow it.
+      - /app/.venv
+    # `--insecure`, and it is neither a mistake nor a security setting.
+    #
+    # DJANGO_DEBUG is false here, and with DEBUG off `runserver` stops serving
+    # static files entirely — which means /lifedata-ai/static/panel/panel.js
+    # 404s and the panel never mounts. nginx injects the tag regardless, so the
+    # symptom is a Superset that looks completely normal and has no copilot,
+    # with nothing in any log saying why.
+    #
+    # `--insecure` restores static serving with DEBUG off. It costs performance
+    # (no caching headers, Python serving bytes) and that is acceptable for one
+    # ~90 KB bundle on a sandbox. The production cut-over should run
+    # `collectstatic` and let nginx serve STATIC_ROOT instead — at which point
+    # this line comes out and the location block goes into sandbox.conf.
+    command:
+      - uv
+      - run
+      - --no-sync
+      - python
+      - manage.py
+      - runserver
+      - --insecure
+      - 0.0.0.0:8000
+    # No `ports:`. nginx reaches this container by name on the shared network;
+    # publishing a port would put the orchestrator on the host interface for no
+    # reason. Superset's own staging container follows the same rule.
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/lifedata-ai/api/health/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # This host runs with ~1.4 GB free and 2.8 GB of swap already in use, mostly
+    # because GeoServer holds 3 GB. A cap means a runaway turn degrades this
+    # service rather than the box — and on a box this tight, the OOM killer's
+    # choice of victim is not something to leave to chance.
+    mem_limit: 768m
+
+networks:
+  cti_geonode_default:
+    external: true
+  db-staging_default:
+    external: true

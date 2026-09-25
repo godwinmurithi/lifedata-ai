@@ -1,0 +1,42 @@
+# Secrets — never commit
+.env
+.env.local
+deploy/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Django
+*.sqlite3
+staticfiles/
+media/
+
+# The panel is hand-written ES2020 with no build step (see
+# lifedata_ai/static/panel/README.md), so panel.js IS source and must be
+# tracked. Only a future esbuild sourcemap would be generated output.
+lifedata_ai/static/panel/*.map
+node_modules/
+
+# Tooling
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Throwaway scratch and archives — never part of the repository
+_dump_tmp.py
+*.rar
+*.zip
+
+# Browser-test artefacts are regenerated on every run
+tests_browser/artefacts/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
