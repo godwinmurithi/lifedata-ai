@@ -34,6 +34,7 @@ decision, not an oversight -- see AI_NATIVE_STATUS.md for the full context.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from lifedata_ai.superset_client import SupersetError
@@ -99,16 +100,37 @@ class CallMcpToolTool(Tool):
                 "type": "string",
                 "description": "Exact MCP tool name, e.g. 'execute_sql' or 'get_chart_preview'.",
             },
-            "arguments": {
-                "type": "object",
-                "description": "The tool's own arguments object, matching its documented request shape.",
+            # A JSON *string*, not a nested object. Anthropic's tool schema
+            # rejects any object-type (sub)schema that doesn't itself declare
+            # additionalProperties -- verified: "tools.N.custom: For 'object'
+            # type, 'additionalProperties' must be explicitly set to false".
+            # Every MCP tool has a different argument shape, so this field
+            # can never be that closed -- a JSON string sidesteps the
+            # constraint entirely and is parsed in run() below.
+            "arguments_json": {
+                "type": "string",
+                "description": (
+                    "The tool's own arguments, as a JSON object string -- e.g. "
+                    '\'{"database_id": 1, "sql": "SELECT 1"}\'.'
+                ),
             },
         },
-        "required": ["tool_name", "arguments"],
+        "required": ["tool_name", "arguments_json"],
         "additionalProperties": False,
     }
 
-    def run(self, context: ToolContext, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    def run(self, context: ToolContext, tool_name: str, arguments_json: str) -> dict[str, Any]:
+        try:
+            arguments = json.loads(arguments_json)
+        except ValueError as exc:
+            raise ToolError(
+                f"arguments_json is not valid JSON: {exc}", code="invalid_arguments_json"
+            ) from exc
+        if not isinstance(arguments, dict):
+            raise ToolError(
+                "arguments_json must decode to a JSON object.", code="invalid_arguments_json"
+            )
+
         mcp = context.superset_mcp_client()
         try:
             result = mcp.call_any_tool(tool_name, arguments)
