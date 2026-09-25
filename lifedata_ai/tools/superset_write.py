@@ -865,6 +865,12 @@ class WriteTool(Tool):
                     "position_json": current.get("position_json"),
                     "json_metadata": current.get("json_metadata"),
                     "charts": current.get("charts"),
+                    # For set_dashboard_css/set_dashboard_theme -- see
+                    # views/undo.py's _restore_calls, which reads these back.
+                    "css": current.get("css"),
+                    "theme_id": (current.get("theme") or {}).get("id")
+                    if isinstance(current.get("theme"), dict)
+                    else current.get("theme_id"),
                 }
         except SupersetError:
             # A missing snapshot must not block the action; it only means undo
@@ -1184,6 +1190,61 @@ class RenameDashboardTool(WriteTool):
 
     def summarise(self, payload):
         return f"rename dashboard {payload['dashboard_id']} to “{payload['new_title']}”"
+
+
+class SetDashboardCssTool(WriteTool):
+    name: ClassVar[str] = "set_dashboard_css"
+    action_type: ClassVar[str] = "set_dashboard_css"
+    object_type: ClassVar[str] = Snapshot.ObjectType.DASHBOARD
+    description: ClassVar[str] = (
+        "Set an existing dashboard's custom CSS, replacing whatever CSS it currently has "
+        "(this is not a partial update -- send the complete stylesheet you want). Use this "
+        "for layout, spacing, typography or colour overrides beyond the theme. Prefer "
+        "set_dashboard_theme for an overall light/dark colour switch."
+    )
+    input_schema: ClassVar[dict[str, Any]] = {}
+
+    def snapshot_target(self, payload):
+        return (Snapshot.ObjectType.DASHBOARD, str(payload["dashboard_id"]))
+
+    def build_call(self, context, payload):
+        return ("PUT", f"/api/v1/dashboard/{payload['dashboard_id']}",
+                {"css": payload["css"]})
+
+    def summarise(self, payload):
+        return f"set CSS on dashboard {payload['dashboard_id']} ({len(payload['css'])} chars)"
+
+
+#: Superset's two shipped system themes (superset_config.py's THEME_DEFAULT/
+#: THEME_DARK, seeded into superset.themes as ids 1 and 2 -- see
+#: AI_NATIVE_STATUS.md for how this was confirmed against the live DB rather
+#: than assumed). "reset" clears theme_id so the dashboard falls back to
+#: whatever Superset resolves as its own global default.
+_DASHBOARD_THEME_IDS: dict[str, int | None] = {"default": 1, "dark": 2, "reset": None}
+
+
+class SetDashboardThemeTool(WriteTool):
+    name: ClassVar[str] = "set_dashboard_theme"
+    action_type: ClassVar[str] = "set_dashboard_theme"
+    object_type: ClassVar[str] = Snapshot.ObjectType.DASHBOARD
+    description: ClassVar[str] = (
+        "Switch an existing dashboard between the deployment's light and dark themes, or "
+        "reset it to the global default. This changes overall colours (background, text, "
+        "chart palette) via Superset's own theme system, not custom CSS -- use "
+        "set_dashboard_css for anything more specific than a light/dark switch."
+    )
+    input_schema: ClassVar[dict[str, Any]] = {}
+
+    def snapshot_target(self, payload):
+        return (Snapshot.ObjectType.DASHBOARD, str(payload["dashboard_id"]))
+
+    def build_call(self, context, payload):
+        theme_id = _DASHBOARD_THEME_IDS[payload["theme"]]
+        return ("PUT", f"/api/v1/dashboard/{payload['dashboard_id']}",
+                {"theme_id": theme_id})
+
+    def summarise(self, payload):
+        return f"set dashboard {payload['dashboard_id']} theme to {payload['theme']}"
 
 
 class AddChartToDashboardTool(WriteTool):
@@ -1746,6 +1807,8 @@ WRITE_TOOL_CLASSES: list[type[WriteTool]] = [
     MoveDashboardComponentTool,
     ResizeDashboardComponentTool,
     AddNativeFilterTool,
+    SetDashboardCssTool,
+    SetDashboardThemeTool,
 ]
 
 _bind_schemas()

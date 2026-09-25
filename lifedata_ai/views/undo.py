@@ -317,7 +317,7 @@ def _restore_calls(snapshot: Snapshot) -> list[dict]:
 
     restore = {
         key: state[key]
-        for key in ("dashboard_title", "position_json", "json_metadata")
+        for key in ("dashboard_title", "position_json", "json_metadata", "css", "theme_id")
         if state.get(key) is not None
     }
     return [

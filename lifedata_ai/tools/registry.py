@@ -140,6 +140,8 @@ _WRITE_TOOL_SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "RenameChartTool",
             "CreateDashboardTool",
             "RenameDashboardTool",
+            "SetDashboardCssTool",
+            "SetDashboardThemeTool",
             "AddChartToDashboardTool",
             "RemoveChartFromDashboardTool",
             "MoveDashboardComponentTool",

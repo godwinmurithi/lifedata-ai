@@ -367,6 +367,44 @@ _RENAME_DASHBOARD: Final[dict[str, Any]] = {
     },
 }
 
+#: Bounded well short of "arbitrary stylesheet" -- long enough for real
+#: layout/typography/colour overrides on one dashboard, short of anything
+#: that reads as smuggled payload. Superset stores this as plain CSS text
+#: with no sanitisation of its own (it is injected into the dashboard's
+#: style tag, not rendered as HTML), so the cap is this schema's only
+#: control -- there is deliberately no attempt to parse or validate CSS
+#: syntax here, matching this module's rule of refusing what it cannot
+#: safely represent rather than trying to safely represent everything.
+_DASHBOARD_CSS: Final[dict[str, Any]] = {"type": "string", "maxLength": 8000}
+
+_SET_DASHBOARD_CSS: Final[dict[str, Any]] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["dashboard_id", "css"],
+    "properties": {
+        "dashboard_id": _SUPERSET_ID,
+        "css": _DASHBOARD_CSS,
+    },
+}
+
+#: Superset 6.1's per-dashboard theming: a dashboard points at a row in the
+#: `themes` table (Ant Design token overrides) via `theme_id`, separately
+#: from its own `css`. Only the two shipped system themes are offered here
+#: -- "default" (id 1, THEME_DEFAULT) and "dark" (id 2, THEME_DARK) -- not
+#: theme creation with arbitrary token overrides, which is a materially
+#: bigger surface (a full REST resource, /api/v1/theme/) not attempted in
+#: this pass. "reset" clears theme_id so the dashboard falls back to
+#: whatever THEME_DEFAULT/THEME_DARK Superset resolves globally.
+_SET_DASHBOARD_THEME: Final[dict[str, Any]] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["dashboard_id", "theme"],
+    "properties": {
+        "dashboard_id": _SUPERSET_ID,
+        "theme": {"enum": ["default", "dark", "reset"]},
+    },
+}
+
 _ADD_CHART_TO_DASHBOARD: Final[dict[str, Any]] = {
     "type": "object",
     "additionalProperties": False,
@@ -557,6 +595,8 @@ ACTION_SCHEMAS: Final[dict[str, dict[str, Any]]] = {
     "rename_chart": _RENAME_CHART,
     "create_dashboard": _CREATE_DASHBOARD,
     "rename_dashboard": _RENAME_DASHBOARD,
+    "set_dashboard_css": _SET_DASHBOARD_CSS,
+    "set_dashboard_theme": _SET_DASHBOARD_THEME,
     "add_chart_to_dashboard": _ADD_CHART_TO_DASHBOARD,
     "remove_chart_from_dashboard": _REMOVE_CHART_FROM_DASHBOARD,
     "move_dashboard_component": _MOVE_DASHBOARD_COMPONENT,

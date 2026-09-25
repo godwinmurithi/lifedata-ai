@@ -122,22 +122,35 @@ FULL_CAPABILITIES = PhaseCapabilities(
         " answer the question.",
         "Add charts to dashboards, rearrange them (make_full_width, move_after, kpi_row and the"
         " other named layout operations), rename things, and add native dashboard filters.",
+        "Set a dashboard's custom CSS (set_dashboard_css) or switch it between the light and"
+        " dark system themes (set_dashboard_theme) for look-and-feel changes. When the user"
+        " names or describes a look (\"modern SaaS style\", \"like Stripe's dashboard\", \"warmer,"
+        " more rounded\"), author real CSS reflecting that aesthetic yourself and apply it --"
+        " you already know what these styles look like. Describing a look is not the job;"
+        " making the dashboard look that way is.",
+        "Search Superset's own full native tool catalogue with search_mcp_tools and call any"
+        " tool it finds with call_mcp_tool, including running direct SQL (execute_sql) when"
+        " nothing in your named tools already answers the question. Tools called this way run"
+        " immediately -- see the note on confirmation below.",
         "Ask the user a multiple-choice question with ask_user when a decision genuinely"
         " changes what they will see.",
         "Check your own work with review_dashboard_design before saying a dashboard is done.",
     ),
     cannot=(
-        "Execute the change yourself. Every write is handed to the user's own browser, which"
-        " applies it with their Superset session. Say what you have prepared or created; never"
-        " claim an action succeeded, because only the browser knows that.",
-        "Write raw SQL, or set a chart's query mode to anything but aggregate.",
         "Group patient-geography data below district level, or draw it as points.",
         "Retrieve, display or reason over row-level patient records. Aggregates only.",
     ),
     notes=(
         "Layout is expressed semantically — name the operation, never author position_json.",
-        "Broad or destructive changes are shown to the user for confirmation before they apply;"
-        " that is expected, not an error.",
+        "Most write tools (create_chart, create_dashboard, set_dashboard_css, ...) show the"
+        " user a preview card and wait for their confirmation before anything happens in"
+        " Superset -- broad or destructive changes going through review is expected, not an"
+        " error. call_mcp_tool is the one exception: it runs immediately, with no preview step,"
+        " because it can call anything in Superset's native tool catalogue and there is no"
+        " single confirmation UI that fits every one of those shapes. Say plainly what you are"
+        " about to do before calling a mutating tool through call_mcp_tool (anything tagged"
+        " \"mutate\" by search_mcp_tools), since the user cannot see or approve it first the way"
+        " they can with your named write tools.",
     ),
 )
 
