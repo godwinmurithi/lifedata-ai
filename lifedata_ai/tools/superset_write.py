@@ -106,7 +106,14 @@ def _to_superset_form_data(params: dict[str, Any], dataset_id: int) -> dict[str,
         form["adhoc_filters"] = [_to_superset_filter(f) for f in filters]
 
     _apply_country_map(form, dataset_id)
+    # Order matters: this derives form["metric"] from form["metrics"][0] for
+    # every viz in _SINGLE_METRIC_VIZ, deck_polygon included -- it must run
+    # BEFORE _apply_deck_polygon, which only reshapes that already-derived
+    # value into deck.gl's object form. Reversed, _apply_single_metric_alias
+    # would see a viz_type it does not special-case and pop "metric" straight
+    # back out.
     _apply_single_metric_alias(form)
+    _apply_deck_polygon(form, dataset_id)
     _apply_time_range(form, dataset_id)
     _apply_number_format(form)
     return form
@@ -164,6 +171,89 @@ def _apply_country_map(form: dict[str, Any], dataset_id: int) -> None:
         form["entity"] = map_key
     # `groupby` would add a second grain to a chart that already has one, and
     # Superset answers that with "Duplicate column/metric labels".
+    form.pop("groupby", None)
+    form.pop("x_axis", None)
+
+
+#: Buikwe district's approximate center, and a zoom that fits the whole
+#: district in one view. Hardcoded like MAP_COUNTRY above -- this deployment
+#: maps one district, not an arbitrary one a registry field would need to
+#: carry, and the geometry itself (not this default) is what actually
+#: determines where each polygon is drawn.
+BUIKWE_VIEWPORT: dict[str, Any] = {
+    "longitude": 33.15,
+    "latitude": 0.35,
+    "zoom": 10,
+    "bearing": 0,
+    "pitch": 0,
+}
+
+
+def _apply_deck_polygon(form: dict[str, Any], dataset_id: int) -> None:
+    """Turn "map it by subcounty" into deck.gl Polygon's controls.
+
+    Verified against Superset's own example fixture
+    (superset/examples/deckgl_demo/charts/Deck.gl_Polygons.yaml) for the exact
+    control names this build's deck_polygon plugin reads -- undocumented
+    anywhere else, and getting one wrong is the "renders blank, returns 2xx"
+    failure mode the registry's viz_allowlist doctrine exists to prevent.
+
+    The model asks for this exactly as it asks for a pie chart -- a viz_type
+    and one metric to color by. Everything deck.gl-specific (which column
+    holds the geometry, basemap tiles, viewport, color scheme) is filled in
+    here so the model never has to know deck.gl's control names, the same
+    shape as `_apply_country_map` above.
+    """
+    if form.get("viz_type") != "deck_polygon":
+        return
+
+    from lifedata_ai.semantics.loader import load_registry
+
+    dataset = load_registry().dataset_by_superset_id(int(dataset_id))
+    geometry_column = next(
+        (column.name for column in (dataset.columns if dataset else ()) if column.role == "geometry"),
+        None,
+    )
+    if not geometry_column:
+        # No declared geometry column on this dataset -- leave viz_type as
+        # requested and let Superset's own validation refuse it with ITS real
+        # reason, rather than silently building an uncolorable, shapeless map.
+        return
+
+    form["line_column"] = geometry_column
+    form["line_type"] = "json"
+    # OpenStreetMap tiles, not Mapbox -- no API key configured or needed.
+    form.setdefault("mapbox_style", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+    form.setdefault("viewport", dict(BUIKWE_VIEWPORT))
+    form.setdefault("linear_color_scheme", MAP_COLOR_SCHEME)
+    form.setdefault("filled", True)
+    form.setdefault("stroked", True)
+    form.setdefault("extruded", False)
+    form.setdefault("multiplier", 1)
+    form.setdefault("line_width", 1)
+    form.setdefault("line_width_unit", "meters")
+    form.setdefault("legend_format", ",d")
+    form.setdefault("legend_position", "tr")
+    form.setdefault("js_columns", [])
+    form.setdefault("js_data_mutator", "")
+    form.setdefault("js_onclick_href", "")
+    form.setdefault("js_tooltip", "")
+    form.setdefault("reverse_long_lat", False)
+
+    # `_apply_single_metric_alias` (which must run before this function --
+    # see the call site) has already set form["metric"] = form["metrics"][0].
+    # A saved-metric *name* (a bare string) can't be reshaped into deck.gl's
+    # object form without inventing a SQL passthrough this module
+    # deliberately doesn't have, so it's refused here rather than guessed at.
+    metric = form.get("metric")
+    if isinstance(metric, str):
+        raise ToolError(
+            f"deck_polygon needs an aggregation for its colour metric, not the saved "
+            f"metric name {metric!r}. Pass params.metrics as "
+            '[{"aggregate": "SUM", "column": {"column_name": "..."}}] instead.',
+            code="deck_polygon_metric_unsupported",
+        )
+    # groupby/x_axis would add a second grain deck.gl doesn't use.
     form.pop("groupby", None)
     form.pop("x_axis", None)
 
@@ -257,7 +347,9 @@ def _temporal_column(form: dict[str, Any], dataset_id: int) -> str | None:
 #: "Add required control values to preview chart". The other three allowlisted
 #: types (`echarts_timeseries_line`, `echarts_timeseries_bar`, `table`) render
 #: correctly from `metrics` and must NOT be added here.
-_SINGLE_METRIC_VIZ: frozenset[str] = frozenset({"big_number_total", "pie", "country_map"})
+_SINGLE_METRIC_VIZ: frozenset[str] = frozenset(
+    {"big_number_total", "pie", "country_map", "deck_polygon"}
+)
 
 
 def _apply_single_metric_alias(form: dict[str, Any]) -> None:
@@ -336,7 +428,8 @@ _VIZ_COUPLED_KEYS: frozenset[str] = frozenset(
     # Left behind on a change to a bar chart they would be inert clutter; left
     # behind the other way they would be a second grain.
     {"groupby", "x_axis", "metrics", "metric", "orientation", "stack", "show_value",
-     "show_labels", "entity", "select_country"}
+     "show_labels", "entity", "select_country", "line_column", "line_type",
+     "viewport", "filled", "stroked", "extruded"}
 )
 
 #: Keys that describe the chart's *identity* rather than its configuration.

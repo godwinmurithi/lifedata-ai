@@ -119,6 +119,14 @@ _READ_TOOL_SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "GetFormSchemaTool",
         ),
     ),
+    # Full MCP passthrough -- registered as READ mode like everything else
+    # here, which means tools called THROUGH these two (including MCP tools
+    # tagged "mutate": execute_sql, generate_chart, update_chart, ...) run
+    # IMMEDIATELY, with none of the propose/confirm/snapshot/undo pipeline
+    # the hand-built write tools below have for the same operations. Full
+    # MCP authorization per explicit instruction (2026-09-25) -- see
+    # mcp_passthrough.py's module docstring and AI_NATIVE_STATUS.md.
+    ("lifedata_ai.tools.mcp_passthrough", ("SearchMcpToolsTool", "CallMcpToolTool")),
 )
 
 #: Write tools. Each one PROPOSES a change and returns a signed envelope; none

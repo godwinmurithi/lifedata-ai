@@ -102,6 +102,48 @@ class SupersetMCPClient:
                 except ValueError:
                     return {"raw": text}
 
+    # -- full MCP passthrough (tools/mcp_passthrough.py) ---------------------
+    #
+    # Everything above wraps ONE specific MCP tool with a REST-shaped, checked
+    # interface. These two methods are the opposite: raw access to whatever
+    # Superset's MCP service exposes, by name, with no shape-checking or
+    # per-tool method to write. Per explicit instruction (2026-09-25): full
+    # MCP capability exposed to the chatbot, not just the hand-wired subset
+    # above. See mcp_passthrough.py's module docstring for what that means in
+    # practice -- in particular, tools tagged "mutate" (execute_sql,
+    # generate_chart, update_chart, create_virtual_dataset, ...) run
+    # IMMEDIATELY through this path, with none of the propose/confirm/
+    # snapshot/undo pipeline tools/superset_write.py's hand-built tools have.
+
+    def search_tools(self, query: str) -> list[dict[str, Any]]:
+        """The MCP tool catalogue's own search -- what tools exist, by keyword."""
+        try:
+            return asyncio.run(self._search_tools_async(query))
+        except Exception as exc:  # noqa: BLE001
+            raise SupersetError(f"MCP search_tools failed: {exc}") from exc
+
+    async def _search_tools_async(self, query: str) -> list[dict[str, Any]]:
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamablehttp_client
+
+        headers = {"Authorization": f"Bearer {self._mint_token()}"}
+        async with streamablehttp_client(self.mcp_url, headers=headers) as (read, write, _):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool("search_tools", {"query": query})
+                text = _first_text(result)
+                if not text:
+                    return []
+                try:
+                    return json.loads(text)
+                except ValueError:
+                    return [{"raw": text}]
+
+    def call_any_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Call any MCP tool by name with arbitrary arguments. No allowlist, no
+        shape-checking beyond what Superset's own MCP server enforces."""
+        return self._call(tool_name, arguments)
+
     # -- listings, REST-shaped ------------------------------------------------
 
     def list_databases(self, q: str | None = None) -> list[dict]:

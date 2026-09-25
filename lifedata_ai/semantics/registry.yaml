@@ -113,6 +113,108 @@ datasets:
       - {name: buikwe_mean_beds, label: "Average beds per facility", expression: "AVG(beds)",
          d3format: ".1f"}
 
+  - name: buikwe_subcounties
+    label: "Buikwe subcounty boundaries"
+    superset_dataset_id: 2
+    grain: subcounty
+    one_row_is: "one subcounty administrative boundary in Buikwe district"
+    subject_areas: [geography, boundaries, population, census, map]
+    synonyms: [subcounty, subcounties, boundary, boundaries, map, shape, polygon,
+               geography, buikwe, census, population, households]
+    sensitivity: aggregate_ok
+    geography: subcounty
+    default_dimension: subcounty
+    notes: >-
+      One row per subcounty polygon in Buikwe district. This is the boundary
+      layer -- geometry/polygon_ring carry real polygon coordinates, not an
+      ISO 3166-2 code, so it is the source for deck.gl polygon-style maps
+      (deck_geojson), not Superset's built-in "Country Map" viz (which joins
+      on an ISO region code this dataset does not carry). pop2010/hh2010 are
+      2010 census-round estimates with fractional values (areal
+      interpolation from a different census unit boundary, not a headcount)
+      -- state them as estimates, not literal counts.
+    traps: >-
+      ele_access is 0 for every row in this table as loaded -- do not report
+      it as "no subcounty has electricity access"; say the column carries no
+      variation in this dataset rather than asserting a fact about Buikwe.
+    columns:
+      - {name: ogc_fid, role: key}
+      - {name: fid, role: key}
+      - {name: objectid_1, role: key}
+      - {name: district, label: "District", role: dimension}
+      - {name: county, label: "County", role: dimension}
+      - {name: subcounty, label: "Subcounty", role: dimension}
+      - {name: parish, label: "Parish", role: dimension}
+      - {name: village, label: "Village", role: dimension}
+      - {name: region, label: "Region", role: dimension}
+      - {name: subregion, label: "Subregion", role: dimension}
+      - {name: pop2002, label: "Population (2002 census)", role: measure_source}
+      - {name: hh2002, label: "Households (2002 census)", role: measure_source}
+      - {name: pop2010, label: "Population (2010 estimate)", role: measure_source}
+      - {name: hh2010, label: "Households (2010 estimate)", role: measure_source}
+      - {name: ele_access, label: "Electricity access", role: measure_source,
+         note: "Constant 0 in this table as loaded -- see traps."}
+      - {name: area_m2, label: "Area (sq m)", role: measure_source}
+      - {name: area_km2, label: "Area (sq km)", role: measure_source}
+      - {name: shape_leng, role: internal}
+      - {name: shape_area, role: internal}
+      - {name: shape__area, role: internal}
+      - {name: shape__length, role: internal}
+      # The actual polygon coordinates -- the reason this dataset exists.
+      # `dimension` rather than `measure_source`/`key` because a geometry
+      # column is neither aggregated nor an identifier; it is the spatial
+      # shape a deck_geojson chart's geojson-column control points at.
+      - {name: geometry, label: "Boundary geometry", role: dimension,
+         note: "Polygon geometry for deck.gl map charts. Not a chartable value on its own."}
+      - {name: polygon_ring, role: internal}
+    metrics:
+      - {name: buikwe_subcounty_count, label: "Subcounties", expression: "COUNT(*)", d3format: ",d"}
+      - {name: buikwe_total_population_2010, label: "Total population (2010 est.)",
+         expression: "SUM(pop2010)", d3format: ",.0f"}
+
+  - name: buikwe_subcounties_map
+    label: "Buikwe subcounty map (with boundary geometry)"
+    superset_dataset_id: 24
+    grain: subcounty
+    one_row_is: "one subcounty administrative boundary in Buikwe district, map-ready"
+    subject_areas: [geography, boundaries, population, map, choropleth]
+    synonyms: [map, facility map, subcounty map, choropleth, where are, geographic,
+               buikwe map, population map]
+    sensitivity: aggregate_ok
+    geography: subcounty
+    default_dimension: subcounty
+    notes: >-
+      A virtual dataset over buikwe_subcounties (dataset 2) with the raw
+      PostGIS geometry converted to GeoJSON text via ST_AsGeoJSON, which is
+      the form deck.gl's Polygon chart type actually reads. Use viz_type
+      deck_polygon with a params.metrics aggregation (e.g. SUM(pop2010)) to
+      colour subcounties by population; the geometry_geojson column draws
+      the shapes and is never itself a chartable value. Created 2026-09-25
+      specifically to unblock mapping -- see AI_NATIVE_STATUS.md.
+    traps: >-
+      This dataset has no facility-level data of its own (no facility count,
+      no service columns) -- it is boundaries and 2010-census estimates
+      only. For "map facilities by subcounty", join facility counts from
+      buikwe_level1_facilities by subcounty name in a future virtual dataset
+      rather than treating this one as a facility source.
+    columns:
+      - {name: district, label: "District", role: dimension}
+      - {name: county, label: "County", role: dimension}
+      - {name: subcounty, label: "Subcounty", role: dimension}
+      - {name: parish, label: "Parish", role: dimension}
+      - {name: pop2010, label: "Population (2010 estimate)", role: measure_source}
+      - {name: hh2010, label: "Households (2010 estimate)", role: measure_source}
+      - {name: area_km2, label: "Area (sq km)", role: measure_source}
+      # Special-purpose role, read by _apply_deck_polygon in
+      # superset_write.py the same way `map_key` is read by
+      # _apply_country_map -- not one of the base five roles, and that is
+      # deliberate: a geometry column is neither an aggregated measure nor a
+      # row identifier, it is what a deck.gl chart's line_column control
+      # points at. Never groupable, never shown as a value.
+      - {name: geometry_geojson, label: "Boundary geometry", role: geometry,
+         note: "GeoJSON polygon for deck_polygon map charts. Not a chartable value on its own."}
+    metrics: []
+
   - name: trans_nzoia_level_one_facilities
     label: "Trans Nzoia level 1 facilities"
     superset_dataset_id: 9
@@ -370,12 +472,20 @@ indicators:
 #
 # ADDING ONE IS NOT A CONFIG CHANGE: build a chart of that type from what the
 # pipeline actually writes, open it, and look. See docs/runbook.md §16.
+#
+# `deck_polygon` added 2026-09-25 -- NOT joined on an ISO code like
+# country_map above; it draws buikwe_subcounties_map's own GeoJSON geometry
+# directly (see tools/superset_write.py's _apply_deck_polygon and that
+# dataset's registry entry), so the country_map join-key problem does not
+# apply to it. Built and opened in a real browser via Playwright before this
+# line was added -- see AI_NATIVE_STATUS.md for what was actually checked.
 viz_allowlist:
   - big_number_total
   - echarts_timeseries_line
   - echarts_timeseries_bar
   - pie
   - table
+  - deck_polygon
 
 patient_geography_forbidden_viz:
   - deck_scatter

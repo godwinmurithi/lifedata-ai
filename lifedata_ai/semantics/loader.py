@@ -39,7 +39,7 @@ GROUPABLE_ROLES: frozenset[str] = frozenset({"dimension", "temporal"})
 #: that silently means "not groupable" would be a confusing refusal; one that
 #: silently meant "groupable" would be a hole. Neither: the loader raises.
 KNOWN_ROLES: frozenset[str] = frozenset(
-    {"dimension", "temporal", "measure_source", "key", "internal", "map_key"}
+    {"dimension", "temporal", "measure_source", "key", "internal", "map_key", "geometry"}
 )
 
 
