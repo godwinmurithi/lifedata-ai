@@ -1444,3 +1444,37 @@ own chart thumbnails, which were verified this way repeatedly today). **Phase 10
 type flow with a mandatory human reviewer) is not built** — this session only built Phase
 7's admin-only prototype, which Phase 10 needs as its foundation. Recording this precisely
 rather than blurring the two phases together.
+
+---
+
+# Phase 11 — query-log mining, built and run for real (2026-09-26)
+
+`python manage.py mine_query_log` (new, `LIFEDATA_AI_QUERY_LOG_DB_URL` env var required,
+not hardcoded per the secrets-from-env rule). Reads Superset's own `superset.logs` table
+(`ChartDataRestApi.data` rows — its real record of every chart-data query actually run, not
+a new logging mechanism added here), cross-references columns/metrics actually used against
+`registry.yaml`'s declared `dimension`/`temporal` columns and named metrics, prints
+reviewable suggestions. Nothing is auto-applied, per the phase's own rule.
+
+**Two real bugs found running it against the actual 5000-row log, not guessed**:
+1. `datasource` field shape varies across log rows — sometimes `{"id": 18, "type": "table"}`,
+   sometimes the older `"18__table"` string form. Handled both.
+2. First run crashed on a plain `AttributeError` from assuming the dict shape always held.
+
+**Real, run against live data — 16 distinct datasets appear in the last 5000 queries.**
+Worth flagging directly rather than burying in the full output: `buikwe_level1_facilities`
+(id 18) shows `incharge_name` and `incharge_phone` (real staff PII) queried 9 times each in
+history. Both are already correctly marked `role: key` (non-groupable) in the *current*
+registry — this reflects usage from before that rule existed, not a live gap — but it's
+concrete evidence the PII-adjacent columns were reachable at some point, not a hypothetical
+risk. Also surfaced: several ad-hoc metrics used often enough to be real governed-metric
+candidates (`SUM(beds)` on multiple facility datasets, `Screened` count on
+`scd_screening_v2` used 707 times — clearly the most relied-on ad-hoc metric in the whole
+log, a strong signal it should become a real governed metric next).
+
+**Seeding note** (per the phase's own instruction, since staging has little organic usage):
+this run's 5000 rows are mostly from today's own testing across every phase — stated
+plainly, not presented as organic usage patterns from real users.
+
+**Not built**: capturing user *corrections* to Vima's charts as a preference signal feeding
+the same index — a separate, smaller follow-on this session ran out of time for.
