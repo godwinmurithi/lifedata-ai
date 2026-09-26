@@ -297,3 +297,28 @@ class ToolCallLog(models.Model):
 
     def __str__(self) -> str:
         return f"{self.tool_name} by {self.superset_username}"
+
+
+class AnalystFeedEntry(models.Model):
+    """Phase 12 (Tier 3): the continuous analyst's in-app feed.
+
+    Outward actions (email/Slack) require explicit user confirmation per the
+    Phase 6 rule this project already holds elsewhere -- this model is
+    deliberately just an in-app record. Nothing here sends anything anywhere.
+    """
+
+    metric_name = models.CharField(max_length=255)
+    dataset_name = models.CharField(max_length=255)
+    detected_at = models.DateTimeField(auto_now_add=True)
+    period_label = models.CharField(max_length=64)  # e.g. "2026-05" for the anomalous period
+    observed_value = models.FloatField()
+    expected_value = models.FloatField()
+    z_score = models.FloatField()
+    narrative = models.TextField()
+    decomposition = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-detected_at"]
+
+    def __str__(self) -> str:
+        return f"{self.metric_name} anomaly at {self.period_label} (z={self.z_score:.1f})"

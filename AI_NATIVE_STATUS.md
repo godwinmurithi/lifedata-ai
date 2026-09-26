@@ -1478,3 +1478,50 @@ plainly, not presented as organic usage patterns from real users.
 
 **Not built**: capturing user *corrections* to Vima's charts as a preference signal feeding
 the same index — a separate, smaller follow-on this session ran out of time for.
+
+---
+
+# Phase 12 (Tier 3) — continuous analyst only, per explicit scope decision (2026-09-26)
+
+Per direct instruction: picked the highest-value, most tractable piece of Phase 12's four
+sub-systems (continuous analyst) and left the other three (self-healing dashboards,
+per-tenant embedded analyst, reproducible analysis packages) as documented follow-ups —
+not attempted this session.
+
+**Built and run for real**: `python manage.py run_continuous_analyst` — anomaly detection
+(z-score against monthly history) on `scd_screening_v2`'s screening volume, decomposed by
+district when flagged, written to a new `AnalystFeedEntry` model (in-app only; nothing sent
+outward, since outward actions need explicit user confirmation per the Phase 6 rule this
+project already holds, and this command has no confirmation step to attach one to).
+
+**Two real bugs found running it, not guessed**:
+1. First attempt used MCP's `execute_sql` — failed with `relation "scd_screening_v2" does
+   not exist`. Real finding: `scd_screening_v2` is a Superset *virtual* dataset (a SQL view
+   that exists only in Superset's own metadata), and raw `execute_sql` runs directly against
+   Postgres with no knowledge of that definition. Fixed by fetching the dataset's own stored
+   `sql` and wrapping this command's aggregation around it as a CTE — reads the same
+   definition Superset itself uses, rather than a hardcoded copy that could drift.
+2. The view's own SQL contains literal `%` (ILIKE patterns like `'Trait Not Seen%'`), which
+   psycopg's parameter binding misread as a placeholder once embedded in the same query
+   string as a real `%s` — doubled to `%%` to survive as a literal percent.
+
+**Honest limitation, not hidden**: with only ~8 months of real history and genuinely
+volatile campaign-style screening data (not a steady operational cadence), a plain z-score
+at a reasonable threshold (2.0) doesn't confidently flag anything — even May 2026's real,
+visually obvious outlier (1 screening vs. an ~470 average) scores z=-0.94. Verified the
+actual write path works correctly with a temporarily lowered threshold (`--threshold 0.3`,
+a CLI flag added for exactly this test), confirmed a real `AnalystFeedEntry` row persisted
+with the correct narrative and district decomposition, then deleted that test row (not a
+genuine finding — the threshold was artificial). The detection *pipeline* is proven; the
+detection *sensitivity* needs either more history or a smarter method (e.g., seasonal
+decomposition, or a robust/median-based outlier statistic less dominated by a few huge
+swings) — not attempted here.
+
+**Not wired to run on a schedule**: no Celery worker/beat exists for the orchestrator itself
+(Phase 5's belongs to staging Superset, a different service, for its own thumbnails). Needs
+either a new Celery beat for `lifedata-ai` or a host cron entry — flagged as the concrete
+next step.
+
+**Not built at all this session**: self-healing dashboards (schema-change detection →
+reviewable fix proposals), per-tenant embedded analyst (guest tokens + RLS), reproducible
+analysis packages (session export bundles). Genuinely deferred, not attempted.
