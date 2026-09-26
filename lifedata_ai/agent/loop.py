@@ -1099,6 +1099,26 @@ def run_turn(
                     is_error=not result.ok,
                 )
 
+                if (
+                    block.name == "author_canvas"
+                    and result.ok
+                    and isinstance(result.content, dict)
+                    and result.content.get("type") == "sandboxed_canvas"
+                ):
+                    # Phase 7/10 prototype: the one deliberate exception to
+                    # "tool_result carries no payload" -- the panel needs this
+                    # content to mount the sandboxed iframe, it cannot render
+                    # from a bare ok/is_error flag the way every other tool
+                    # result does.
+                    yield _event(
+                        "canvas",
+                        tool_use_id=block.id,
+                        title=result.content.get("title"),
+                        html_snippet=result.content.get("html_snippet"),
+                        rows=result.content.get("rows"),
+                        columns=result.content.get("columns"),
+                    )
+
                 if block.name == "ask_user" and result.ok and isinstance(result.content, dict):
                     asked_this_turn = True
                     clarification = Clarification.objects.create(

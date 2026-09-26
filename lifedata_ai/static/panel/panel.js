@@ -1322,6 +1322,50 @@
         };
       },
 
+      /**
+       * Phase 7/10 prototype: an agent-authored visual, isolated in an
+       * opaque-origin sandboxed iframe. `sandbox="allow-scripts"` only --
+       * deliberately never `allow-same-origin`, no `src` pointed at a real
+       * origin (a bare `srcdoc` document has no origin at all, so it cannot
+       * read cookies, storage, or the parent page even if the snippet tried).
+       * Data reaches it only via postMessage, after the iframe reports it has
+       * loaded -- never inlined into the HTML itself, so the snippet's own
+       * script never needs (or gets) a way to fetch its own data.
+       *
+       * @param {{title: string, html_snippet: string, rows: any[], columns: any[]}} data
+       */
+      addCanvas: function (data) {
+        var wrapper = el("div", { class: "ld-canvas" }, [
+          el("div", { class: "ld-canvas__title", text: data.title || "Agent-authored visual" }),
+          el("div", {
+            class: "ld-canvas__badge",
+            text: "Sandboxed prototype — admin only, not yet promotable to a saved chart type",
+          }),
+        ]);
+        var iframe = el("iframe", {
+          class: "ld-canvas__frame",
+          sandbox: "allow-scripts",
+          title: data.title || "Agent-authored visual",
+        });
+        var doc =
+          "<!doctype html><html><head><meta charset=\"utf-8\"></head><body>" +
+          (data.html_snippet || "") +
+          "</body></html>";
+        iframe.srcdoc = doc;
+        iframe.addEventListener("load", function () {
+          // The iframe's opaque origin means '*' here is not a leak: there is
+          // no legitimate origin string to check against, and nothing outside
+          // this exact frame could ever receive it instead.
+          iframe.contentWindow.postMessage(
+            { rows: data.rows || [], columns: data.columns || [] },
+            "*"
+          );
+        });
+        wrapper.appendChild(iframe);
+        append(wrapper);
+        return wrapper;
+      },
+
       /** @param {{title: string, detail?: string, action?: {label: string, run: () => void}}} spec */
       addError: function (spec) {
         var children = [el("span", { class: "ld-error__title", text: spec.title })];
@@ -2083,6 +2127,10 @@
       });
     }
 
+    function mountCanvas(data) {
+      transcript.addCanvas(data);
+    }
+
     function mountPreview(action) {
       if (state.pendingAction) {
         state.pendingAction.card.remove();
@@ -2252,6 +2300,13 @@
 
           case "clarification":
             mountClarification(data);
+            break;
+
+          case "canvas":
+            // Phase 7/10 prototype, admin-only (enforced server-side in
+            // canvas.py -- this branch never runs for a non-admin because
+            // the tool itself refuses before this event is ever emitted).
+            mountCanvas(data);
             break;
 
           case "message_stop":

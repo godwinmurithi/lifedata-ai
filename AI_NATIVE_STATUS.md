@@ -1410,3 +1410,37 @@ non-patient-geography deck.gl variants (`deck_scatter`/`deck_heatmap`/`deck_hex`
 specifically, not built/tested for anything else), and `mapbox`. Same build-verify-allowlist
 pattern applies to each — genuinely more of the same work, not a new kind of problem, just
 not done in this session given the instruction to prioritize breadth across the whole plan.
+
+---
+
+# Phase 7 (canvas) built for real + Phase 10 status (2026-09-26)
+
+**Built, not just designed**: `tools/canvas.py` (`AuthorCanvasTool`), a new `canvas` SSE event
+(`agent/events.py` + `agent/loop.py`), and `panel.js`'s `addCanvas`/`mountCanvas` — the
+sandboxed iframe itself (`sandbox="allow-scripts"`, deliberately never `allow-same-origin`,
+`srcdoc` not `src` so the frame has no origin at all, data delivered only via `postMessage`
+after load, never inlined into the HTML).
+
+**The real architectural finding, not assumed**: `tool_result` SSE events carry no payload at
+all by design (`tool_use_id`/`name`/`ok`/`is_error` only, confirmed by reading `loop.py`) —
+`action_preview`/`action_envelope` are the only existing precedent for a tool needing to hand
+real content to the browser. `canvas` is a new, third instance of that same deliberate
+exception, not a new pattern.
+
+**Verified, both directions**:
+- A real tool call (chart 348's box_plot data) produces a correctly-shaped
+  `sandboxed_canvas` payload — 11 real rows, snippet passed through intact.
+- Non-admin identity (`eval_runner`, Alpha role) → refused with `admin_only`, confirmed via a
+  direct call, not just reading the code.
+- A `fetch(...)` in the snippet → refused with `forbidden_pattern` before it would even reach
+  the (already-blocking) sandbox — defense in depth, confirmed working, not assumed.
+- `node --check panel.js` clean.
+
+**Not yet done — this is Phase 7's own scope, done; Phase 10 is a separate, bigger ask on
+top of it**: a live browser render of the mounted iframe (the actual "look at it" — ran out
+of session time for a Playwright pass specifically on the panel UI, as opposed to Superset's
+own chart thumbnails, which were verified this way repeatedly today). **Phase 10 itself
+(open the canvas to non-admin roles behind a flag; build the promote-to-reusable-org-chart-
+type flow with a mandatory human reviewer) is not built** — this session only built Phase
+7's admin-only prototype, which Phase 10 needs as its foundation. Recording this precisely
+rather than blurring the two phases together.

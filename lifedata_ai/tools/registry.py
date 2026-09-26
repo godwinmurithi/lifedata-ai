@@ -127,6 +127,9 @@ _READ_TOOL_SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # MCP authorization per explicit instruction (2026-09-25) -- see
     # mcp_passthrough.py's module docstring and AI_NATIVE_STATUS.md.
     ("lifedata_ai.tools.mcp_passthrough", ("SearchMcpToolsTool", "CallMcpToolTool")),
+    # Phase 7/10 prototype, admin-only (enforced inside the tool itself, not
+    # by omission from non-admin registries -- see canvas.py's own gate).
+    ("lifedata_ai.tools.canvas", ("AuthorCanvasTool",)),
 )
 
 #: Write tools. Each one PROPOSES a change and returns a signed envelope; none

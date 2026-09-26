@@ -67,6 +67,14 @@ ERROR: Final = "error"
 #: it, because a turn that only asks a question correctly produces no text.
 MESSAGE_STOP: Final = "message_stop"
 
+#: Phase 7/10 prototype. `tool_result` deliberately carries no payload (kept
+#: lean) -- this is the same kind of exception `action_preview`/
+#: `action_envelope` already are: content the panel must act on, not just
+#: acknowledge. Carries `html_snippet`, `rows`, `columns`, `title` from
+#: `AuthorCanvasTool`; the panel mounts them in an opaque-origin sandboxed
+#: iframe, never executes them directly in the page.
+CANVAS: Final = "canvas"
+
 
 PANEL_EVENTS: Final[frozenset[str]] = frozenset(
     {
@@ -80,5 +88,6 @@ PANEL_EVENTS: Final[frozenset[str]] = frozenset(
         CLARIFICATION,
         ERROR,
         MESSAGE_STOP,
+        CANVAS,
     }
 )
