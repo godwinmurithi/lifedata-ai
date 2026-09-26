@@ -130,6 +130,10 @@ _READ_TOOL_SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # Phase 7/10 prototype, admin-only (enforced inside the tool itself, not
     # by omission from non-admin registries -- see canvas.py's own gate).
     ("lifedata_ai.tools.canvas", ("AuthorCanvasTool",)),
+    # Phase 18. READ mode despite `propose_skill` writing a `Skill` row --
+    # see skills.py's module docstring for why that is not a WRITE tool in
+    # this codebase's sense (no Superset envelope/apply step exists for it).
+    ("lifedata_ai.tools.skills", ("ProposeSkillTool", "ListSkillsTool", "ApplySkillTool")),
 )
 
 #: Write tools. Each one PROPOSES a change and returns a signed envelope; none

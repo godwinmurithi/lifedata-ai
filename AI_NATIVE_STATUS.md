@@ -1638,3 +1638,89 @@ Async queries themselves (the one piece actually built) unlock a real, if narrow
 capability: long-running chart queries can return without blocking the request — useful
 infrastructure for later work, not the "real-time reporting" the phase's title promises on
 its own.
+
+---
+
+# Phase 18 — Skills system: propose/approve/apply, research-first (2026-09-26)
+
+**Built**: a `Skill` model (`models.py`, migration `0004_skill`) plus three tools
+(`tools/skills.py`) and one management command, wiring together the whole
+propose → approve → discover → apply loop for real, not as a stub.
+
+- **`propose_skill`** — the model calls this after a result the user approved of.
+  Creates a `Skill` row with `status=PENDING`, `research_brief` (what was checked before
+  building, per the plan's own research-first rule), and a `template` recording the
+  underlying tool name plus its arguments with the one-off values (dataset id, column
+  names) replaced by named `{{placeholders}}` — generalized by the model at proposal
+  time, not auto-derived here, so a skill built against one dataset is reusable against
+  another with the same shape.
+- **`list_skills`** — searches only `status=APPROVED` skills by keyword against
+  name/description/when_to_use. A `PENDING` skill is invisible to this tool — verified
+  directly (see below), not assumed from the filter alone.
+  Zero pending in production.
+- **`apply_skill`** — takes an approved skill id plus concrete values for its
+  `generalized_inputs`, fills the template, and hands back the arguments to call the
+  real tool with. Does not call the tool itself — the model still makes that call, so it
+  goes through the normal validation/audit/RLS path like any other call, not a shortcut
+  around it.
+- **`approve_skill`** (management command, run by a human on the box) — the ONLY path
+  that moves a Skill from PENDING to APPROVED or to RETIRED. `python manage.py
+  approve_skill --list` to review pending proposals, `approve_skill <id>` to approve,
+  `approve_skill <id> --retire` to retire.
+
+**The one rule this phase states as absolute — "saving a skill always needs explicit
+human approval, even in AI_DEV_MODE" — is enforced structurally, not by a flag a tool
+could forget to check**: `propose_skill` is registered `ToolMode.READ`, not WRITE. That
+was a deliberate call, checked against how `agent/loop.py` actually treats the two
+modes rather than assumed: `ToolMode.WRITE` in this codebase means something specific —
+the loop's `is_write` branch expects an envelope with `action_id`/`risk`/`calls` that the
+panel later applies with the user's own browser session against Superset. A Skill isn't a
+Superset object and has no such apply step, so forcing WRITE mode on it would mean the
+loop mishandles the turn (reads `risk` off a payload that doesn't have it). `ask_user` (an
+existing tool with its own non-Superset side effect, a `Clarification` row) already
+established this precedent — mode describes "does this need the Superset envelope/apply
+pipeline", not "does this have a side effect" — `propose_skill` follows the same pattern
+rather than inventing a new one. Separately, and independently: `AI_DEV_MODE`'s
+auto-execute code path in `superset_write.py` only ever fires for
+`execution_mode == "mcp"` Superset writes; `propose_skill` doesn't touch Superset and
+doesn't go through that file at all, so there is no code path anywhere that could
+auto-approve a skill even by accident.
+
+**Verified end-to-end against the real database, not mocked**:
+1. Called `propose_skill` for a real skill ("subcounty pie chart, styled, brand
+   palette") → created row, `status=pending`.
+2. Confirmed `LIFEDATA_AI_DEV_MODE=True` in this environment, then confirmed the row was
+   STILL `pending` after proposing it — dev mode does not touch this path.
+3. Called `list_skills` before approval → `{"skills": []}`, empty, confirming a pending
+   skill is genuinely invisible to the model.
+4. Ran `manage.py approve_skill --list` → showed the pending skill; `manage.py
+   approve_skill 1` → approved it; `--list` again → empty (no longer pending).
+5. Called `list_skills` again → the skill now appears with its `generalized_inputs`.
+6. Called `apply_skill` with `{dataset_id: 42, groupby_column: "subcounty"}` → correctly
+   filled template, returned real args for `create_chart`.
+7. Called `apply_skill` again, deliberately omitting `groupby_column` → clean
+   `missing_input` `ToolError`, not a crash — the model can recover from this.
+8. Deleted the test skill row afterward (test artifact, not a real skill — same
+   precedent as other test data this session, but this one had no reason to stay since
+   nothing downstream references it by id).
+
+**Not built — real, scoped-down remaining work for this phase**:
+- **No research-first tooling for the model itself.** The plan's fuller vision has the
+  model actively researching (checking Superset docs/source, prior skills, config
+  options) before proposing something as a skill. What exists is a `research_brief`
+  *field* the model is prompted to fill honestly — there is no tool that fetches
+  Superset source or forces a check; the model can write a thin or wrong brief and
+  nothing catches that here.
+- **No skills gallery UI.** Discovery is only through `list_skills`' keyword search from
+  inside a chat turn — no panel page listing approved skills, no browse-and-preview.
+- **No packaging as a proper Superset extension** (the plan's "reproducible package"
+  framing from Phase 12 applied to skills specifically) — a skill here is a DB row and a
+  JSON template, not an installable unit.
+- **No versioning workflow.** The model has a `version` field but nothing increments it
+  — proposing an update to an existing approved skill would currently create a
+  competing new row rather than a v2, since no tool checks for an existing skill by
+  name before proposing.
+- **No eval-harness integration** — approved skills are not exercised by
+  `run_evals.py`/`run_depth_eval.py`, so a skill that silently breaks (e.g. the
+  underlying tool's schema changes) would not be caught automatically.
+

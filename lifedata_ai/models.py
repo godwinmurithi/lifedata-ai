@@ -322,3 +322,44 @@ class AnalystFeedEntry(models.Model):
 
     def __str__(self) -> str:
         return f"{self.metric_name} anomaly at {self.period_label} (z={self.z_score:.1f})"
+
+
+class Skill(models.Model):
+    """Phase 18: approved work becomes a reusable skill.
+
+    Saving a skill always needs explicit human approval, even in
+    AI_DEV_MODE -- the one step the plan itself says is never auto-applied.
+    Enforced structurally here, not just by convention: `ProposeSkillTool`
+    (tools/skills.py) only ever creates rows in `PENDING`, and nothing in
+    this codebase transitions a Skill to `APPROVED` except the
+    `approve_skill` management command a human runs by hand. No tool call
+    of any kind can move a Skill into `APPROVED` -- that path does not
+    exist, not "exists but is gated".
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending approval"
+        APPROVED = "approved", "Approved"
+        RETIRED = "retired", "Retired"
+
+    name = models.CharField(max_length=255)
+    description = models.TextField()
+    when_to_use = models.TextField()
+    #: {"tool_name": ..., "template_args": {...}, "generalized_inputs": [...]}
+    #: -- generalized by the model at proposal time (dataset/columns/colors
+    #: made into named inputs, not the one-off values from the original
+    #: request), not auto-derived here.
+    template = models.JSONField(default=dict)
+    research_brief = models.TextField(blank=True)
+    source_action_id = models.UUIDField(null=True, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    version = models.PositiveIntegerField(default=1)
+    proposed_by_username = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.name} v{self.version} ({self.status})"
