@@ -1525,3 +1525,39 @@ next step.
 **Not built at all this session**: self-healing dashboards (schema-change detection →
 reviewable fix proposals), per-tenant embedded analyst (guest tokens + RLS), reproducible
 analysis packages (session export bundles). Genuinely deferred, not attempted.
+
+---
+
+# Phase 15 — AI_DEV_MODE: verified working, one real tension flagged (2026-09-26)
+
+**Verified end-to-end, not just "the flag exists"**: called `CreateChartTool` directly
+(not a shortcut) as a non-admin identity (`eval_runner`, Alpha role) with a viz type MCP's
+write path supports (`pie`) — result: `execution_mode: mcp`, `status: executed`
+immediately, no manual confirm click, real chart (id 354) created and reachable. Contrast:
+the same call with `box_plot` (not yet in MCP's own config translator, see Phase 7/9 notes)
+correctly stayed `execution_mode: browser` and `dev_mode_auto_executed: None` — auto-execute
+only ever applies where a server-side execution path genuinely exists, exactly as designed,
+not a blanket bypass that pretends to work everywhere.
+
+**A real tension worth stating plainly rather than picking a side on unilaterally**: Phase
+15's own text asks for "admin-equivalent role... RLS... bypassed for the agent" —
+implying the AI itself should have elevated access regardless of which human is chatting.
+This project's foundational architecture, held everywhere else in this codebase (and
+reaffirmed today when the production-database question came up), is the opposite: every
+tool call runs as the *calling user's own* identity, never a service account, and RLS
+applies to *that user*, same as it would in the browser. `AI_DEV_MODE` as built honors the
+existing invariant — it removes the *confirmation click*, not the *identity boundary*: a
+`wakiso_analyst`-authenticated turn still only sees Wakiso's rows even with the flag on,
+same as an admin turn sees everything (because admin already has no RLS role, not because
+dev mode grants one). **Not resolved, deliberately, rather than guessed at**: whether Phase
+15's "admin-equivalent for the agent" language should override that invariant is a real
+product decision, not an engineering detail — flagging for an explicit call rather than
+silently building a bypass that would reopen the never-a-service-account question this
+project has held firm on all session.
+
+**Not built**: the full context pack ("every database, schema, table, column... certified
+metric, chart, dashboard, theme, available chart type" loaded at session start, auto-
+refreshed). Real scope, not attempted given remaining time this session.
+
+**Environment gate**: unchanged from earlier — refuses to enable if `DJANGO_ALLOWED_HOSTS`
+matches a production hostname, checked in `settings.py`, not just documented.
