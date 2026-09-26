@@ -1319,3 +1319,70 @@ unrelated reason.
   `~/projects/lifedata-ai` still has the file locally, just not on GitHub. To finish this:
   `gh auth refresh -h github.com -s workflow` (needs a human at a browser), then push
   `.github/workflows/ci.yml` directly.
+
+---
+
+# Phase 7 — client actions: researched, not yet built (2026-09-26)
+
+**Real mechanism found, not guessed**: `POST /api/v1/dashboard/<pk>/filter_state`
+(`superset/dashboards/filter_state/api.py`) creates a cached, opaque value keyed by a
+generated key; the dashboard reads it back via the `native_filters_key` URL query param on
+load. Confirmed this is genuinely how Superset's own "copy link with current filters"
+feature works (found the URL param wired in `getDashboardUrl.test.ts`), not a fork — a real,
+first-class REST endpoint any authenticated session can call, matching the plan's own "same
+state path the UI uses" requirement without touching frontend source at all.
+
+**What's not yet confirmed**: the exact JSON shape Superset's *own* frontend sends as the
+cached `value` (the endpoint stores it as an opaque string — schema enforcement is entirely
+a client-side convention, not server-validated) and the exact `native_filters_key` param name
+casing/read path. Source search found the URL param's declaration but not unambiguously the
+consuming code that parses the cached value back into dataMask state. Chased this via static
+source search rather than the more reliable method (capture the real network request
+Superset's own frontend sends when a human uses "copy filtered link" in the browser) — ran
+out of budget to do that Playwright-based capture this session, per the instruction to keep
+moving across the whole plan rather than go deep on one sub-item.
+
+**Concrete next step**: use Playwright (already working, per Phase 5) to log in, open a
+dashboard with a native filter, change a filter value through the real UI, and capture the
+actual `POST .../filter_state` request body — that's the authoritative shape, not more
+source reading. Then wire a `SetDashboardFilterValueTool` (same `WriteTool` pattern as
+`AddNativeFilterTool`) using it.
+
+**Time range**: not investigated this session — likely a simpler case (dashboards commonly
+also accept a plain `?range=...` or similar top-level time-range URL param without needing
+the filter_state cache dance at all) but not confirmed.
+
+---
+
+# Phase 7 — 3 new chart plugins added, built and verified (2026-09-26)
+
+Per the registry's own doctrine (build a real chart, render it, look at it before adding to
+`viz_allowlist`) — done for `box_plot`, `funnel`, `histogram_v2`:
+
+- **`box_plot`**: zero code changes needed — matches the existing generic `metrics`+`groupby`
+  path already used by every aggregate chart type. Verified with beds-by-subcounty on
+  `buikwe_level1_facilities` (chart 348).
+- **`funnel`**: one-line change — added to `_SINGLE_METRIC_VIZ` in `superset_write.py` so it
+  gets the derived singular `metric` field the same way `pie`/`big_number_total` do. A natural
+  fit for `scd_referral_cascade` (chart 349) — the dataset this phase's own referral-cascade
+  work already built.
+- **`histogram_v2`** (real viz_type string, confirmed from `superset/examples/
+  fcc_new_coder_survey/`'s own fixture — not `histogram`, which renders "Item with key
+  'histogram' is not registered", same failure mode `_VIZ_ALIASES` already exists for): new
+  `_apply_histogram` adapter — this viz's shape is a bare `column` to bucket, not
+  `metrics`/`groupby` at all, a genuinely different contract from every other viz type this
+  file handles. Verified with beds distribution on `buikwe_level1_facilities` (chart 350).
+
+**Verified properly, not just "the API accepted it"**: all three actually rendered via the
+real Playwright thumbnail pipeline (Phase 5) — real, non-trivial PNGs (16KB, 39KB, 10KB),
+confirmed in Redis by content size, not just a 200 response. `histogram_v2` also hit the
+same accidental MCP `get_chart_data` parsing quirk `deck_polygon` hit earlier (looks for
+`metrics`/`columns`/`groupby` keys, doesn't recognize raw-mode's `column` field) — confirmed
+this doesn't affect the actual chart (verified separately via the real
+`/api/v1/chart/data` endpoint, 47 real rows back), same "cosmetic MCP-side quirk, not a real
+failure" conclusion as before.
+
+Client-actions and sandboxed-canvas sub-items of Phase 7: see the separate note above
+(client actions researched, real mechanism identified, not yet built) — canvas not
+attempted this session, moving to remaining phases per explicit instruction to prioritize
+breadth.

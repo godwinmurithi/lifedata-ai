@@ -105,6 +105,7 @@ def _to_superset_form_data(params: dict[str, Any], dataset_id: int) -> dict[str,
     if filters:
         form["adhoc_filters"] = [_to_superset_filter(f) for f in filters]
 
+    _apply_histogram(form)
     _apply_country_map(form, dataset_id)
     # Order matters: this derives form["metric"] from form["metrics"][0] for
     # every viz in _SINGLE_METRIC_VIZ, deck_polygon included -- it must run
@@ -133,6 +134,45 @@ MAP_COUNTRY = "uganda"
 #: default for this control; set explicitly so a map is not left to whatever the
 #: default happens to become.
 MAP_COLOR_SCHEME = "superset_seq_1"
+
+
+def _apply_histogram(form: dict[str, Any]) -> None:
+    """Turn "distribution of age" into histogram_v2's controls (Phase 7/9).
+
+    Verified against Superset's own example fixture
+    (`superset/examples/fcc_new_coder_survey/charts/Age_distribution_of_respondents.yaml`):
+    the real viz_type string is `histogram_v2` (not `histogram` -- a saved
+    chart with that name renders "Item with key \"histogram\" is not
+    registered", the same failure mode `_VIZ_ALIASES` above exists for), and
+    the single numeric field to bucket is `column`, not `metrics`/`groupby` --
+    a genuinely different shape from every other viz type this file handles,
+    not a variant of the generic aggregate path.
+    """
+    if form.get("viz_type") not in {"histogram", "histogram_v2"}:
+        return
+    form["viz_type"] = "histogram_v2"
+    # The model naturally reaches for groupby/metrics like every other chart;
+    # histogram_v2 wants the raw column to bucket instead, under `column`.
+    column = form.pop("column", None)
+    groupby = form.pop("groupby", None) or []
+    metrics = form.pop("metrics", None) or []
+    if not column:
+        if groupby:
+            column = groupby[0]
+        elif metrics:
+            # metrics[0] here is already a Superset-shaped metric dict
+            # (adhoc column ref or a saved-metric name) by the time this
+            # runs -- pull the underlying column name back out for the one
+            # case a bare column reference produces.
+            first = metrics[0]
+            if isinstance(first, dict):
+                column = (first.get("column") or {}).get("column_name")
+            elif isinstance(first, str):
+                column = first
+    if column:
+        form["column"] = column
+    form.setdefault("link_length", "25")
+    form.pop("x_axis", None)
 
 
 def _apply_country_map(form: dict[str, Any], dataset_id: int) -> None:
@@ -348,7 +388,7 @@ def _temporal_column(form: dict[str, Any], dataset_id: int) -> str | None:
 #: types (`echarts_timeseries_line`, `echarts_timeseries_bar`, `table`) render
 #: correctly from `metrics` and must NOT be added here.
 _SINGLE_METRIC_VIZ: frozenset[str] = frozenset(
-    {"big_number_total", "pie", "country_map", "deck_polygon"}
+    {"big_number_total", "pie", "country_map", "deck_polygon", "funnel"}
 )
 
 

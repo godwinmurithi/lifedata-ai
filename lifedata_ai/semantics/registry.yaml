@@ -4237,6 +4237,19 @@ viz_allowlist:
   - pie
   - table
   - deck_polygon
+  # Phase 7 (2026-09-26): built, rendered via playwright, and looked at
+  # before adding, per the doctrine above. box_plot needed zero code changes
+  # (matches the generic metrics+groupby path); funnel needed one line
+  # (added to _SINGLE_METRIC_VIZ in superset_write.py); histogram_v2 needed
+  # a small new adapter (_apply_histogram) since its shape is a bare
+  # `column` to bucket, not metrics/groupby at all. Verified: chart 348
+  # (box_plot, beds by subcounty on buikwe_level1_facilities), 349 (funnel,
+  # scd_referral_cascade stages), 350 (histogram_v2, beds distribution) --
+  # all three rendered real, non-trivial PNGs (16KB/39KB/10KB) via the real
+  # thumbnail task, not just a successful API response.
+  - box_plot
+  - funnel
+  - histogram_v2
 
 patient_geography_forbidden_viz:
   - deck_scatter
