@@ -1607,3 +1607,34 @@ larger remaining scope for this phase.
 
 Test chart 354 and test dashboard 35 left in place, clearly labeled, same precedent as
 every other test artifact this session.
+
+---
+
+# Phase 17 — GLOBAL_ASYNC_QUERIES fixed properly; most of the phase not attempted (2026-09-26)
+
+**Fixed the Phase 5 regression properly this time**: `GLOBAL_ASYNC_QUERIES` was backed out
+in Phase 5 after crashing the web worker (missing `GLOBAL_ASYNC_QUERIES_JWT_SECRET`). Added
+back with a real generated secret plus its own Redis cache backend config
+(`GLOBAL_ASYNC_QUERIES_CACHE_BACKEND` defaults to `localhost`, not this deployment's
+dedicated Redis container — checked `superset/config.py` rather than assuming the general
+`CACHE_CONFIG` covered it too). Verified: feature flag on, secret set, all 5 services
+(web/mcp/worker/beat/redis) healthy, and the web login page responds 200 — no repeat of the
+earlier crash.
+
+**Everything else in this phase — not attempted, stated plainly rather than implied done**:
+- **No CDC/Debezium/NATS pipeline exists on this box** (confirmed in Phase 0). The phase's
+  own permitted fallback ("simulate a stream by writing dummy events on a timer") was **not
+  built** this session.
+- **Alerts/scheduled reports can't actually deliver anything on this deployment**: Superset's
+  native `ALERT_REPORTS` feature needs SMTP or Slack configured, and this deployment has
+  neither (no SMTP server, a fact already on record from earlier project work this
+  repository inherited). Enabling the feature flag without a delivery channel would be
+  theater, not a real capability — not done.
+- **Push-on-change, and wiring Phase 12's continuous analyst to a live stream**: not
+  attempted. Phase 12's analyst still only runs on manual invocation
+  (`run_continuous_analyst`), not on any schedule or live trigger.
+
+Async queries themselves (the one piece actually built) unlock a real, if narrower,
+capability: long-running chart queries can return without blocking the request — useful
+infrastructure for later work, not the "real-time reporting" the phase's title promises on
+its own.
