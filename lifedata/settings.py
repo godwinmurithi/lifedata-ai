@@ -226,6 +226,34 @@ LIFEDATA_AI_USE_MCP_READS = _env_bool("LIFEDATA_AI_USE_MCP_READS", True)
 #: AI_NATIVE_STATUS.md.
 LIFEDATA_AI_USE_MCP_WRITES = _env_bool("LIFEDATA_AI_USE_MCP_WRITES", True)
 
+#: Phase 15 (plan's own spec): guardrails off for this sandbox, per explicit,
+#: repeated instruction (2026-09-25) -- every dataset on this box is a fixture
+#: the user created for this purpose, not real patient/production data. Two
+#: things stay true regardless of this flag, matching the plan's own text
+#: verbatim, not a reinterpretation of it:
+#:   1. Refuses to turn on if the deployment doesn't look like this sandbox
+#:      (DJANGO_ALLOWED_HOSTS must be exactly sandbox.lifehealth.app-shaped,
+#:      never a production hostname) -- the environment gate, not an AI
+#:      restriction.
+#:   2. Saving a skill (Phase 18, not built yet) always needs explicit human
+#:      approval even with this on -- the plan's one stated exception.
+#: What this flag actually removes when true: the propose-then-click-confirm
+#: step for MCP-executable writes (WriteTool.run() auto-executes instead of
+#: waiting for the panel to POST a confirm), and the registry.yaml dataset
+#: gate as defense-in-depth beyond just cataloguing every dataset (Phase 4).
+#: It does NOT introduce a service account -- every action still runs under
+#: the calling user's own minted MCP identity, same invariant as always.
+_PRODUCTION_HOST_MARKERS = ("lifedata.lifehealth.app",)
+
+
+def _looks_like_production(allowed_hosts: list[str]) -> bool:
+    return any(marker in host for host in allowed_hosts for marker in _PRODUCTION_HOST_MARKERS)
+
+
+LIFEDATA_AI_DEV_MODE = _env_bool("LIFEDATA_AI_DEV_MODE", False) and not _looks_like_production(
+    ALLOWED_HOSTS
+)
+
 #: Secrets come from the environment only, never from code (spec §9).
 ANTHROPIC_API_KEY = _env("ANTHROPIC_API_KEY")
 

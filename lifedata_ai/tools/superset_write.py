@@ -702,6 +702,41 @@ class WriteTool(Tool):
             )
             self._capture_snapshot(context, record, approved)
 
+        auto_executed: dict[str, Any] | None = None
+        if settings.LIFEDATA_AI_DEV_MODE and execution_mode == "mcp":
+            # Phase 15: outward-action confirmation skipped in dev mode. Same
+            # code path execute_mcp_action.py uses on a panel confirm click --
+            # called here directly instead of waiting for one. Still the
+            # calling user's own minted MCP identity, never a service account.
+            # "browser" actions can't be auto-executed this way: only the
+            # user's own browser holds the session cookie those need, so they
+            # still wait for a click regardless of this flag -- a structural
+            # fact, not a guardrail choice.
+            from lifedata_ai.tools.mcp_write_dispatch import execute_via_mcp
+
+            mcp_client = context.superset_mcp_client()
+            try:
+                outcome = execute_via_mcp(mcp_client, self.action_type, approved)
+            except (SupersetError, ValueError) as exc:
+                record.transition_to(
+                    ActionRecord.Status.FAILED,
+                    executed_by_username=context.identity.username,
+                    execution_result={"error": str(exc)},
+                )
+            else:
+                extra_fields = (
+                    {"superset_object_id": str(outcome["superset_object_id"])}
+                    if outcome.get("superset_object_id")
+                    else {}
+                )
+                record.transition_to(
+                    ActionRecord.Status.EXECUTED,
+                    executed_by_username=context.identity.username,
+                    execution_result=outcome,
+                    **extra_fields,
+                )
+                auto_executed = outcome
+
         envelope = build_envelope(
             action_id=str(record.id),
             action_type=self.action_type,
@@ -713,6 +748,7 @@ class WriteTool(Tool):
             "risk": record.risk,
             "summary": summary,
             "execution_mode": execution_mode,
+            "dev_mode_auto_executed": auto_executed,
             # The signed token travels with the action and comes back on the
             # result report, where the server verifies the panel executed the
             # decision that was actually approved.

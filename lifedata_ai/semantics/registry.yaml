@@ -403,6 +403,3757 @@ datasets:
 # coverage — depend on how each survey encodes its answers, and inventing a
 # definition is exactly the failure this file exists to prevent. A domain owner
 # should author them, in this file, reviewed like code.
+
+  # ---------------------------------------------------------------------
+  # Auto-catalogued 2026-09-25, per explicit instruction: all data on this
+  # box was created by the user as static sandbox fixtures for this exact
+  # purpose (no real patient/production data), and admin + Vima + MCP are
+  # to have full, direct access to every connected DB and dataset.
+  # Roles assigned by SQL type (numeric -> measure_source, id-like ->
+  # key, else -> dimension) rather than hand-curated per column -- this
+  # intentionally trades per-column semantic labels for full coverage.
+  # sensitivity: "unrestricted_full_access" marks these as explicitly
+  # authorized, distinct from the hand-curated entries above.
+  # ---------------------------------------------------------------------
+  - name: sickle_cell
+    label: "Sickle Cell"
+    superset_dataset_id: 1
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [sickle_cell]
+    synonyms: [sickle cell]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: ogc_fid, role: key}
+      - {name: fid, role: key}
+      - {name: objectid, role: key}
+      - {name: globalid, role: key}
+      - {name: device_id, role: key}
+      - {name: start_time, role: dimension}
+      - {name: hospital_d, role: dimension}
+      - {name: name_of_he, role: dimension}
+      - {name: name_of_in, role: dimension}
+      - {name: telephone_, role: measure_source}
+      - {name: email_addr, role: dimension}
+      - {name: ownership_, role: dimension}
+      - {name: month_and_, role: dimension}
+      - {name: hours_of_o, role: dimension}
+      - {name: opening_ti, role: dimension}
+      - {name: closing_ti, role: dimension}
+      - {name: level_of_h, role: dimension}
+      - {name: type_of_he, role: dimension}
+      - {name: how_many_b, role: measure_source}
+      - {name: maternal_a, role: dimension}
+      - {name: maternal_1, role: dimension}
+      - {name: who_is_the, role: dimension}
+      - {name: what_is_th, role: measure_source}
+      - {name: what_is__1, role: dimension}
+      - {name: hiv_and_tb, role: dimension}
+      - {name: hiv_and__1, role: dimension}
+      - {name: who_is_t_1, role: dimension}
+      - {name: what_is__2, role: measure_source}
+      - {name: what_is__3, role: dimension}
+      - {name: radiology_, role: dimension}
+      - {name: radiology1, role: dimension}
+      - {name: who_is_t_2, role: dimension}
+      - {name: what_is__4, role: measure_source}
+      - {name: what_is__5, role: dimension}
+      - {name: laboratory, role: dimension}
+      - {name: labaratory, role: dimension}
+      - {name: who_is_t_3, role: dimension}
+      - {name: what_is__6, role: measure_source}
+      - {name: what_is__7, role: dimension}
+      - {name: highly_spe, role: dimension}
+      - {name: highly_s_1, role: dimension}
+      - {name: specify, role: dimension}
+      - {name: who_is_t_4, role: dimension}
+      - {name: what_is__8, role: measure_source}
+      - {name: what_is__9, role: dimension}
+      - {name: dental_ser, role: dimension}
+      - {name: who_is_t_5, role: dimension}
+      - {name: what_is_10, role: measure_source}
+      - {name: what_is_11, role: dimension}
+      - {name: optical_se, role: dimension}
+      - {name: who_is_t_6, role: dimension}
+      - {name: what_is_12, role: measure_source}
+      - {name: what_is_13, role: dimension}
+      - {name: surgery, role: dimension}
+      - {name: who_is_t_7, role: dimension}
+      - {name: what_is_14, role: measure_source}
+      - {name: what_is_15, role: dimension}
+      - {name: theatre, role: dimension}
+      - {name: who_is_t_8, role: dimension}
+      - {name: what_is_16, role: measure_source}
+      - {name: what_is_17, role: dimension}
+      - {name: ambulance, role: dimension}
+      - {name: who_is_t_9, role: dimension}
+      - {name: what_is_18, role: measure_source}
+      - {name: what_is_19, role: dimension}
+      - {name: mortuary_s, role: dimension}
+      - {name: who_is__10, role: dimension}
+      - {name: what_is_20, role: measure_source}
+      - {name: what_is_21, role: dimension}
+      - {name: does_this_, role: dimension}
+      - {name: which_clin, role: dimension}
+      - {name: does_this1, role: dimension}
+      - {name: which_labo, role: dimension}
+      - {name: does_thi_1, role: dimension}
+      - {name: which_admi, role: dimension}
+      - {name: health_car, role: measure_source}
+      - {name: does_thi_2, role: dimension}
+      - {name: does_the_f, role: dimension}
+      - {name: dashboard_, role: dimension}
+      - {name: end_time, role: dimension}
+      - {name: creationda, role: dimension}
+      - {name: creator, role: dimension}
+      - {name: editdate, role: dimension}
+      - {name: dashboard1, role: dimension}
+      - {name: individual, role: dimension}
+      - {name: x, role: dimension}
+      - {name: y, role: dimension}
+      - {name: hematiligi, role: dimension}
+      - {name: nurses, role: dimension}
+      - {name: blood_tran, role: dimension}
+      - {name: hydroxyure, role: dimension}
+      - {name: genetic_co, role: dimension}
+      - {name: participat, role: dimension}
+      - {name: pediatric_, role: dimension}
+      - {name: adult_care, role: dimension}
+      - {name: outreach_p, role: dimension}
+      - {name: insurance_, role: dimension}
+      - {name: emergency_, role: dimension}
+      - {name: participants, role: dimension}
+      - {name: medicalstaff, role: dimension}
+      - {name: geometry, role: dimension}
+      - {name: subcounty, role: dimension}
+      - {name: parish, role: dimension}
+      - {name: county, role: dimension}
+      - {name: village, role: dimension}
+
+  - name: sickle_cells_disease_questionnaire
+    label: "Sickle Cells Disease Questionnaire"
+    superset_dataset_id: 3
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [sickle_cells_disease_questionnaire]
+    synonyms: [sickle cells disease questionnaire]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: ogc_fid, role: key}
+      - {name: globalid, role: key}
+      - {name: respondent, role: dimension}
+      - {name: consent_op, role: dimension}
+      - {name: all_select, role: dimension}
+      - {name: patient_co, role: dimension}
+      - {name: sub_county, role: dimension}
+      - {name: scd_facili, role: dimension}
+      - {name: year_of_bi, role: temporal}
+      - {name: gender, role: dimension}
+      - {name: education, role: dimension}
+      - {name: other_educ, role: dimension}
+      - {name: phone_numb, role: dimension}
+      - {name: occupation, role: dimension}
+      - {name: other_occu, role: dimension}
+      - {name: diagnosis, role: dimension}
+      - {name: other_diag, role: dimension}
+      - {name: transfusio, role: dimension}
+      - {name: other_tran, role: dimension}
+      - {name: info_sourc, role: dimension}
+      - {name: other_info, role: dimension}
+      - {name: main_info_, role: dimension}
+      - {name: other_sour, role: dimension}
+      - {name: satisfacti, role: dimension}
+      - {name: support_at, role: dimension}
+      - {name: satisfac_1, role: dimension}
+      - {name: satisfac_2, role: dimension}
+      - {name: satisfac_3, role: dimension}
+      - {name: satisfac_4, role: dimension}
+      - {name: next_clini, role: dimension}
+      - {name: satisfac_5, role: dimension}
+      - {name: satisfac_6, role: dimension}
+      - {name: satisfac_7, role: dimension}
+      - {name: satisfac_8, role: dimension}
+      - {name: satisfac_9, role: dimension}
+      - {name: satisfa_10, role: dimension}
+      - {name: treatment_, role: dimension}
+      - {name: service_qu, role: dimension}
+      - {name: access_to_, role: dimension}
+      - {name: payment_fo, role: dimension}
+      - {name: other_paym, role: dimension}
+      - {name: need_to_mo, role: dimension}
+      - {name: other_need, role: dimension}
+      - {name: distance_t, role: dimension}
+      - {name: psychologi, role: dimension}
+      - {name: satisfa_11, role: dimension}
+      - {name: recommend_, role: dimension}
+      - {name: current_he, role: dimension}
+      - {name: additional, role: dimension}
+      - {name: consent_do, role: dimension}
+      - {name: doctor_con, role: dimension}
+      - {name: doctor_cou, role: dimension}
+      - {name: doctor_sub, role: dimension}
+      - {name: doctor_dat, role: temporal}
+      - {name: doctor_gen, role: dimension}
+      - {name: phone_nu_1, role: dimension}
+      - {name: specializa, role: dimension}
+      - {name: other_spec, role: dimension}
+      - {name: years_of_e, role: measure_source}
+      - {name: avg_weekly, role: measure_source}
+      - {name: addition_1, role: dimension}
+      - {name: other_addi, role: dimension}
+      - {name: satisfa_12, role: dimension}
+      - {name: frequency_, role: dimension}
+      - {name: other_freq, role: measure_source}
+      - {name: num_patien, role: dimension}
+      - {name: other_num_, role: measure_source}
+      - {name: adequate_n, role: dimension}
+      - {name: other_adeq, role: dimension}
+      - {name: satisfa_13, role: dimension}
+      - {name: educate_pa, role: dimension}
+      - {name: patient_ed, role: dimension}
+      - {name: patient__1, role: dimension}
+      - {name: facility_n, role: dimension}
+      - {name: facility_e, role: dimension}
+      - {name: facility_p, role: dimension}
+      - {name: satisfa_14, role: dimension}
+      - {name: protection, role: dimension}
+      - {name: involvemen, role: dimension}
+      - {name: career_adv, role: dimension}
+      - {name: level_of_r, role: dimension}
+      - {name: decision_m, role: dimension}
+      - {name: appreciati, role: dimension}
+      - {name: facility_s, role: dimension}
+      - {name: satisfa_15, role: dimension}
+      - {name: electronic, role: dimension}
+      - {name: satisfa_16, role: dimension}
+      - {name: work_satis, role: dimension}
+      - {name: other_work, role: dimension}
+      - {name: other_sugg, role: dimension}
+      - {name: thank_you_, role: dimension}
+      - {name: creationda, role: temporal}
+      - {name: creator, role: dimension}
+      - {name: editdate, role: temporal}
+      - {name: editor, role: dimension}
+      - {name: geometry, role: dimension}
+      - {name: respondent_label, role: dimension}
+      - {name: facility_norm, role: dimension}
+      - {name: patient_gender_norm, role: dimension}
+      - {name: doctor_gender_norm, role: dimension}
+      - {name: diagnosis_label, role: dimension}
+      - {name: treatment_cost_label, role: dimension}
+      - {name: satisfaction_label, role: dimension}
+      - {name: service_quality_label, role: dimension}
+      - {name: doctor_county_label, role: dimension}
+      - {name: specialization_label, role: dimension}
+      - {name: subcounty_label, role: dimension}
+      - {name: lat, role: measure_source}
+      - {name: lon, role: measure_source}
+
+  - name: farmers
+    label: "Farmers"
+    superset_dataset_id: 4
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [farmers]
+    synonyms: [farmers]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: gender_norm, role: dimension}
+      - {name: age_band_norm, role: dimension}
+      - {name: yield_num, role: measure_source}
+      - {name: income_num, role: measure_source}
+      - {name: employees_num, role: measure_source}
+      - {name: id, role: key}
+      - {name: agro_tracker_id, role: key}
+      - {name: user_id, role: key}
+      - {name: region_id, role: key}
+      - {name: district_id, role: key}
+      - {name: constituency_id, role: key}
+      - {name: subcounty_id, role: key}
+      - {name: parish_id, role: key}
+      - {name: village_id, role: key}
+      - {name: type, role: dimension}
+      - {name: first_name, role: dimension}
+      - {name: last_name, role: dimension}
+      - {name: marital_status, role: dimension}
+      - {name: education_level, role: dimension}
+      - {name: gender, role: dimension}
+      - {name: date_of_birth, role: temporal}
+      - {name: country, role: dimension}
+      - {name: currency, role: dimension}
+      - {name: created_at, role: dimension}
+      - {name: updated_at, role: dimension}
+      - {name: enrollment_date, role: temporal}
+      - {name: disability, role: measure_source}
+      - {name: other_crop, role: dimension}
+      - {name: number_of_employees, role: dimension}
+      - {name: scale_of_production, role: dimension}
+      - {name: average_yield_attained, role: dimension}
+      - {name: base_average_income, role: dimension}
+      - {name: age_band, role: dimension}
+      - {name: nationality, role: dimension}
+      - {name: geometry, role: dimension}
+      - {name: disability_label, role: dimension}
+      - {name: age_band_order, role: measure_source}
+      - {name: crop_count, role: measure_source}
+      - {name: nationality_label, role: dimension}
+      - {name: income_band, role: dimension}
+      - {name: income_band_order, role: measure_source}
+
+  - name: farmers_crop_breakdown
+    label: "Farmers Crop Breakdown"
+    superset_dataset_id: 6
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [farmers_crop_breakdown]
+    synonyms: [farmers crop breakdown]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: farmer_id, role: key}
+      - {name: crop, role: dimension}
+      - {name: gender_norm, role: dimension}
+      - {name: income_num, role: measure_source}
+      - {name: yield_num, role: measure_source}
+      - {name: employees_num, role: measure_source}
+
+  - name: arise_hcp
+    label: "Arise Hcp"
+    superset_dataset_id: 7
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [arise_hcp]
+    synonyms: [arise hcp]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: ogc_fid, role: key}
+      - {name: fid, role: key}
+      - {name: globalid, role: key}
+      - {name: respondent, role: dimension}
+      - {name: consent_op, role: dimension}
+      - {name: all_select, role: dimension}
+      - {name: patient_co, role: dimension}
+      - {name: sub_county, role: dimension}
+      - {name: scd_facili, role: dimension}
+      - {name: year_of_bi, role: temporal}
+      - {name: gender, role: dimension}
+      - {name: education, role: dimension}
+      - {name: other_educ, role: dimension}
+      - {name: phone_numb, role: dimension}
+      - {name: occupation, role: dimension}
+      - {name: other_occu, role: dimension}
+      - {name: diagnosis, role: dimension}
+      - {name: other_diag, role: dimension}
+      - {name: transfusio, role: dimension}
+      - {name: other_tran, role: dimension}
+      - {name: info_sourc, role: dimension}
+      - {name: other_info, role: dimension}
+      - {name: main_info_, role: dimension}
+      - {name: other_sour, role: dimension}
+      - {name: satisfacti, role: dimension}
+      - {name: support_at, role: dimension}
+      - {name: satisfac_1, role: dimension}
+      - {name: satisfac_2, role: dimension}
+      - {name: satisfac_3, role: dimension}
+      - {name: satisfac_4, role: dimension}
+      - {name: next_clini, role: dimension}
+      - {name: satisfac_5, role: dimension}
+      - {name: satisfac_6, role: dimension}
+      - {name: satisfac_7, role: dimension}
+      - {name: satisfac_8, role: dimension}
+      - {name: satisfac_9, role: dimension}
+      - {name: satisfa_10, role: dimension}
+      - {name: treatment_, role: dimension}
+      - {name: service_qu, role: dimension}
+      - {name: access_to_, role: dimension}
+      - {name: payment_fo, role: dimension}
+      - {name: other_paym, role: dimension}
+      - {name: need_to_mo, role: dimension}
+      - {name: other_need, role: dimension}
+      - {name: distance_t, role: dimension}
+      - {name: psychologi, role: dimension}
+      - {name: satisfa_11, role: dimension}
+      - {name: recommend_, role: dimension}
+      - {name: current_he, role: dimension}
+      - {name: additional, role: dimension}
+      - {name: consent_do, role: dimension}
+      - {name: doctor_con, role: dimension}
+      - {name: doctor_cou, role: dimension}
+      - {name: doctor_sub, role: dimension}
+      - {name: doctor_dat, role: temporal}
+      - {name: doctor_gen, role: dimension}
+      - {name: phone_nu_1, role: dimension}
+      - {name: specializa, role: dimension}
+      - {name: other_spec, role: dimension}
+      - {name: years_of_e, role: dimension}
+      - {name: avg_weekly, role: dimension}
+      - {name: addition_1, role: dimension}
+      - {name: other_addi, role: dimension}
+      - {name: satisfa_12, role: dimension}
+      - {name: frequency_, role: dimension}
+      - {name: other_freq, role: dimension}
+      - {name: num_patien, role: dimension}
+      - {name: other_num_, role: dimension}
+      - {name: adequate_n, role: dimension}
+      - {name: other_adeq, role: dimension}
+      - {name: satisfa_13, role: dimension}
+      - {name: educate_pa, role: dimension}
+      - {name: patient_ed, role: dimension}
+      - {name: patient__1, role: dimension}
+      - {name: facility_n, role: dimension}
+      - {name: facility_e, role: dimension}
+      - {name: facility_p, role: dimension}
+      - {name: satisfa_14, role: dimension}
+      - {name: protection, role: dimension}
+      - {name: involvemen, role: dimension}
+      - {name: career_adv, role: dimension}
+      - {name: level_of_r, role: dimension}
+      - {name: decision_m, role: dimension}
+      - {name: appreciati, role: dimension}
+      - {name: facility_s, role: dimension}
+      - {name: satisfa_15, role: dimension}
+      - {name: electronic, role: dimension}
+      - {name: satisfa_16, role: dimension}
+      - {name: work_satis, role: dimension}
+      - {name: other_work, role: dimension}
+      - {name: other_sugg, role: dimension}
+      - {name: thank_you_, role: dimension}
+      - {name: creationda, role: temporal}
+      - {name: creator, role: dimension}
+      - {name: editdate, role: temporal}
+      - {name: editor, role: dimension}
+      - {name: geometry, role: dimension}
+
+  - name: latest_data_join
+    label: "Latest Data Join"
+    superset_dataset_id: 10
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [latest_data_join]
+    synonyms: [latest data join]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: ogc_fid, role: key}
+      - {name: globalid, role: key}
+      - {name: device_id, role: key}
+      - {name: start_time, role: temporal}
+      - {name: intro, role: dimension}
+      - {name: name_facil, role: dimension}
+      - {name: name_incha, role: dimension}
+      - {name: telephone, role: measure_source}
+      - {name: email, role: dimension}
+      - {name: ownership_, role: dimension}
+      - {name: date_openi, role: temporal}
+      - {name: hours_oper, role: dimension}
+      - {name: opening_ti, role: dimension}
+      - {name: closing_ti, role: dimension}
+      - {name: hf_level, role: dimension}
+      - {name: facility_t, role: dimension}
+      - {name: no_beds, role: measure_source}
+      - {name: maternal_c, role: dimension}
+      - {name: maternal_o, role: dimension}
+      - {name: incharge_m, role: dimension}
+      - {name: number_mch, role: measure_source}
+      - {name: email_mch, role: dimension}
+      - {name: hiv_tb, role: dimension}
+      - {name: hiv_tb_opt, role: dimension}
+      - {name: incharge_t, role: dimension}
+      - {name: number_tb, role: measure_source}
+      - {name: email_tb, role: dimension}
+      - {name: radiology, role: dimension}
+      - {name: radiology_, role: dimension}
+      - {name: incharge_r, role: dimension}
+      - {name: number_rad, role: measure_source}
+      - {name: email_rad, role: dimension}
+      - {name: labaratory, role: dimension}
+      - {name: labarato_1, role: dimension}
+      - {name: incharge_l, role: dimension}
+      - {name: number_lab, role: measure_source}
+      - {name: email_lab, role: dimension}
+      - {name: specialise, role: dimension}
+      - {name: speciali_1, role: dimension}
+      - {name: specify_ot, role: dimension}
+      - {name: incharge_s, role: dimension}
+      - {name: number_sps, role: measure_source}
+      - {name: email_sps, role: dimension}
+      - {name: dental, role: dimension}
+      - {name: incharge_d, role: dimension}
+      - {name: number_den, role: measure_source}
+      - {name: email_dent, role: dimension}
+      - {name: optical, role: dimension}
+      - {name: incharge_o, role: dimension}
+      - {name: number_opt, role: measure_source}
+      - {name: email_opti, role: dimension}
+      - {name: surgery, role: dimension}
+      - {name: incharge_1, role: dimension}
+      - {name: number_sur, role: measure_source}
+      - {name: email_surg, role: dimension}
+      - {name: theatre, role: dimension}
+      - {name: incharge_2, role: dimension}
+      - {name: number_the, role: measure_source}
+      - {name: email_thea, role: dimension}
+      - {name: ambulance, role: dimension}
+      - {name: incharge_a, role: dimension}
+      - {name: number_amb, role: measure_source}
+      - {name: email_ambu, role: dimension}
+      - {name: mortuary, role: dimension}
+      - {name: incharge_3, role: dimension}
+      - {name: number_mor, role: measure_source}
+      - {name: email_mort, role: dimension}
+      - {name: clinicians, role: dimension}
+      - {name: clinicia_1, role: dimension}
+      - {name: labstaff, role: dimension}
+      - {name: lab_option, role: dimension}
+      - {name: admin_staf, role: dimension}
+      - {name: administra, role: dimension}
+      - {name: waste_mana, role: dimension}
+      - {name: electricit, role: dimension}
+      - {name: internet, role: dimension}
+      - {name: enumerator, role: dimension}
+      - {name: end_time, role: temporal}
+      - {name: creationda, role: temporal}
+      - {name: creator, role: dimension}
+      - {name: editdate, role: temporal}
+      - {name: editor, role: dimension}
+      - {name: village, role: dimension}
+      - {name: parish, role: dimension}
+      - {name: subcounty, role: dimension}
+      - {name: county, role: dimension}
+      - {name: district, role: dimension}
+      - {name: pop2002, role: measure_source}
+      - {name: individual, role: dimension}
+      - {name: device_id_, role: key}
+      - {name: start_ti_1, role: temporal}
+      - {name: todays_dat, role: temporal}
+      - {name: hospital_n, role: dimension}
+      - {name: malaria, role: dimension}
+      - {name: male_0to9y, role: measure_source}
+      - {name: female_0to, role: measure_source}
+      - {name: male_10to1, role: measure_source}
+      - {name: female_10t, role: measure_source}
+      - {name: male_20to4, role: measure_source}
+      - {name: female_20t, role: measure_source}
+      - {name: male_over4, role: measure_source}
+      - {name: female_ove, role: measure_source}
+      - {name: inpatient_, role: measure_source}
+      - {name: outpatient, role: measure_source}
+      - {name: referrals_, role: measure_source}
+      - {name: dysentry, role: dimension}
+      - {name: male_0to_1, role: measure_source}
+      - {name: female_0_1, role: measure_source}
+      - {name: male_10t_1, role: measure_source}
+      - {name: female_1_1, role: measure_source}
+      - {name: male_20t_1, role: measure_source}
+      - {name: female_2_1, role: measure_source}
+      - {name: male_ove_1, role: measure_source}
+      - {name: female_o_1, role: measure_source}
+      - {name: inpatient1, role: measure_source}
+      - {name: outpatie_1, role: measure_source}
+      - {name: referrals1, role: measure_source}
+      - {name: sari, role: dimension}
+      - {name: male_0to_2, role: measure_source}
+      - {name: female_0_2, role: measure_source}
+      - {name: male_10t_2, role: measure_source}
+      - {name: female_1_2, role: measure_source}
+      - {name: male_20t_2, role: measure_source}
+      - {name: female_2_2, role: measure_source}
+      - {name: male_ove_2, role: measure_source}
+      - {name: female_o_2, role: measure_source}
+      - {name: inpatien_1, role: measure_source}
+      - {name: outpatie_2, role: measure_source}
+      - {name: referral_1, role: measure_source}
+      - {name: afp, role: dimension}
+      - {name: male_0to_3, role: measure_source}
+      - {name: female_0_3, role: measure_source}
+      - {name: male_10t_3, role: measure_source}
+      - {name: female_1_3, role: measure_source}
+      - {name: male_20t_3, role: measure_source}
+      - {name: female_2_3, role: measure_source}
+      - {name: male_ove_3, role: measure_source}
+      - {name: female_o_3, role: measure_source}
+      - {name: inpatien_2, role: measure_source}
+      - {name: outpatie_3, role: measure_source}
+      - {name: referral_2, role: measure_source}
+      - {name: aefi, role: dimension}
+      - {name: male_0to_4, role: measure_source}
+      - {name: female_0_4, role: measure_source}
+      - {name: male_10t_4, role: measure_source}
+      - {name: female_1_4, role: measure_source}
+      - {name: male_20t_4, role: measure_source}
+      - {name: female_2_4, role: measure_source}
+      - {name: male_ove_4, role: measure_source}
+      - {name: female_o_4, role: measure_source}
+      - {name: inpatien_3, role: measure_source}
+      - {name: outpatie_4, role: measure_source}
+      - {name: referral_3, role: measure_source}
+      - {name: animalbite, role: dimension}
+      - {name: male_0to_5, role: measure_source}
+      - {name: female_0_5, role: measure_source}
+      - {name: male_10t_5, role: measure_source}
+      - {name: female_1_5, role: measure_source}
+      - {name: male_20t_5, role: measure_source}
+      - {name: female_2_5, role: measure_source}
+      - {name: male_ove_5, role: measure_source}
+      - {name: female_o_5, role: measure_source}
+      - {name: inpatien_4, role: measure_source}
+      - {name: outpatie_5, role: measure_source}
+      - {name: referral_4, role: measure_source}
+      - {name: bm, role: dimension}
+      - {name: male_0to_6, role: measure_source}
+      - {name: female_0_6, role: measure_source}
+      - {name: male_10t_6, role: measure_source}
+      - {name: female_1_6, role: measure_source}
+      - {name: male_20t_6, role: measure_source}
+      - {name: female_2_6, role: measure_source}
+      - {name: male_ove_6, role: measure_source}
+      - {name: female_o_6, role: measure_source}
+      - {name: inpatien_5, role: measure_source}
+      - {name: outpatie_6, role: measure_source}
+      - {name: referral_5, role: measure_source}
+      - {name: cholera, role: dimension}
+      - {name: male_0to_7, role: measure_source}
+      - {name: female_0_7, role: measure_source}
+      - {name: male_10t_7, role: measure_source}
+      - {name: female_1_7, role: measure_source}
+      - {name: male_20t_7, role: measure_source}
+      - {name: female_2_7, role: measure_source}
+      - {name: male_ove_7, role: measure_source}
+      - {name: female_o_7, role: measure_source}
+      - {name: inpatien_6, role: measure_source}
+      - {name: outpatie_7, role: measure_source}
+      - {name: referral_6, role: measure_source}
+      - {name: gw, role: dimension}
+      - {name: male_0to_8, role: measure_source}
+      - {name: female_0_8, role: measure_source}
+      - {name: male_10t_8, role: measure_source}
+      - {name: female_1_8, role: measure_source}
+      - {name: male_20t_8, role: measure_source}
+      - {name: female_2_8, role: measure_source}
+      - {name: male_ove_8, role: measure_source}
+      - {name: female_o_8, role: measure_source}
+      - {name: inpatien_7, role: measure_source}
+      - {name: outpatie_8, role: measure_source}
+      - {name: referral_7, role: measure_source}
+      - {name: measles, role: dimension}
+      - {name: male_0to_9, role: measure_source}
+      - {name: female_0_9, role: measure_source}
+      - {name: male_10t_9, role: measure_source}
+      - {name: female_1_9, role: measure_source}
+      - {name: male_20t_9, role: measure_source}
+      - {name: female_2_9, role: measure_source}
+      - {name: male_ove_9, role: measure_source}
+      - {name: female_o_9, role: measure_source}
+      - {name: inpatien_8, role: measure_source}
+      - {name: outpatie_9, role: measure_source}
+      - {name: referral_8, role: measure_source}
+      - {name: nt, role: dimension}
+      - {name: male_0t_10, role: measure_source}
+      - {name: female__10, role: measure_source}
+      - {name: male_10_10, role: measure_source}
+      - {name: female__11, role: measure_source}
+      - {name: male_20_10, role: measure_source}
+      - {name: female__12, role: measure_source}
+      - {name: male_ov_10, role: measure_source}
+      - {name: female__13, role: measure_source}
+      - {name: inpatien_9, role: measure_source}
+      - {name: outpati_10, role: measure_source}
+      - {name: referral_9, role: measure_source}
+      - {name: plague, role: dimension}
+      - {name: male_0t_11, role: measure_source}
+      - {name: female__14, role: measure_source}
+      - {name: male_10_11, role: measure_source}
+      - {name: female__15, role: measure_source}
+      - {name: male_20_11, role: measure_source}
+      - {name: female__16, role: measure_source}
+      - {name: male_ov_11, role: measure_source}
+      - {name: female__17, role: measure_source}
+      - {name: inpatie_10, role: measure_source}
+      - {name: outpati_11, role: measure_source}
+      - {name: referra_10, role: measure_source}
+      - {name: tf, role: dimension}
+      - {name: male_0t_12, role: measure_source}
+      - {name: female__18, role: measure_source}
+      - {name: male_10_12, role: measure_source}
+      - {name: female__19, role: measure_source}
+      - {name: male_20_12, role: measure_source}
+      - {name: female__20, role: measure_source}
+      - {name: male_ov_12, role: measure_source}
+      - {name: female__21, role: measure_source}
+      - {name: inpatie_11, role: measure_source}
+      - {name: outpati_12, role: measure_source}
+      - {name: referra_11, role: measure_source}
+      - {name: hep_b, role: dimension}
+      - {name: male_0t_13, role: measure_source}
+      - {name: female__22, role: measure_source}
+      - {name: male_10_13, role: measure_source}
+      - {name: female__23, role: measure_source}
+      - {name: male_20_13, role: measure_source}
+      - {name: female__24, role: measure_source}
+      - {name: male_ov_13, role: measure_source}
+      - {name: female__25, role: measure_source}
+      - {name: inpatie_12, role: measure_source}
+      - {name: outpati_13, role: measure_source}
+      - {name: referra_12, role: measure_source}
+      - {name: tb, role: dimension}
+      - {name: male_0t_14, role: measure_source}
+      - {name: female__26, role: measure_source}
+      - {name: male_10_14, role: measure_source}
+      - {name: female__27, role: measure_source}
+      - {name: male_20_14, role: measure_source}
+      - {name: female__28, role: measure_source}
+      - {name: male_ov_14, role: measure_source}
+      - {name: female__29, role: measure_source}
+      - {name: inpatie_13, role: measure_source}
+      - {name: outpati_14, role: measure_source}
+      - {name: referra_13, role: measure_source}
+      - {name: yf, role: dimension}
+      - {name: male_0t_15, role: measure_source}
+      - {name: female__30, role: measure_source}
+      - {name: male_10_15, role: measure_source}
+      - {name: female__31, role: measure_source}
+      - {name: male_20_15, role: measure_source}
+      - {name: female__32, role: measure_source}
+      - {name: male_ov_15, role: measure_source}
+      - {name: female__33, role: measure_source}
+      - {name: inpatie_14, role: measure_source}
+      - {name: outpati_15, role: measure_source}
+      - {name: referra_14, role: measure_source}
+      - {name: leprosy, role: dimension}
+      - {name: male_0t_16, role: measure_source}
+      - {name: female__34, role: measure_source}
+      - {name: male_10_16, role: measure_source}
+      - {name: female__35, role: measure_source}
+      - {name: male_20_16, role: measure_source}
+      - {name: female__36, role: measure_source}
+      - {name: male_ov_16, role: measure_source}
+      - {name: female__37, role: measure_source}
+      - {name: inpatie_15, role: measure_source}
+      - {name: outpati_16, role: measure_source}
+      - {name: referra_15, role: measure_source}
+      - {name: covid_19, role: dimension}
+      - {name: male_0t_17, role: measure_source}
+      - {name: female__38, role: measure_source}
+      - {name: male_10_17, role: measure_source}
+      - {name: female__39, role: measure_source}
+      - {name: male_20_17, role: measure_source}
+      - {name: female__40, role: measure_source}
+      - {name: male_ov_17, role: measure_source}
+      - {name: female__41, role: measure_source}
+      - {name: inpatie_16, role: measure_source}
+      - {name: outpati_17, role: measure_source}
+      - {name: referra_16, role: measure_source}
+      - {name: trauma, role: dimension}
+      - {name: male_0t_18, role: measure_source}
+      - {name: female__42, role: measure_source}
+      - {name: male_10_18, role: measure_source}
+      - {name: female__43, role: measure_source}
+      - {name: male_20_18, role: measure_source}
+      - {name: female__44, role: measure_source}
+      - {name: male_ov_18, role: measure_source}
+      - {name: female__45, role: measure_source}
+      - {name: inpatie_17, role: measure_source}
+      - {name: outpati_18, role: measure_source}
+      - {name: referra_17, role: measure_source}
+      - {name: mhcs, role: dimension}
+      - {name: male_0t_19, role: measure_source}
+      - {name: female__46, role: measure_source}
+      - {name: male_10_19, role: measure_source}
+      - {name: female__47, role: measure_source}
+      - {name: male_20_19, role: measure_source}
+      - {name: female__48, role: measure_source}
+      - {name: male_ov_19, role: measure_source}
+      - {name: female__49, role: measure_source}
+      - {name: inpatie_18, role: measure_source}
+      - {name: outpati_19, role: measure_source}
+      - {name: referra_18, role: measure_source}
+      - {name: stroke, role: dimension}
+      - {name: male_0t_20, role: measure_source}
+      - {name: female__50, role: measure_source}
+      - {name: male_10_20, role: measure_source}
+      - {name: female__51, role: measure_source}
+      - {name: male_20_20, role: measure_source}
+      - {name: female__52, role: measure_source}
+      - {name: male_ov_20, role: measure_source}
+      - {name: female__53, role: measure_source}
+      - {name: inpatie_19, role: measure_source}
+      - {name: outpati_20, role: measure_source}
+      - {name: referra_19, role: measure_source}
+      - {name: hdisease, role: dimension}
+      - {name: male_0t_21, role: measure_source}
+      - {name: female__54, role: measure_source}
+      - {name: male_10_21, role: measure_source}
+      - {name: female__55, role: measure_source}
+      - {name: male_20_21, role: measure_source}
+      - {name: female__56, role: measure_source}
+      - {name: male_ov_21, role: measure_source}
+      - {name: female__57, role: measure_source}
+      - {name: inpatie_20, role: measure_source}
+      - {name: outpati_21, role: measure_source}
+      - {name: referra_20, role: measure_source}
+      - {name: diabetes, role: dimension}
+      - {name: male_0t_22, role: measure_source}
+      - {name: female__58, role: measure_source}
+      - {name: male_10_22, role: measure_source}
+      - {name: female__59, role: measure_source}
+      - {name: male_20_22, role: measure_source}
+      - {name: female__60, role: measure_source}
+      - {name: male_ov_22, role: measure_source}
+      - {name: female__61, role: measure_source}
+      - {name: inpatie_21, role: measure_source}
+      - {name: outpati_22, role: measure_source}
+      - {name: referra_21, role: measure_source}
+      - {name: cancer, role: dimension}
+      - {name: male_0t_23, role: measure_source}
+      - {name: female__62, role: measure_source}
+      - {name: male_10_23, role: measure_source}
+      - {name: female__63, role: measure_source}
+      - {name: male_20_23, role: measure_source}
+      - {name: female__64, role: measure_source}
+      - {name: male_ov_23, role: measure_source}
+      - {name: female__65, role: measure_source}
+      - {name: inpatie_22, role: measure_source}
+      - {name: outpati_23, role: measure_source}
+      - {name: referra_22, role: measure_source}
+      - {name: total_inpa, role: measure_source}
+      - {name: total_outp, role: measure_source}
+      - {name: total_refe, role: measure_source}
+      - {name: total_pati, role: measure_source}
+      - {name: creation_1, role: temporal}
+      - {name: creator_16, role: dimension}
+      - {name: editdate_1, role: temporal}
+      - {name: editor_166, role: dimension}
+      - {name: parentglob, role: dimension}
+      - {name: creation_2, role: temporal}
+      - {name: creator_1, role: dimension}
+      - {name: editdate_2, role: temporal}
+      - {name: editor_1, role: dimension}
+      - {name: beds_used, role: dimension}
+      - {name: geometry, role: dimension}
+
+  - name: sandbox_join_2_sandbox_join_2
+    label: "Sandbox Join 2 Sandbox Join 2"
+    superset_dataset_id: 11
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [sandbox_join_2_sandbox_join_2]
+    synonyms: [sandbox join 2 sandbox join 2]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: ogc_fid, role: key}
+      - {name: objectid_1, role: measure_source}
+      - {name: join_count, role: measure_source}
+      - {name: target_fid, role: key}
+      - {name: join_fid, role: key}
+      - {name: objectid, role: key}
+      - {name: village, role: dimension}
+      - {name: parish, role: dimension}
+      - {name: subcounty, role: dimension}
+      - {name: county, role: dimension}
+      - {name: district, role: dimension}
+      - {name: pop2002, role: measure_source}
+      - {name: hh2002, role: measure_source}
+      - {name: pop2010, role: dimension}
+      - {name: hh2010, role: dimension}
+      - {name: ele_access, role: measure_source}
+      - {name: area_m2, role: dimension}
+      - {name: area_km2, role: dimension}
+      - {name: shape_leng, role: dimension}
+      - {name: region, role: dimension}
+      - {name: subregion, role: dimension}
+      - {name: join_count_1, role: measure_source}
+      - {name: target_fid_1, role: measure_source}
+      - {name: age, role: measure_source}
+      - {name: sex, role: dimension}
+      - {name: vitals_data_coll_id, role: key}
+      - {name: household_id, role: key}
+      - {name: personal_id, role: key}
+      - {name: nin, role: dimension}
+      - {name: latitude, role: dimension}
+      - {name: longitude, role: dimension}
+      - {name: elevation, role: dimension}
+      - {name: mental_health, role: dimension}
+      - {name: sickle_cells_disease, role: dimension}
+      - {name: sickle_cell_carrier, role: dimension}
+      - {name: disability, role: dimension}
+      - {name: blood_donor, role: dimension}
+      - {name: organ_donor, role: dimension}
+      - {name: clinical_trial, role: dimension}
+      - {name: blood_pressure_sys, role: measure_source}
+      - {name: s_blood_pressure_sys, role: dimension}
+      - {name: blood_pressure_dys, role: measure_source}
+      - {name: s_blood_pressure_dys, role: dimension}
+      - {name: bp_results, role: dimension}
+      - {name: temp, role: dimension}
+      - {name: pulse_rate, role: measure_source}
+      - {name: s_pulse_rate, role: dimension}
+      - {name: spo2, role: measure_source}
+      - {name: s_spo2, role: dimension}
+      - {name: weight, role: dimension}
+      - {name: height, role: dimension}
+      - {name: bmi, role: dimension}
+      - {name: s_bmi, role: dimension}
+      - {name: visual_issue, role: dimension}
+      - {name: hearing_issues, role: dimension}
+      - {name: fasting_glucose, role: measure_source}
+      - {name: s_fasting_glucose, role: dimension}
+      - {name: hba1c, role: dimension}
+      - {name: s_hba1c, role: dimension}
+      - {name: blood_group, role: dimension}
+      - {name: hiv_status, role: dimension}
+      - {name: malaria_in_past_six_months, role: dimension}
+      - {name: malaria, role: dimension}
+      - {name: tb, role: dimension}
+      - {name: tb_in_past_year, role: dimension}
+      - {name: wbc, role: dimension}
+      - {name: s_wbc, role: dimension}
+      - {name: neu, role: dimension}
+      - {name: s_neu, role: dimension}
+      - {name: neu_, role: dimension}
+      - {name: s_neu_, role: dimension}
+      - {name: lym, role: dimension}
+      - {name: s_lym, role: dimension}
+      - {name: lym_, role: dimension}
+      - {name: s_lym_, role: dimension}
+      - {name: mono, role: dimension}
+      - {name: s_mono, role: dimension}
+      - {name: mono_, role: dimension}
+      - {name: s_mono_, role: dimension}
+      - {name: eos, role: dimension}
+      - {name: s_eos, role: dimension}
+      - {name: eos_, role: dimension}
+      - {name: s_eos_, role: dimension}
+      - {name: baso, role: dimension}
+      - {name: s_baso, role: dimension}
+      - {name: baso_, role: dimension}
+      - {name: s_baso_, role: dimension}
+      - {name: rbc, role: dimension}
+      - {name: s_rbc, role: dimension}
+      - {name: hgb, role: dimension}
+      - {name: s_hgb, role: dimension}
+      - {name: hct, role: dimension}
+      - {name: s_hct, role: dimension}
+      - {name: mcv, role: dimension}
+      - {name: s_mcv, role: dimension}
+      - {name: mchc, role: dimension}
+      - {name: s_mchc, role: dimension}
+      - {name: rdw, role: dimension}
+      - {name: s_rdw, role: dimension}
+      - {name: plt, role: dimension}
+      - {name: s_plt, role: dimension}
+      - {name: mpv, role: dimension}
+      - {name: s_mpv, role: dimension}
+      - {name: crp, role: dimension}
+      - {name: s_crp, role: dimension}
+      - {name: hb_electro, role: dimension}
+      - {name: vitaminb12, role: measure_source}
+      - {name: s_vitaminb12, role: dimension}
+      - {name: folate, role: dimension}
+      - {name: s_folate, role: dimension}
+      - {name: total_cholesterol, role: dimension}
+      - {name: s_cholestrol, role: dimension}
+      - {name: hdl, role: dimension}
+      - {name: ldl, role: dimension}
+      - {name: tri_glycerides, role: dimension}
+      - {name: trans_ferrin, role: measure_source}
+      - {name: tibc, role: measure_source}
+      - {name: ferritin, role: measure_source}
+      - {name: iron_if_any_are_abnormal__show_, role: dimension}
+      - {name: alt, role: dimension}
+      - {name: s_alt, role: dimension}
+      - {name: alp, role: dimension}
+      - {name: s_alp, role: dimension}
+      - {name: ast, role: dimension}
+      - {name: s_ast, role: dimension}
+      - {name: ggt, role: dimension}
+      - {name: s_ggt, role: dimension}
+      - {name: total_bilirubin, role: dimension}
+      - {name: s_total_bilirubin, role: dimension}
+      - {name: direct_bilirubin, role: dimension}
+      - {name: s_direct_bilirubin, role: dimension}
+      - {name: indirect_bilirubin, role: dimension}
+      - {name: s_indirect_bilirubin, role: dimension}
+      - {name: total_protein, role: dimension}
+      - {name: s_total_protein, role: dimension}
+      - {name: albumin, role: dimension}
+      - {name: s_albumin, role: dimension}
+      - {name: globulin, role: dimension}
+      - {name: s_globulin, role: dimension}
+      - {name: liver_if_any_are_abnormal__show, role: dimension}
+      - {name: creatinine, role: dimension}
+      - {name: s_creatinine, role: dimension}
+      - {name: urea, role: dimension}
+      - {name: s_urea, role: dimension}
+      - {name: gfr, role: dimension}
+      - {name: s_gfr, role: dimension}
+      - {name: electro_lytes, role: dimension}
+      - {name: renal_if_any_are_abnormal__show, role: dimension}
+      - {name: vitamin_d, role: dimension}
+      - {name: s_vitamin_d, role: dimension}
+      - {name: s_hbsag, role: dimension}
+      - {name: shbsab, role: dimension}
+      - {name: s_hbcab, role: dimension}
+      - {name: s_hcv, role: dimension}
+      - {name: psa, role: dimension}
+      - {name: s_psa, role: dimension}
+      - {name: tsh__thyroid, role: dimension}
+      - {name: s_tsh, role: dimension}
+      - {name: ck, role: measure_source}
+      - {name: s_ck, role: dimension}
+      - {name: ckmb, role: measure_source}
+      - {name: s_ckmb, role: dimension}
+      - {name: ldh, role: measure_source}
+      - {name: s_ldh, role: dimension}
+      - {name: cardiac_if_any_are_abnormal__sh, role: dimension}
+      - {name: uric_acid, role: dimension}
+      - {name: s_uric_acid, role: dimension}
+      - {name: calcium, role: dimension}
+      - {name: s_calcium, role: dimension}
+      - {name: phosphorus, role: measure_source}
+      - {name: s_phosphorus, role: dimension}
+      - {name: magnesium, role: measure_source}
+      - {name: s_magnesium, role: dimension}
+      - {name: f_bone_if_any_are_abnormal__sho, role: dimension}
+      - {name: amylase, role: measure_source}
+      - {name: s_amylase, role: dimension}
+      - {name: lipase, role: measure_source}
+      - {name: s_lipase, role: dimension}
+      - {name: pancreatic_if_any_are_abnormal_, role: dimension}
+      - {name: syphilis, role: dimension}
+      - {name: s_syphillis, role: dimension}
+      - {name: testorterone, role: dimension}
+      - {name: s_testorterone, role: dimension}
+      - {name: urine, role: dimension}
+      - {name: v_chickenpox, role: dimension}
+      - {name: v_diptheria__tetanus__, role: dimension}
+      - {name: v_hib, role: dimension}
+      - {name: v_hepatitus_a, role: dimension}
+      - {name: v_hepatitus_b, role: dimension}
+      - {name: v_hpv, role: dimension}
+      - {name: v_influenza, role: dimension}
+      - {name: v_mmr, role: dimension}
+      - {name: v_meningococal, role: dimension}
+      - {name: v_tdap, role: dimension}
+      - {name: v_td, role: dimension}
+      - {name: v_pcv13, role: dimension}
+      - {name: v_ppsv23, role: dimension}
+      - {name: v_rotarius, role: dimension}
+      - {name: v_yellow_fever, role: dimension}
+      - {name: v_covid_pfizer, role: dimension}
+      - {name: v_covid_moderna, role: dimension}
+      - {name: v_covid_j_j, role: dimension}
+      - {name: v_covid_astrozenica_oxford, role: dimension}
+      - {name: v_sinovac, role: dimension}
+      - {name: v_shingles, role: dimension}
+      - {name: objectid_12, role: measure_source}
+      - {name: village_1, role: dimension}
+      - {name: parish_1, role: dimension}
+      - {name: subcounty_1, role: dimension}
+      - {name: county_1, role: dimension}
+      - {name: district_1, role: dimension}
+      - {name: pop2002_1, role: measure_source}
+      - {name: hh2002_1, role: measure_source}
+      - {name: pop2010_1, role: dimension}
+      - {name: hh2010_1, role: dimension}
+      - {name: ele_access_1, role: measure_source}
+      - {name: area_m2_1, role: dimension}
+      - {name: area_km2_1, role: dimension}
+      - {name: shape_leng_1, role: dimension}
+      - {name: region_1, role: dimension}
+      - {name: subregion_1, role: dimension}
+      - {name: bpsample, role: dimension}
+      - {name: sickle_cell_type, role: dimension}
+      - {name: marital_status, role: dimension}
+      - {name: tribe, role: dimension}
+      - {name: acc, role: dimension}
+      - {name: list_of_cc, role: dimension}
+      - {name: qol, role: dimension}
+      - {name: iron_overload_test, role: dimension}
+      - {name: social_support, role: dimension}
+      - {name: diag_symptoms, role: dimension}
+      - {name: hydroxyurea, role: dimension}
+      - {name: lab_test, role: dimension}
+      - {name: tests_taken, role: dimension}
+      - {name: otc, role: dimension}
+      - {name: gender, role: dimension}
+      - {name: pid, role: dimension}
+      - {name: globalid, role: key}
+      - {name: creationdate, role: measure_source}
+      - {name: creator, role: dimension}
+      - {name: editdate, role: measure_source}
+      - {name: editor, role: dimension}
+      - {name: email, role: dimension}
+      - {name: phone, role: dimension}
+      - {name: name, role: dimension}
+      - {name: geometry, role: dimension}
+
+  - name: buikwe_population_household
+    label: "Buikwe Population Household"
+    superset_dataset_id: 12
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [buikwe_population_household]
+    synonyms: [buikwe population household]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: village, role: dimension}
+      - {name: pop2010, role: measure_source}
+      - {name: hh2010, role: measure_source}
+
+  - name: buikwe_vaccines
+    label: "Buikwe Vaccines"
+    superset_dataset_id: 13
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [buikwe_vaccines]
+    synonyms: [buikwe vaccines]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: vaccine, role: dimension}
+      - {name: given, role: measure_source}
+
+  - name: forms_surveyform
+    label: "Forms Surveyform"
+    superset_dataset_id: 16
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [forms_surveyform]
+    synonyms: [forms surveyform]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: title, role: dimension}
+      - {name: form_id, role: key}
+      - {name: version, role: dimension}
+      - {name: source_file_name, role: dimension}
+      - {name: schema, role: dimension}
+      - {name: dashboard_config, role: dimension}
+      - {name: is_active, role: dimension}
+      - {name: created_at, role: dimension}
+      - {name: updated_at, role: dimension}
+      - {name: created_by_id, role: key}
+      - {name: organization_id, role: key}
+      - {name: superset_dashboard_uuid, role: key}
+      - {name: public_slug, role: dimension}
+
+  - name: forms_surveysubmission
+    label: "Forms Surveysubmission"
+    superset_dataset_id: 17
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [forms_surveysubmission]
+    synonyms: [forms surveysubmission]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: data, role: dimension}
+      - {name: respondent_ip, role: dimension}
+      - {name: user_agent, role: dimension}
+      - {name: submitted_at, role: dimension}
+      - {name: form_id, role: key}
+      - {name: organization_id, role: key}
+      - {name: submitted_by_id, role: key}
+      - {name: administration_mode, role: dimension}
+      - {name: agent_id, role: key}
+      - {name: agent_name, role: dimension}
+      - {name: subject_id, role: key}
+      - {name: subject_name, role: dimension}
+      - {name: subject_type, role: dimension}
+      - {name: hdss_site_id, role: key}
+      - {name: primary_location, role: dimension}
+
+  - name: sickle_cells_disease_questionnaire_arise_2_health_care_provide
+    label: "Sickle Cells Disease Questionnaire Arise 2 Health Care Provide"
+    superset_dataset_id: 19
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [sickle_cells_disease_questionnaire_arise_2_health_care_provide]
+    synonyms: [sickle cells disease questionnaire arise 2 health care provide]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: ogc_fid, role: key}
+      - {name: objectid, role: key}
+      - {name: globalid, role: key}
+      - {name: respondent_type, role: dimension}
+      - {name: consent_options, role: dimension}
+      - {name: all_selected, role: dimension}
+      - {name: patient_county, role: dimension}
+      - {name: sub_county, role: dimension}
+      - {name: scd_facility, role: dimension}
+      - {name: year_of_birth, role: dimension}
+      - {name: gender, role: dimension}
+      - {name: education, role: dimension}
+      - {name: other_education, role: dimension}
+      - {name: phone_number_patient, role: dimension}
+      - {name: occupation, role: dimension}
+      - {name: other_occupation, role: dimension}
+      - {name: diagnosis, role: dimension}
+      - {name: other_diagnosis, role: dimension}
+      - {name: transfusion_regime, role: dimension}
+      - {name: other_transfusion_regime, role: dimension}
+      - {name: info_sources, role: dimension}
+      - {name: other_info_sources, role: dimension}
+      - {name: main_info_source, role: dimension}
+      - {name: other_source_of_info, role: dimension}
+      - {name: satisfaction_communication, role: dimension}
+      - {name: support_at_diagnosis, role: dimension}
+      - {name: satisfaction_diagnosis_support, role: dimension}
+      - {name: satisfaction_involvement, role: dimension}
+      - {name: satisfaction_pain_control, role: dimension}
+      - {name: satisfaction_waiting_times, role: dimension}
+      - {name: next_clinic_appointment, role: dimension}
+      - {name: satisfaction_lab_services, role: dimension}
+      - {name: satisfaction_lab_technicians, role: dimension}
+      - {name: satisfaction_lab_waiting_times, role: dimension}
+      - {name: satisfaction_nursing_care, role: dimension}
+      - {name: satisfaction_nursing_communication, role: dimension}
+      - {name: satisfaction_treatment_management, role: dimension}
+      - {name: treatment_cost, role: dimension}
+      - {name: service_quality, role: dimension}
+      - {name: access_to_treatment_centre, role: dimension}
+      - {name: payment_for_treatment, role: dimension}
+      - {name: other_payments, role: dimension}
+      - {name: need_to_move_to_other_centres, role: dimension}
+      - {name: other_need_to_move_to_other_centres, role: dimension}
+      - {name: distance_to_centres, role: dimension}
+      - {name: psychological_support, role: dimension}
+      - {name: satisfaction_psych_support, role: dimension}
+      - {name: recommend_hospital, role: dimension}
+      - {name: current_health, role: dimension}
+      - {name: additional_improvements, role: dimension}
+      - {name: consent_doctors, role: dimension}
+      - {name: doctor_consent, role: dimension}
+      - {name: doctor_county, role: dimension}
+      - {name: doctor_sub_county, role: dimension}
+      - {name: doctor_date_of_birth, role: measure_source}
+      - {name: doctor_gender, role: dimension}
+      - {name: phone_number_doc, role: dimension}
+      - {name: specialization, role: dimension}
+      - {name: other_specialization, role: dimension}
+      - {name: years_of_experience, role: measure_source}
+      - {name: avg_weekly_working_hours, role: measure_source}
+      - {name: additional_training, role: dimension}
+      - {name: other_additional_training, role: dimension}
+      - {name: satisfaction_training, role: dimension}
+      - {name: frequency_of_seeing_patients, role: dimension}
+      - {name: other_frequency_of_seeing_patients, role: measure_source}
+      - {name: num_patients_seen, role: dimension}
+      - {name: other_num_patients_seen, role: measure_source}
+      - {name: adequate_num_patients, role: dimension}
+      - {name: other_adequate_num_patients, role: dimension}
+      - {name: satisfaction_patient_relationship, role: dimension}
+      - {name: educate_patients, role: dimension}
+      - {name: patient_education_info, role: dimension}
+      - {name: patient_education_info_others, role: dimension}
+      - {name: facility_num_adequate, role: dimension}
+      - {name: facility_equipment, role: dimension}
+      - {name: facility_problems, role: dimension}
+      - {name: satisfaction_facility_management, role: dimension}
+      - {name: protection_from_risks, role: dimension}
+      - {name: involvement_in_decision_making, role: dimension}
+      - {name: career_advancement, role: dimension}
+      - {name: level_of_responsibility, role: dimension}
+      - {name: decision_making_autonomy, role: dimension}
+      - {name: appreciation_of_work, role: dimension}
+      - {name: facility_space, role: dimension}
+      - {name: satisfaction_procedures, role: dimension}
+      - {name: electronic_registers, role: dimension}
+      - {name: satisfaction_work, role: dimension}
+      - {name: work_satisfaction_reasons, role: dimension}
+      - {name: other_work_satisfaction_reasons, role: dimension}
+      - {name: other_suggestions, role: dimension}
+      - {name: thank_you_note, role: dimension}
+      - {name: creationdate, role: measure_source}
+      - {name: creator, role: dimension}
+      - {name: editdate, role: measure_source}
+      - {name: editor, role: dimension}
+      - {name: geometry, role: dimension}
+
+  - name: ugfacilities
+    label: "Ugfacilities"
+    superset_dataset_id: 20
+    grain: row
+    one_row_is: "one record (auto-catalogued, see header note)"
+    subject_areas: [ugfacilities]
+    synonyms: [ugfacilities]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: ogc_fid, role: key}
+      - {name: objectid, role: key}
+      - {name: join_count, role: dimension}
+      - {name: target_fid, role: key}
+      - {name: join_fid, role: key}
+      - {name: field1, role: dimension}
+      - {name: nct_number, role: dimension}
+      - {name: study_id, role: key}
+      - {name: date_completed, role: dimension}
+      - {name: completed_by, role: dimension}
+      - {name: designation, role: dimension}
+      - {name: eastings, role: dimension}
+      - {name: northings, role: dimension}
+      - {name: recruitment_status, role: dimension}
+      - {name: estimated_original_enrollment, role: dimension}
+      - {name: actual_enrollment, role: dimension}
+      - {name: study_start_date, role: dimension}
+      - {name: study_status, role: dimension}
+      - {name: accepts_health_volunteers, role: dimension}
+      - {name: has_data_monitoring_committee, role: dimension}
+      - {name: responsible_party, role: dimension}
+      - {name: collaborators, role: dimension}
+      - {name: investigators, role: dimension}
+      - {name: trial_type, role: dimension}
+      - {name: position, role: dimension}
+      - {name: interventional_model, role: dimension}
+      - {name: primary_purpose, role: dimension}
+      - {name: study_phase, role: dimension}
+      - {name: institution_name, role: dimension}
+      - {name: site_setting, role: dimension}
+      - {name: department, role: dimension}
+      - {name: site_postal_address, role: dimension}
+      - {name: country, role: dimension}
+      - {name: contact_person, role: dimension}
+      - {name: phone_number, role: dimension}
+      - {name: position_1, role: dimension}
+      - {name: does_the_facility_have_the_nece, role: dimension}
+      - {name: is_there_a_functional_clinical_, role: dimension}
+      - {name: off_site_clinical_laboratory_pr, role: dimension}
+      - {name: cooltar_counter, role: dimension}
+      - {name: does_it_give_ratios, role: dimension}
+      - {name: electrolyte_machine, role: dimension}
+      - {name: how_many_can_electrolytes_can__, role: dimension}
+      - {name: head_of_department_contact, role: dimension}
+      - {name: email_of_head_of_department, role: dimension}
+      - {name: do_you_have_all_the_required_eq, role: dimension}
+      - {name: periodic_service_of_lab_equipme, role: dimension}
+      - {name: if_yes_how_often, role: dimension}
+      - {name: imaging_capabilities, role: dimension}
+      - {name: x_rays, role: dimension}
+      - {name: ct_scan, role: dimension}
+      - {name: mri_scan, role: dimension}
+      - {name: sufficient_space_for_participan, role: dimension}
+      - {name: is_the_facility_accredited_by_r, role: dimension}
+      - {name: accredited_by, role: dimension}
+      - {name: accreditation_review, role: dimension}
+      - {name: how_often_is_the_accreditation_, role: dimension}
+      - {name: has_the_facility_been_involved_, role: dimension}
+      - {name: if_yes__how_many, role: dimension}
+      - {name: year_of_start_of_last_trial, role: dimension}
+      - {name: year_of_finish_of_last_trial, role: dimension}
+      - {name: funder_of_previous_trial, role: dimension}
+      - {name: number_of_participants_in_the_p, role: dimension}
+      - {name: number_of_completed_previous_cl, role: dimension}
+      - {name: years_of_experience_in_clinical, role: dimension}
+      - {name: central_local_ethics_committee_, role: dimension}
+      - {name: local_languages_translation, role: dimension}
+      - {name: desktop_or_laptop, role: dimension}
+      - {name: internet_access, role: dimension}
+      - {name: f20_degrees_celsius_freezer, role: dimension}
+      - {name: f70_80_degrees_celsius_freezer, role: dimension}
+      - {name: refrigerator_2_8_degree_celsius, role: dimension}
+      - {name: ambient_centrifugene, role: dimension}
+      - {name: ecg_machine, role: dimension}
+      - {name: bp_monitor, role: dimension}
+      - {name: thermometer, role: dimension}
+      - {name: height_measurement_device, role: dimension}
+      - {name: weight_measurement_device, role: dimension}
+      - {name: lockable_cupboards_room_for_stu, role: dimension}
+      - {name: min_max_temperature_monitoring_, role: dimension}
+      - {name: incubator_for_quantiferon_testi, role: dimension}
+      - {name: back_up_power, role: dimension}
+      - {name: current_calibration_certificate, role: dimension}
+      - {name: emergency_trolley_with_oxygen_a, role: dimension}
+      - {name: how_far_is_your_lab_to_the_near, role: dimension}
+      - {name: is_there_currently_a_pharmacy_o, role: dimension}
+      - {name: projected_number_of_trials, role: dimension}
+      - {name: current_number_of_enrolled_part, role: dimension}
+      - {name: head_of_department_contact_1, role: dimension}
+      - {name: email_of_head_of_department_1, role: dimension}
+      - {name: how_often_is_it_restocked, role: dimension}
+      - {name: do_you_have_all_the_required__1, role: dimension}
+      - {name: is_pharmacy_accredited_by_a_bod, role: dimension}
+      - {name: which_body, role: dimension}
+      - {name: how_often_is__the_accreditation, role: dimension}
+      - {name: dedicated_pharmacy_at_the_affil, role: dimension}
+      - {name: dedicated_clinical_research_pha, role: dimension}
+      - {name: facility_adequate_with_respect_, role: dimension}
+      - {name: facility_adequate_with_respect1, role: dimension}
+      - {name: emergency_kit, role: dimension}
+      - {name: medical_staff, role: dimension}
+      - {name: current_funder, role: dimension}
+      - {name: pharmacy_staff_expertise, role: dimension}
+      - {name: investigational_drug_storage, role: dimension}
+      - {name: drug_disposal, role: dimension}
+      - {name: pharm_regulatory_compliance, role: dimension}
+      - {name: pcr_machines, role: dimension}
+      - {name: flow_cytometers, role: dimension}
+      - {name: safety_cabinets, role: dimension}
+      - {name: liquid_handling_equipment, role: dimension}
+      - {name: ms, role: dimension}
+      - {name: mss, role: dimension}
+      - {name: respiratory_support, role: dimension}
+      - {name: hydration_supplies, role: dimension}
+      - {name: freezers, role: dimension}
+      - {name: edta_tubes_for_hematology_tests, role: dimension}
+      - {name: cold_packs_or_coolers, role: dimension}
+      - {name: centrifugation, role: dimension}
+      - {name: aliquoting, role: dimension}
+      - {name: sops, role: dimension}
+      - {name: sample_inventory_system, role: dimension}
+      - {name: leak_proo, role: dimension}
+      - {name: objectid_1, role: key}
+      - {name: village, role: dimension}
+      - {name: parish, role: dimension}
+      - {name: subcounty, role: dimension}
+      - {name: county, role: dimension}
+      - {name: district, role: dimension}
+      - {name: pop2002, role: dimension}
+      - {name: hh2002, role: dimension}
+      - {name: pop2010, role: dimension}
+      - {name: hh2010, role: dimension}
+      - {name: ele_access, role: dimension}
+      - {name: area_m2, role: dimension}
+      - {name: area_km2, role: dimension}
+      - {name: shape_leng, role: dimension}
+      - {name: region, role: dimension}
+      - {name: subregion, role: dimension}
+      - {name: geometry, role: dimension}
+      - {name: lon, role: measure_source}
+      - {name: lat, role: measure_source}
+
+  - name: scd_screening_v2
+    label: "SCD screening (outreach + newborn)"
+    superset_dataset_id: 21
+    grain: screening_record
+    one_row_is: "one sickle cell screening test result, outreach or newborn"
+    subject_areas: [sickle cell, screening, scd, health]
+    synonyms: [sickle cell screening, scd screening, screening results, outreach screening, newborn screening]
+    sensitivity: row_level_health_staging_rls_protected
+    geography: patient
+    default_dimension: district
+    notes: >-
+      Row-level individual screening results (RHIF outreach + newborn screening),
+      staging-only (db-staging4cti), real historical health data not synthetic.
+      RLS filters are configured on this dataset by birth_district (Phase 1) --
+      groupby/filter results depend on the calling user's role.
+    traps: >-
+      is_referred is derived from referral_facility being non-null, not a
+      separate clinical judgement field. tribe_bucketed collapses to "Other"
+      outside the top 5 tribes by volume -- do not treat as the full tribe list.
+    columns:
+      - {name: source, role: dimension}
+      - {name: id, role: key}
+      - {name: collection_date, role: temporal}
+      - {name: collection_month, role: temporal}
+      - {name: gender, role: dimension}
+      - {name: age_years, role: measure_source}
+      - {name: age_band, role: dimension}
+      - {name: testing_location, role: dimension}
+      - {name: tribe, role: dimension}
+      - {name: tribe_bucketed, role: dimension}
+      - {name: district, label: "District of birth", role: dimension}
+      - {name: results_raw, role: dimension}
+      - {name: result_category, role: dimension}
+      - {name: disease_subtype, role: dimension}
+      - {name: prior_indicator_raw, role: dimension}
+      - {name: referral_facility, role: dimension}
+      - {name: is_referred, role: dimension}
+      - {name: lat, role: measure_source}
+      - {name: lon, role: measure_source}
+      - {name: geo_precision, role: dimension}
+    metrics:
+      - {name: scd_screening_count, label: "Screenings", expression: "COUNT(*)", d3format: ",d"}
+      - {name: scd_referred_count, label: "Referred", expression: "SUM(CASE WHEN is_referred THEN 1 ELSE 0 END)", d3format: ",d"}
+
+  - name: scd_referral_cascade
+    label: "SCD referral cascade"
+    superset_dataset_id: 22
+    grain: funnel_stage
+    one_row_is: "one stage of the screening-to-referral funnel, already aggregated"
+    subject_areas: [sickle cell, referral, funnel, screening]
+    synonyms: [referral cascade, referral funnel, screening funnel, cascade]
+    sensitivity: aggregate_ok
+    geography: none
+    default_dimension: stage_name
+    notes: >-
+      Pre-aggregated funnel: one row per stage with a count and a percent of
+      the initial screened population. No patient identifier, no facility
+      grain -- cannot be broken down further than it already is.
+    columns:
+      - {name: stage_order, role: dimension}
+      - {name: n, role: measure_source}
+      - {name: stage_name, role: dimension}
+      - {name: pct_of_screened, role: measure_source}
+      - {name: stage_label, role: dimension}
+    metrics:
+      - {name: cascade_n, label: "Count", expression: "SUM(n)", d3format: ",d"}
+
+
+  # ---------------------------------------------------------------------
+  # GeoNode core app database (cti_geonode, 125 tables) -- catalogued
+  # 2026-09-25 as its own Superset connection (id=5, 'GeoNode Core
+  # (cti_geonode)'), added and fully catalogued in the same pass as the
+  # dataset above, per explicit instruction: full access to everything
+  # connected, this box is entirely sandbox/fixture data the user created.
+  # Same auto-role-by-SQL-type convention as the earlier auto-catalogued
+  # block (numeric -> measure_source, id-like -> key, else -> dimension).
+  # ---------------------------------------------------------------------
+  - name: geonode_account_emailaddress
+    label: "GeoNode: Account Emailaddress"
+    superset_dataset_id: 25
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, account_emailaddress]
+    synonyms: [account emailaddress]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: email, role: dimension}
+      - {name: verified, role: dimension}
+      - {name: primary, role: dimension}
+      - {name: user_id, role: key}
+
+  - name: geonode_account_emailconfirmation
+    label: "GeoNode: Account Emailconfirmation"
+    superset_dataset_id: 26
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, account_emailconfirmation]
+    synonyms: [account emailconfirmation]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: created, role: dimension}
+      - {name: sent, role: dimension}
+      - {name: key, role: dimension}
+      - {name: email_address_id, role: key}
+
+  - name: geonode_actstream_action
+    label: "GeoNode: Actstream Action"
+    superset_dataset_id: 27
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, actstream_action]
+    synonyms: [actstream action]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: actor_object_id, role: key}
+      - {name: verb, role: dimension}
+      - {name: description, role: dimension}
+      - {name: target_object_id, role: key}
+      - {name: action_object_object_id, role: key}
+      - {name: timestamp, role: dimension}
+      - {name: public, role: dimension}
+      - {name: data, role: dimension}
+      - {name: action_object_content_type_id, role: key}
+      - {name: actor_content_type_id, role: key}
+      - {name: target_content_type_id, role: key}
+
+  - name: geonode_actstream_follow
+    label: "GeoNode: Actstream Follow"
+    superset_dataset_id: 28
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, actstream_follow]
+    synonyms: [actstream follow]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: object_id, role: key}
+      - {name: actor_only, role: dimension}
+      - {name: started, role: dimension}
+      - {name: content_type_id, role: key}
+      - {name: user_id, role: key}
+      - {name: flag, role: dimension}
+
+  - name: geonode_announcements_announcement
+    label: "GeoNode: Announcements Announcement"
+    superset_dataset_id: 29
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, announcements_announcement]
+    synonyms: [announcements announcement]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: title, role: dimension}
+      - {name: level, role: measure_source}
+      - {name: content, role: dimension}
+      - {name: creation_date, role: dimension}
+      - {name: site_wide, role: dimension}
+      - {name: members_only, role: dimension}
+      - {name: dismissal_type, role: measure_source}
+      - {name: publish_start, role: dimension}
+      - {name: publish_end, role: dimension}
+      - {name: creator_id, role: key}
+
+  - name: geonode_announcements_dismissal
+    label: "GeoNode: Announcements Dismissal"
+    superset_dataset_id: 30
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, announcements_dismissal]
+    synonyms: [announcements dismissal]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: dismissed_at, role: dimension}
+      - {name: announcement_id, role: key}
+      - {name: user_id, role: key}
+
+  - name: geonode_assets_asset
+    label: "GeoNode: Assets Asset"
+    superset_dataset_id: 31
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, assets_asset]
+    synonyms: [assets asset]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: title, role: dimension}
+      - {name: description, role: dimension}
+      - {name: type, role: dimension}
+      - {name: created, role: dimension}
+      - {name: owner_id, role: key}
+      - {name: polymorphic_ctype_id, role: key}
+
+  - name: geonode_assets_localasset
+    label: "GeoNode: Assets Localasset"
+    superset_dataset_id: 32
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, assets_localasset]
+    synonyms: [assets localasset]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: asset_ptr_id, role: key}
+      - {name: location, role: dimension}
+
+  - name: geonode_auth_group
+    label: "GeoNode: Auth Group"
+    superset_dataset_id: 33
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, auth_group]
+    synonyms: [auth group]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+
+  - name: geonode_auth_group_permissions
+    label: "GeoNode: Auth Group Permissions"
+    superset_dataset_id: 34
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, auth_group_permissions]
+    synonyms: [auth group permissions]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: group_id, role: key}
+      - {name: permission_id, role: key}
+
+  - name: geonode_auth_permission
+    label: "GeoNode: Auth Permission"
+    superset_dataset_id: 35
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, auth_permission]
+    synonyms: [auth permission]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: content_type_id, role: key}
+      - {name: codename, role: dimension}
+
+  - name: geonode_avatar_avatar
+    label: "GeoNode: Avatar Avatar"
+    superset_dataset_id: 36
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, avatar_avatar]
+    synonyms: [avatar avatar]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: primary, role: dimension}
+      - {name: avatar, role: dimension}
+      - {name: date_uploaded, role: dimension}
+      - {name: user_id, role: key}
+
+  - name: geonode_base_configuration
+    label: "GeoNode: Base Configuration"
+    superset_dataset_id: 37
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_configuration]
+    synonyms: [base configuration]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: read_only, role: dimension}
+      - {name: maintenance, role: dimension}
+
+  - name: geonode_base_contactrole
+    label: "GeoNode: Base Contactrole"
+    superset_dataset_id: 38
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_contactrole]
+    synonyms: [base contactrole]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: role, role: dimension}
+      - {name: contact_id, role: key}
+      - {name: resource_id, role: key}
+
+  - name: geonode_base_extrametadata
+    label: "GeoNode: Base Extrametadata"
+    superset_dataset_id: 39
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_extrametadata]
+    synonyms: [base extrametadata]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: metadata, role: dimension}
+      - {name: resource_id, role: key}
+
+  - name: geonode_base_groupgeolimit
+    label: "GeoNode: Base Groupgeolimit"
+    superset_dataset_id: 40
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_groupgeolimit]
+    synonyms: [base groupgeolimit]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: wkt, role: dimension}
+      - {name: group_id, role: key}
+      - {name: resource_id, role: key}
+
+  - name: geonode_base_hierarchicalkeyword
+    label: "GeoNode: Base Hierarchicalkeyword"
+    superset_dataset_id: 41
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_hierarchicalkeyword]
+    synonyms: [base hierarchicalkeyword]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: slug, role: dimension}
+      - {name: path, role: dimension}
+      - {name: depth, role: measure_source}
+      - {name: numchild, role: measure_source}
+
+  - name: geonode_base_license
+    label: "GeoNode: Base License"
+    superset_dataset_id: 42
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_license]
+    synonyms: [base license]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: identifier, role: dimension}
+      - {name: name, role: dimension}
+      - {name: name_en, role: dimension}
+      - {name: abbreviation, role: dimension}
+      - {name: description, role: dimension}
+      - {name: description_en, role: dimension}
+      - {name: url, role: dimension}
+      - {name: license_text, role: dimension}
+      - {name: license_text_en, role: dimension}
+
+  - name: geonode_base_link
+    label: "GeoNode: Base Link"
+    superset_dataset_id: 43
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_link]
+    synonyms: [base link]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: extension, role: dimension}
+      - {name: link_type, role: dimension}
+      - {name: name, role: dimension}
+      - {name: mime, role: dimension}
+      - {name: url, role: dimension}
+      - {name: resource_id, role: key}
+      - {name: asset_id, role: key}
+
+  - name: geonode_base_linkedresource
+    label: "GeoNode: Base Linkedresource"
+    superset_dataset_id: 44
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_linkedresource]
+    synonyms: [base linkedresource]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: source_id, role: key}
+      - {name: target_id, role: key}
+      - {name: internal, role: dimension}
+
+  - name: geonode_base_menu
+    label: "GeoNode: Base Menu"
+    superset_dataset_id: 45
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_menu]
+    synonyms: [base menu]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: title, role: dimension}
+      - {name: order, role: measure_source}
+      - {name: placeholder_id, role: key}
+
+  - name: geonode_base_menuitem
+    label: "GeoNode: Base Menuitem"
+    superset_dataset_id: 46
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_menuitem]
+    synonyms: [base menuitem]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: title, role: dimension}
+      - {name: order, role: measure_source}
+      - {name: blank_target, role: dimension}
+      - {name: url, role: dimension}
+      - {name: menu_id, role: key}
+
+  - name: geonode_base_menuplaceholder
+    label: "GeoNode: Base Menuplaceholder"
+    superset_dataset_id: 47
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_menuplaceholder]
+    synonyms: [base menuplaceholder]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+
+  - name: geonode_base_region
+    label: "GeoNode: Base Region"
+    superset_dataset_id: 48
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_region]
+    synonyms: [base region]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: code, role: dimension}
+      - {name: name, role: dimension}
+      - {name: name_en, role: dimension}
+      - {name: lft, role: measure_source}
+      - {name: rght, role: measure_source}
+      - {name: tree_id, role: key}
+      - {name: level, role: measure_source}
+      - {name: parent_id, role: key}
+      - {name: srid, role: dimension}
+
+  - name: geonode_base_resourcebase
+    label: "GeoNode: Base Resourcebase"
+    superset_dataset_id: 49
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_resourcebase]
+    synonyms: [base resourcebase]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: uuid, role: key}
+      - {name: title, role: dimension}
+      - {name: date, role: dimension}
+      - {name: date_type, role: dimension}
+      - {name: edition, role: dimension}
+      - {name: abstract, role: dimension}
+      - {name: purpose, role: dimension}
+      - {name: maintenance_frequency, role: dimension}
+      - {name: constraints_other, role: dimension}
+      - {name: language, role: dimension}
+      - {name: temporal_extent_start, role: dimension}
+      - {name: temporal_extent_end, role: dimension}
+      - {name: supplemental_information, role: dimension}
+      - {name: data_quality_statement, role: dimension}
+      - {name: srid, role: dimension}
+      - {name: csw_typename, role: dimension}
+      - {name: csw_schema, role: dimension}
+      - {name: csw_mdsource, role: dimension}
+      - {name: csw_insert_date, role: dimension}
+      - {name: csw_type, role: dimension}
+      - {name: csw_anytext, role: dimension}
+      - {name: csw_wkt_geometry, role: dimension}
+      - {name: metadata_uploaded, role: dimension}
+      - {name: metadata_xml, role: dimension}
+      - {name: popular_count, role: measure_source}
+      - {name: share_count, role: measure_source}
+      - {name: featured, role: dimension}
+      - {name: is_published, role: dimension}
+      - {name: thumbnail_url, role: dimension}
+      - {name: rating, role: measure_source}
+      - {name: category_id, role: key}
+      - {name: license_id, role: key}
+      - {name: owner_id, role: key}
+      - {name: polymorphic_ctype_id, role: key}
+      - {name: restriction_code_type_id, role: key}
+      - {name: spatial_representation_type_id, role: key}
+      - {name: metadata_uploaded_preserve, role: dimension}
+      - {name: group_id, role: key}
+      - {name: alternate, role: dimension}
+      - {name: is_approved, role: dimension}
+      - {name: dirty_state, role: dimension}
+      - {name: last_updated, role: dimension}
+      - {name: created, role: dimension}
+      - {name: doi, role: dimension}
+      - {name: bbox_polygon, role: dimension}
+      - {name: attribution, role: dimension}
+      - {name: resource_type, role: dimension}
+      - {name: ll_bbox_polygon, role: dimension}
+      - {name: metadata_only, role: dimension}
+      - {name: was_approved, role: dimension}
+      - {name: was_published, role: dimension}
+      - {name: state, role: dimension}
+      - {name: blob, role: dimension}
+      - {name: subtype, role: dimension}
+      - {name: sourcetype, role: dimension}
+      - {name: remote_typename, role: dimension}
+      - {name: thumbnail_path, role: dimension}
+      - {name: advertised, role: dimension}
+
+  - name: geonode_base_resourcebase_groups_geolimits
+    label: "GeoNode: Base Resourcebase Groups Geolimits"
+    superset_dataset_id: 50
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_resourcebase_groups_geolimits]
+    synonyms: [base resourcebase groups geolimits]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: resourcebase_id, role: key}
+      - {name: groupgeolimit_id, role: key}
+
+  - name: geonode_base_resourcebase_metadata
+    label: "GeoNode: Base Resourcebase Metadata"
+    superset_dataset_id: 51
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_resourcebase_metadata]
+    synonyms: [base resourcebase metadata]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: resourcebase_id, role: key}
+      - {name: extrametadata_id, role: key}
+
+  - name: geonode_base_resourcebase_regions
+    label: "GeoNode: Base Resourcebase Regions"
+    superset_dataset_id: 52
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_resourcebase_regions]
+    synonyms: [base resourcebase regions]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: resourcebase_id, role: key}
+      - {name: region_id, role: key}
+
+  - name: geonode_base_resourcebase_tkeywords
+    label: "GeoNode: Base Resourcebase Tkeywords"
+    superset_dataset_id: 53
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_resourcebase_tkeywords]
+    synonyms: [base resourcebase tkeywords]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: resourcebase_id, role: key}
+      - {name: thesauruskeyword_id, role: key}
+
+  - name: geonode_base_resourcebase_users_geolimits
+    label: "GeoNode: Base Resourcebase Users Geolimits"
+    superset_dataset_id: 54
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_resourcebase_users_geolimits]
+    synonyms: [base resourcebase users geolimits]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: resourcebase_id, role: key}
+      - {name: usergeolimit_id, role: key}
+
+  - name: geonode_base_restrictioncodetype
+    label: "GeoNode: Base Restrictioncodetype"
+    superset_dataset_id: 55
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_restrictioncodetype]
+    synonyms: [base restrictioncodetype]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: identifier, role: dimension}
+      - {name: description, role: dimension}
+      - {name: description_en, role: dimension}
+      - {name: gn_description, role: dimension}
+      - {name: gn_description_en, role: dimension}
+      - {name: is_choice, role: dimension}
+
+  - name: geonode_base_spatialrepresentationtype
+    label: "GeoNode: Base Spatialrepresentationtype"
+    superset_dataset_id: 56
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_spatialrepresentationtype]
+    synonyms: [base spatialrepresentationtype]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: identifier, role: dimension}
+      - {name: description, role: dimension}
+      - {name: description_en, role: dimension}
+      - {name: gn_description, role: dimension}
+      - {name: gn_description_en, role: dimension}
+      - {name: is_choice, role: dimension}
+
+  - name: geonode_base_taggedcontentitem
+    label: "GeoNode: Base Taggedcontentitem"
+    superset_dataset_id: 57
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_taggedcontentitem]
+    synonyms: [base taggedcontentitem]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: content_object_id, role: key}
+      - {name: tag_id, role: key}
+
+  - name: geonode_base_thesaurus
+    label: "GeoNode: Base Thesaurus"
+    superset_dataset_id: 58
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_thesaurus]
+    synonyms: [base thesaurus]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: identifier, role: dimension}
+      - {name: title, role: dimension}
+      - {name: date, role: dimension}
+      - {name: description, role: dimension}
+      - {name: slug, role: dimension}
+      - {name: about, role: dimension}
+      - {name: card_max, role: measure_source}
+      - {name: card_min, role: measure_source}
+      - {name: facet, role: dimension}
+      - {name: order, role: measure_source}
+
+  - name: geonode_base_thesauruskeyword
+    label: "GeoNode: Base Thesauruskeyword"
+    superset_dataset_id: 59
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_thesauruskeyword]
+    synonyms: [base thesauruskeyword]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: about, role: dimension}
+      - {name: alt_label, role: dimension}
+      - {name: thesaurus_id, role: key}
+      - {name: image, role: dimension}
+
+  - name: geonode_base_thesauruskeywordlabel
+    label: "GeoNode: Base Thesauruskeywordlabel"
+    superset_dataset_id: 60
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_thesauruskeywordlabel]
+    synonyms: [base thesauruskeywordlabel]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: lang, role: dimension}
+      - {name: label, role: dimension}
+      - {name: keyword_id, role: key}
+
+  - name: geonode_base_thesauruslabel
+    label: "GeoNode: Base Thesauruslabel"
+    superset_dataset_id: 61
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_thesauruslabel]
+    synonyms: [base thesauruslabel]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: lang, role: dimension}
+      - {name: label, role: dimension}
+      - {name: thesaurus_id, role: key}
+
+  - name: geonode_base_topiccategory
+    label: "GeoNode: Base Topiccategory"
+    superset_dataset_id: 62
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_topiccategory]
+    synonyms: [base topiccategory]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: identifier, role: dimension}
+      - {name: description, role: dimension}
+      - {name: description_en, role: dimension}
+      - {name: gn_description, role: dimension}
+      - {name: gn_description_en, role: dimension}
+      - {name: is_choice, role: dimension}
+      - {name: fa_class, role: dimension}
+
+  - name: geonode_base_usergeolimit
+    label: "GeoNode: Base Usergeolimit"
+    superset_dataset_id: 63
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, base_usergeolimit]
+    synonyms: [base usergeolimit]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: wkt, role: dimension}
+      - {name: resource_id, role: key}
+      - {name: user_id, role: key}
+
+  - name: geonode_br_restoredbackup
+    label: "GeoNode: Br Restoredbackup"
+    superset_dataset_id: 64
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, br_restoredbackup]
+    synonyms: [br restoredbackup]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: archive_md5, role: dimension}
+      - {name: restoration_date, role: dimension}
+      - {name: creation_date, role: dimension}
+
+  - name: geonode_django_admin_log
+    label: "GeoNode: Django Admin Log"
+    superset_dataset_id: 65
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, django_admin_log]
+    synonyms: [django admin log]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: action_time, role: dimension}
+      - {name: object_id, role: key}
+      - {name: object_repr, role: dimension}
+      - {name: action_flag, role: measure_source}
+      - {name: change_message, role: dimension}
+      - {name: content_type_id, role: key}
+      - {name: user_id, role: key}
+
+  - name: geonode_django_celery_results_chordcounter
+    label: "GeoNode: Django Celery Results Chordcounter"
+    superset_dataset_id: 66
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, django_celery_results_chordcounter]
+    synonyms: [django celery results chordcounter]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: group_id, role: key}
+      - {name: sub_tasks, role: dimension}
+      - {name: count, role: measure_source}
+
+  - name: geonode_django_celery_results_groupresult
+    label: "GeoNode: Django Celery Results Groupresult"
+    superset_dataset_id: 67
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, django_celery_results_groupresult]
+    synonyms: [django celery results groupresult]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: group_id, role: key}
+      - {name: date_created, role: dimension}
+      - {name: date_done, role: dimension}
+      - {name: content_type, role: dimension}
+      - {name: content_encoding, role: dimension}
+      - {name: result, role: dimension}
+
+  - name: geonode_django_celery_results_taskresult
+    label: "GeoNode: Django Celery Results Taskresult"
+    superset_dataset_id: 68
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, django_celery_results_taskresult]
+    synonyms: [django celery results taskresult]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: task_id, role: key}
+      - {name: status, role: dimension}
+      - {name: content_type, role: dimension}
+      - {name: content_encoding, role: dimension}
+      - {name: result, role: dimension}
+      - {name: date_done, role: dimension}
+      - {name: traceback, role: dimension}
+      - {name: meta, role: dimension}
+      - {name: task_args, role: dimension}
+      - {name: task_kwargs, role: dimension}
+      - {name: task_name, role: dimension}
+      - {name: worker, role: dimension}
+      - {name: date_created, role: dimension}
+      - {name: periodic_task_name, role: dimension}
+
+  - name: geonode_django_content_type
+    label: "GeoNode: Django Content Type"
+    superset_dataset_id: 69
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, django_content_type]
+    synonyms: [django content type]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: app_label, role: dimension}
+      - {name: model, role: dimension}
+
+  - name: geonode_django_migrations
+    label: "GeoNode: Django Migrations"
+    superset_dataset_id: 70
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, django_migrations]
+    synonyms: [django migrations]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: app, role: dimension}
+      - {name: name, role: dimension}
+      - {name: applied, role: dimension}
+
+  - name: geonode_django_session
+    label: "GeoNode: Django Session"
+    superset_dataset_id: 71
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, django_session]
+    synonyms: [django session]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: session_key, role: dimension}
+      - {name: session_data, role: dimension}
+      - {name: expire_date, role: dimension}
+
+  - name: geonode_django_site
+    label: "GeoNode: Django Site"
+    superset_dataset_id: 72
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, django_site]
+    synonyms: [django site]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: domain, role: dimension}
+      - {name: name, role: dimension}
+
+  - name: geonode_documents_document
+    label: "GeoNode: Documents Document"
+    superset_dataset_id: 73
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, documents_document]
+    synonyms: [documents document]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: resourcebase_ptr_id, role: key}
+      - {name: title_en, role: dimension}
+      - {name: abstract_en, role: dimension}
+      - {name: purpose_en, role: dimension}
+      - {name: constraints_other_en, role: dimension}
+      - {name: supplemental_information_en, role: dimension}
+      - {name: data_quality_statement_en, role: dimension}
+      - {name: extension, role: dimension}
+      - {name: doc_url, role: dimension}
+
+  - name: geonode_favorite_favorite
+    label: "GeoNode: Favorite Favorite"
+    superset_dataset_id: 74
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, favorite_favorite]
+    synonyms: [favorite favorite]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: object_id, role: key}
+      - {name: created_on, role: dimension}
+      - {name: content_type_id, role: key}
+      - {name: user_id, role: key}
+
+  - name: geonode_geoapps_geoapp
+    label: "GeoNode: Geoapps Geoapp"
+    superset_dataset_id: 75
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, geoapps_geoapp]
+    synonyms: [geoapps geoapp]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: resourcebase_ptr_id, role: key}
+      - {name: name, role: dimension}
+      - {name: last_modified, role: dimension}
+
+  - name: geonode_geonode_mapstore_client_searchservice
+    label: "GeoNode: Geonode Mapstore Client Searchservice"
+    superset_dataset_id: 76
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, geonode_mapstore_client_searchservice]
+    synonyms: [geonode mapstore client searchservice]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: display_name, role: dimension}
+      - {name: priority, role: measure_source}
+      - {name: url, role: dimension}
+      - {name: typename, role: dimension}
+      - {name: attributes, role: dimension}
+      - {name: sortby, role: dimension}
+      - {name: srsName, role: dimension}
+      - {name: maxFeatures, role: measure_source}
+
+  - name: geonode_geonode_resource_processing_abstractprocessingtask
+    label: "GeoNode: Geonode Resource Processing Abstractprocessingtask"
+    superset_dataset_id: 77
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, geonode_resource_processing_abstractprocessingtask]
+    synonyms: [geonode resource processing abstractprocessingtask]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: is_enabled, role: dimension}
+      - {name: polymorphic_ctype_id, role: key}
+
+  - name: geonode_geonode_resource_processing_processingworkflow
+    label: "GeoNode: Geonode Resource Processing Processingworkflow"
+    superset_dataset_id: 78
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, geonode_resource_processing_processingworkflow]
+    synonyms: [geonode resource processing processingworkflow]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: is_enabled, role: dimension}
+
+  - name: geonode_geonode_resource_processing_processingworkflowtasks
+    label: "GeoNode: Geonode Resource Processing Processingworkflowtasks"
+    superset_dataset_id: 79
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, geonode_resource_processing_processingworkflowtasks]
+    synonyms: [geonode resource processing processingworkflowtasks]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: order, role: measure_source}
+      - {name: task_id, role: key}
+      - {name: workflow_id, role: key}
+
+  - name: geonode_geonode_resource_processing_sampleprocessingtask
+    label: "GeoNode: Geonode Resource Processing Sampleprocessingtask"
+    superset_dataset_id: 80
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, geonode_resource_processing_sampleprocessingtask]
+    synonyms: [geonode resource processing sampleprocessingtask]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: abstractprocessingtask_ptr_id, role: key}
+
+  - name: geonode_geonode_themes_geonodethemecustomization
+    label: "GeoNode: Geonode Themes Geonodethemecustomization"
+    superset_dataset_id: 81
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, geonode_themes_geonodethemecustomization]
+    synonyms: [geonode themes geonodethemecustomization]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: date, role: dimension}
+      - {name: description, role: dimension}
+      - {name: is_enabled, role: dimension}
+      - {name: logo, role: dimension}
+      - {name: jumbotron_bg, role: dimension}
+      - {name: jumbotron_welcome_hide, role: dimension}
+      - {name: jumbotron_welcome_title, role: dimension}
+      - {name: jumbotron_welcome_content, role: dimension}
+      - {name: welcome_theme, role: dimension}
+      - {name: extra_css, role: dimension}
+
+  - name: geonode_geonode_themes_geonodethemecustomization_jumbotron_slide_show
+    label: "GeoNode: Geonode Themes Geonodethemecustomization Jumbotron Slide Show"
+    superset_dataset_id: 82
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, geonode_themes_geonodethemecustomization_jumbotron_slide_show]
+    synonyms: [geonode themes geonodethemecustomization jumbotron slide show]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: geonodethemecustomization_id, role: key}
+      - {name: jumbotronthemeslide_id, role: key}
+
+  - name: geonode_geonode_themes_jumbotronthemeslide
+    label: "GeoNode: Geonode Themes Jumbotronthemeslide"
+    superset_dataset_id: 83
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, geonode_themes_jumbotronthemeslide]
+    synonyms: [geonode themes jumbotronthemeslide]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: slide_name, role: dimension}
+      - {name: jumbotron_slide_image, role: dimension}
+      - {name: jumbotron_slide_content, role: dimension}
+      - {name: hide_jumbotron_slide_content, role: dimension}
+      - {name: is_enabled, role: dimension}
+
+  - name: geonode_groups_groupcategory
+    label: "GeoNode: Groups Groupcategory"
+    superset_dataset_id: 84
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, groups_groupcategory]
+    synonyms: [groups groupcategory]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: slug, role: dimension}
+      - {name: name, role: dimension}
+      - {name: name_en, role: dimension}
+      - {name: description, role: dimension}
+
+  - name: geonode_groups_groupmember
+    label: "GeoNode: Groups Groupmember"
+    superset_dataset_id: 85
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, groups_groupmember]
+    synonyms: [groups groupmember]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: role, role: dimension}
+      - {name: joined, role: dimension}
+      - {name: group_id, role: key}
+      - {name: user_id, role: key}
+
+  - name: geonode_groups_groupprofile
+    label: "GeoNode: Groups Groupprofile"
+    superset_dataset_id: 86
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, groups_groupprofile]
+    synonyms: [groups groupprofile]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: title, role: dimension}
+      - {name: slug, role: dimension}
+      - {name: logo, role: dimension}
+      - {name: description, role: dimension}
+      - {name: email, role: dimension}
+      - {name: access, role: dimension}
+      - {name: last_modified, role: dimension}
+      - {name: group_id, role: key}
+      - {name: description_en, role: dimension}
+      - {name: title_en, role: dimension}
+      - {name: created, role: dimension}
+
+  - name: geonode_groups_groupprofile_categories
+    label: "GeoNode: Groups Groupprofile Categories"
+    superset_dataset_id: 87
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, groups_groupprofile_categories]
+    synonyms: [groups groupprofile categories]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: groupprofile_id, role: key}
+      - {name: groupcategory_id, role: key}
+
+  - name: geonode_guardian_groupobjectpermission
+    label: "GeoNode: Guardian Groupobjectpermission"
+    superset_dataset_id: 88
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, guardian_groupobjectpermission]
+    synonyms: [guardian groupobjectpermission]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: object_pk, role: dimension}
+      - {name: content_type_id, role: key}
+      - {name: group_id, role: key}
+      - {name: permission_id, role: key}
+
+  - name: geonode_guardian_userobjectpermission
+    label: "GeoNode: Guardian Userobjectpermission"
+    superset_dataset_id: 89
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, guardian_userobjectpermission]
+    synonyms: [guardian userobjectpermission]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: object_pk, role: dimension}
+      - {name: content_type_id, role: key}
+      - {name: permission_id, role: key}
+      - {name: user_id, role: key}
+
+  - name: geonode_harvesting_asynchronousharvestingsession
+    label: "GeoNode: Harvesting Asynchronousharvestingsession"
+    superset_dataset_id: 90
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, harvesting_asynchronousharvestingsession]
+    synonyms: [harvesting asynchronousharvestingsession]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: session_type, role: dimension}
+      - {name: started, role: dimension}
+      - {name: updated, role: dimension}
+      - {name: ended, role: dimension}
+      - {name: status, role: dimension}
+      - {name: details, role: dimension}
+      - {name: total_records_to_process, role: measure_source}
+      - {name: records_done, role: measure_source}
+      - {name: harvester_id, role: key}
+
+  - name: geonode_harvesting_harvestableresource
+    label: "GeoNode: Harvesting Harvestableresource"
+    superset_dataset_id: 91
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, harvesting_harvestableresource]
+    synonyms: [harvesting harvestableresource]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: unique_identifier, role: key}
+      - {name: title, role: dimension}
+      - {name: geonode_resource_id, role: key}
+      - {name: harvester_id, role: key}
+      - {name: should_be_harvested, role: dimension}
+      - {name: last_updated, role: dimension}
+      - {name: status, role: dimension}
+      - {name: remote_resource_type, role: dimension}
+      - {name: last_refreshed, role: dimension}
+      - {name: last_harvested, role: dimension}
+      - {name: last_harvesting_message, role: dimension}
+      - {name: last_harvesting_succeeded, role: dimension}
+      - {name: abstract, role: dimension}
+
+  - name: geonode_harvesting_harvester
+    label: "GeoNode: Harvesting Harvester"
+    superset_dataset_id: 92
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, harvesting_harvester]
+    synonyms: [harvesting harvester]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: remote_url, role: dimension}
+      - {name: scheduling_enabled, role: dimension}
+      - {name: harvester_type, role: dimension}
+      - {name: harvester_type_specific_configuration, role: dimension}
+      - {name: default_owner_id, role: key}
+      - {name: check_availability_frequency, role: measure_source}
+      - {name: last_checked_availability, role: dimension}
+      - {name: remote_available, role: dimension}
+      - {name: delete_orphan_resources_automatically, role: dimension}
+      - {name: harvest_new_resources_by_default, role: dimension}
+      - {name: last_updated, role: dimension}
+      - {name: status, role: dimension}
+      - {name: last_check_harvestable_resources_message, role: dimension}
+      - {name: last_checked_harvestable_resources, role: dimension}
+      - {name: num_harvestable_resources, role: measure_source}
+      - {name: refresh_harvestable_resources_update_frequency, role: measure_source}
+      - {name: harvesting_session_update_frequency, role: measure_source}
+
+  - name: geonode_importer_resourcehandlerinfo
+    label: "GeoNode: Importer Resourcehandlerinfo"
+    superset_dataset_id: 93
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, importer_resourcehandlerinfo]
+    synonyms: [importer resourcehandlerinfo]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: handler_module_path, role: dimension}
+      - {name: resource_id, role: key}
+      - {name: kwargs, role: dimension}
+      - {name: execution_request_id, role: key}
+
+  - name: geonode_invitations_invitation
+    label: "GeoNode: Invitations Invitation"
+    superset_dataset_id: 94
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, invitations_invitation]
+    synonyms: [invitations invitation]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: email, role: dimension}
+      - {name: accepted, role: dimension}
+      - {name: created, role: dimension}
+      - {name: key, role: dimension}
+      - {name: sent, role: dimension}
+      - {name: inviter_id, role: key}
+
+  - name: geonode_layers_attribute
+    label: "GeoNode: Layers Attribute"
+    superset_dataset_id: 95
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, layers_attribute]
+    synonyms: [layers attribute]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: attribute, role: dimension}
+      - {name: description, role: dimension}
+      - {name: attribute_label, role: dimension}
+      - {name: attribute_type, role: dimension}
+      - {name: visible, role: dimension}
+      - {name: display_order, role: measure_source}
+      - {name: count, role: measure_source}
+      - {name: min, role: dimension}
+      - {name: max, role: dimension}
+      - {name: average, role: dimension}
+      - {name: median, role: dimension}
+      - {name: stddev, role: dimension}
+      - {name: sum, role: dimension}
+      - {name: unique_values, role: dimension}
+      - {name: last_stats_updated, role: dimension}
+      - {name: dataset_id, role: key}
+      - {name: featureinfo_type, role: dimension}
+
+  - name: geonode_layers_dataset
+    label: "GeoNode: Layers Dataset"
+    superset_dataset_id: 96
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, layers_dataset]
+    synonyms: [layers dataset]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: resourcebase_ptr_id, role: key}
+      - {name: title_en, role: dimension}
+      - {name: abstract_en, role: dimension}
+      - {name: purpose_en, role: dimension}
+      - {name: constraints_other_en, role: dimension}
+      - {name: supplemental_information_en, role: dimension}
+      - {name: data_quality_statement_en, role: dimension}
+      - {name: workspace, role: dimension}
+      - {name: store, role: dimension}
+      - {name: name, role: dimension}
+      - {name: typename, role: dimension}
+      - {name: charset, role: dimension}
+      - {name: default_style_id, role: key}
+      - {name: elevation_regex, role: dimension}
+      - {name: has_elevation, role: dimension}
+      - {name: has_time, role: dimension}
+      - {name: is_mosaic, role: dimension}
+      - {name: time_regex, role: dimension}
+      - {name: remote_service_id, role: key}
+      - {name: featureinfo_custom_template, role: dimension}
+      - {name: use_featureinfo_custom_template, role: dimension}
+      - {name: ptype, role: dimension}
+      - {name: ows_url, role: dimension}
+
+  - name: geonode_layers_dataset_styles
+    label: "GeoNode: Layers Dataset Styles"
+    superset_dataset_id: 97
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, layers_dataset_styles]
+    synonyms: [layers dataset styles]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: dataset_id, role: key}
+      - {name: style_id, role: key}
+
+  - name: geonode_layers_style
+    label: "GeoNode: Layers Style"
+    superset_dataset_id: 98
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, layers_style]
+    synonyms: [layers style]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: sld_title, role: dimension}
+      - {name: sld_body, role: dimension}
+      - {name: sld_version, role: dimension}
+      - {name: sld_url, role: dimension}
+      - {name: workspace, role: dimension}
+
+  - name: geonode_management_commands_http_managementcommandjob
+    label: "GeoNode: Management Commands Http Managementcommandjob"
+    superset_dataset_id: 99
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, management_commands_http_managementcommandjob]
+    synonyms: [management commands http managementcommandjob]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: command, role: dimension}
+      - {name: app_name, role: dimension}
+      - {name: created_at, role: dimension}
+      - {name: start_time, role: dimension}
+      - {name: end_time, role: dimension}
+      - {name: modified_at, role: dimension}
+      - {name: args, role: dimension}
+      - {name: kwargs, role: dimension}
+      - {name: celery_result_id, role: key}
+      - {name: output_message, role: dimension}
+      - {name: status, role: dimension}
+      - {name: user_id, role: key}
+
+  - name: geonode_maps_map
+    label: "GeoNode: Maps Map"
+    superset_dataset_id: 100
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, maps_map]
+    synonyms: [maps map]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: resourcebase_ptr_id, role: key}
+      - {name: title_en, role: dimension}
+      - {name: abstract_en, role: dimension}
+      - {name: purpose_en, role: dimension}
+      - {name: constraints_other_en, role: dimension}
+      - {name: supplemental_information_en, role: dimension}
+      - {name: data_quality_statement_en, role: dimension}
+      - {name: last_modified, role: dimension}
+      - {name: urlsuffix, role: dimension}
+      - {name: featuredurl, role: dimension}
+
+  - name: geonode_maps_maplayer
+    label: "GeoNode: Maps Maplayer"
+    superset_dataset_id: 101
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, maps_maplayer]
+    synonyms: [maps maplayer]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: ows_url, role: dimension}
+      - {name: local, role: dimension}
+      - {name: map_id, role: key}
+      - {name: store, role: dimension}
+      - {name: current_style, role: dimension}
+      - {name: extra_params, role: dimension}
+      - {name: dataset_id, role: key}
+      - {name: opacity, role: measure_source}
+      - {name: order, role: measure_source}
+      - {name: visibility, role: dimension}
+
+  - name: geonode_monitoring_eventtype
+    label: "GeoNode: Monitoring Eventtype"
+    superset_dataset_id: 102
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_eventtype]
+    synonyms: [monitoring eventtype]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+
+  - name: geonode_monitoring_exceptionevent
+    label: "GeoNode: Monitoring Exceptionevent"
+    superset_dataset_id: 103
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_exceptionevent]
+    synonyms: [monitoring exceptionevent]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: created, role: dimension}
+      - {name: received, role: dimension}
+      - {name: error_type, role: dimension}
+      - {name: error_data, role: dimension}
+      - {name: request_id, role: key}
+      - {name: service_id, role: key}
+      - {name: error_message, role: dimension}
+
+  - name: geonode_monitoring_host
+    label: "GeoNode: Monitoring Host"
+    superset_dataset_id: 104
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_host]
+    synonyms: [monitoring host]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: ip, role: dimension}
+      - {name: active, role: dimension}
+
+  - name: geonode_monitoring_metric
+    label: "GeoNode: Monitoring Metric"
+    superset_dataset_id: 105
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_metric]
+    synonyms: [monitoring metric]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: type, role: dimension}
+      - {name: unit, role: dimension}
+      - {name: description, role: dimension}
+
+  - name: geonode_monitoring_metriclabel
+    label: "GeoNode: Monitoring Metriclabel"
+    superset_dataset_id: 106
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_metriclabel]
+    synonyms: [monitoring metriclabel]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: user, role: dimension}
+
+  - name: geonode_monitoring_metricnotificationcheck
+    label: "GeoNode: Monitoring Metricnotificationcheck"
+    superset_dataset_id: 107
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_metricnotificationcheck]
+    synonyms: [monitoring metricnotificationcheck]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: max_timeout, role: dimension}
+      - {name: active, role: dimension}
+      - {name: label_id, role: key}
+      - {name: metric_id, role: key}
+      - {name: notification_check_id, role: key}
+      - {name: resource_id, role: key}
+      - {name: service_id, role: key}
+      - {name: definition_id, role: key}
+      - {name: event_type_id, role: key}
+
+  - name: geonode_monitoring_metricvalue
+    label: "GeoNode: Monitoring Metricvalue"
+    superset_dataset_id: 108
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_metricvalue]
+    synonyms: [monitoring metricvalue]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: valid_from, role: dimension}
+      - {name: valid_to, role: dimension}
+      - {name: value, role: dimension}
+      - {name: value_raw, role: dimension}
+      - {name: data, role: dimension}
+      - {name: label_id, role: key}
+      - {name: resource_id, role: key}
+      - {name: service_id, role: key}
+      - {name: service_metric_id, role: key}
+      - {name: samples_count, role: measure_source}
+      - {name: event_type_id, role: key}
+
+  - name: geonode_monitoring_monitoredresource
+    label: "GeoNode: Monitoring Monitoredresource"
+    superset_dataset_id: 109
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_monitoredresource]
+    synonyms: [monitoring monitoredresource]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: type, role: dimension}
+      - {name: resource_id, role: key}
+
+  - name: geonode_monitoring_notificationcheck
+    label: "GeoNode: Monitoring Notificationcheck"
+    superset_dataset_id: 110
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_notificationcheck]
+    synonyms: [monitoring notificationcheck]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: description, role: dimension}
+      - {name: user_threshold, role: dimension}
+      - {name: grace_period, role: dimension}
+      - {name: last_send, role: dimension}
+      - {name: severity, role: dimension}
+      - {name: active, role: dimension}
+
+  - name: geonode_monitoring_notificationmetricdefinition
+    label: "GeoNode: Monitoring Notificationmetricdefinition"
+    superset_dataset_id: 111
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_notificationmetricdefinition]
+    synonyms: [monitoring notificationmetricdefinition]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: use_service, role: dimension}
+      - {name: use_resource, role: dimension}
+      - {name: use_label, role: dimension}
+      - {name: field_option, role: dimension}
+      - {name: metric_id, role: key}
+      - {name: notification_check_id, role: key}
+      - {name: description, role: dimension}
+      - {name: steps, role: measure_source}
+      - {name: use_event_type, role: dimension}
+
+  - name: geonode_monitoring_notificationreceiver
+    label: "GeoNode: Monitoring Notificationreceiver"
+    superset_dataset_id: 112
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_notificationreceiver]
+    synonyms: [monitoring notificationreceiver]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: email, role: dimension}
+      - {name: notification_check_id, role: key}
+      - {name: user_id, role: key}
+
+  - name: geonode_monitoring_requestevent
+    label: "GeoNode: Monitoring Requestevent"
+    superset_dataset_id: 113
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_requestevent]
+    synonyms: [monitoring requestevent]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: created, role: dimension}
+      - {name: received, role: dimension}
+      - {name: host, role: dimension}
+      - {name: request_path, role: dimension}
+      - {name: request_method, role: dimension}
+      - {name: response_status, role: measure_source}
+      - {name: response_size, role: measure_source}
+      - {name: response_time, role: measure_source}
+      - {name: response_type, role: dimension}
+      - {name: user_agent, role: dimension}
+      - {name: user_agent_family, role: dimension}
+      - {name: client_ip, role: dimension}
+      - {name: client_country, role: dimension}
+      - {name: client_region, role: dimension}
+      - {name: client_city, role: dimension}
+      - {name: custom_id, role: key}
+      - {name: service_id, role: key}
+      - {name: user_identifier, role: key}
+      - {name: event_type_id, role: key}
+      - {name: user_username, role: dimension}
+
+  - name: geonode_monitoring_requestevent_resources
+    label: "GeoNode: Monitoring Requestevent Resources"
+    superset_dataset_id: 114
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_requestevent_resources]
+    synonyms: [monitoring requestevent resources]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: requestevent_id, role: key}
+      - {name: monitoredresource_id, role: key}
+
+  - name: geonode_monitoring_service
+    label: "GeoNode: Monitoring Service"
+    superset_dataset_id: 115
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_service]
+    synonyms: [monitoring service]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: check_interval, role: dimension}
+      - {name: last_check, role: dimension}
+      - {name: active, role: dimension}
+      - {name: notes, role: dimension}
+      - {name: url, role: dimension}
+      - {name: host_id, role: key}
+      - {name: service_type_id, role: key}
+
+  - name: geonode_monitoring_servicetype
+    label: "GeoNode: Monitoring Servicetype"
+    superset_dataset_id: 116
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_servicetype]
+    synonyms: [monitoring servicetype]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+
+  - name: geonode_monitoring_servicetypemetric
+    label: "GeoNode: Monitoring Servicetypemetric"
+    superset_dataset_id: 117
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, monitoring_servicetypemetric]
+    synonyms: [monitoring servicetypemetric]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: metric_id, role: key}
+      - {name: service_type_id, role: key}
+
+  - name: geonode_oauth2_provider_accesstoken
+    label: "GeoNode: Oauth2 Provider Accesstoken"
+    superset_dataset_id: 118
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, oauth2_provider_accesstoken]
+    synonyms: [oauth2 provider accesstoken]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: token, role: dimension}
+      - {name: expires, role: dimension}
+      - {name: scope, role: dimension}
+      - {name: application_id, role: key}
+      - {name: user_id, role: key}
+      - {name: created, role: dimension}
+      - {name: updated, role: dimension}
+      - {name: source_refresh_token_id, role: key}
+      - {name: id_token_id, role: key}
+
+  - name: geonode_oauth2_provider_application
+    label: "GeoNode: Oauth2 Provider Application"
+    superset_dataset_id: 119
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, oauth2_provider_application]
+    synonyms: [oauth2 provider application]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: client_id, role: key}
+      - {name: redirect_uris, role: dimension}
+      - {name: client_type, role: dimension}
+      - {name: authorization_grant_type, role: dimension}
+      - {name: client_secret, role: dimension}
+      - {name: name, role: dimension}
+      - {name: user_id, role: key}
+      - {name: skip_authorization, role: dimension}
+      - {name: created, role: dimension}
+      - {name: updated, role: dimension}
+      - {name: algorithm, role: dimension}
+
+  - name: geonode_oauth2_provider_grant
+    label: "GeoNode: Oauth2 Provider Grant"
+    superset_dataset_id: 120
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, oauth2_provider_grant]
+    synonyms: [oauth2 provider grant]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: code, role: dimension}
+      - {name: expires, role: dimension}
+      - {name: redirect_uri, role: dimension}
+      - {name: scope, role: dimension}
+      - {name: application_id, role: key}
+      - {name: user_id, role: key}
+      - {name: created, role: dimension}
+      - {name: updated, role: dimension}
+      - {name: code_challenge, role: dimension}
+      - {name: code_challenge_method, role: dimension}
+      - {name: claims, role: dimension}
+      - {name: nonce, role: dimension}
+
+  - name: geonode_oauth2_provider_idtoken
+    label: "GeoNode: Oauth2 Provider Idtoken"
+    superset_dataset_id: 121
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, oauth2_provider_idtoken]
+    synonyms: [oauth2 provider idtoken]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: expires, role: dimension}
+      - {name: scope, role: dimension}
+      - {name: created, role: dimension}
+      - {name: updated, role: dimension}
+      - {name: application_id, role: key}
+      - {name: user_id, role: key}
+      - {name: jti, role: dimension}
+
+  - name: geonode_oauth2_provider_refreshtoken
+    label: "GeoNode: Oauth2 Provider Refreshtoken"
+    superset_dataset_id: 122
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, oauth2_provider_refreshtoken]
+    synonyms: [oauth2 provider refreshtoken]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: token, role: dimension}
+      - {name: access_token_id, role: key}
+      - {name: application_id, role: key}
+      - {name: user_id, role: key}
+      - {name: created, role: dimension}
+      - {name: updated, role: dimension}
+      - {name: revoked, role: dimension}
+
+  - name: geonode_people_profile
+    label: "GeoNode: People Profile"
+    superset_dataset_id: 123
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, people_profile]
+    synonyms: [people profile]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: password, role: dimension}
+      - {name: last_login, role: dimension}
+      - {name: is_superuser, role: dimension}
+      - {name: username, role: dimension}
+      - {name: first_name, role: dimension}
+      - {name: last_name, role: dimension}
+      - {name: email, role: dimension}
+      - {name: is_staff, role: dimension}
+      - {name: is_active, role: dimension}
+      - {name: date_joined, role: dimension}
+      - {name: organization, role: dimension}
+      - {name: profile, role: dimension}
+      - {name: position, role: dimension}
+      - {name: voice, role: dimension}
+      - {name: fax, role: dimension}
+      - {name: delivery, role: dimension}
+      - {name: city, role: dimension}
+      - {name: area, role: dimension}
+      - {name: zipcode, role: dimension}
+      - {name: country, role: dimension}
+      - {name: language, role: dimension}
+      - {name: timezone, role: dimension}
+
+  - name: geonode_people_profile_groups
+    label: "GeoNode: People Profile Groups"
+    superset_dataset_id: 124
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, people_profile_groups]
+    synonyms: [people profile groups]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: profile_id, role: key}
+      - {name: group_id, role: key}
+
+  - name: geonode_people_profile_user_permissions
+    label: "GeoNode: People Profile User Permissions"
+    superset_dataset_id: 125
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, people_profile_user_permissions]
+    synonyms: [people profile user permissions]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: profile_id, role: key}
+      - {name: permission_id, role: key}
+
+  - name: geonode_pinax_notifications_noticequeuebatch
+    label: "GeoNode: Pinax Notifications Noticequeuebatch"
+    superset_dataset_id: 126
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, pinax_notifications_noticequeuebatch]
+    synonyms: [pinax notifications noticequeuebatch]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: pickled_data, role: dimension}
+
+  - name: geonode_pinax_notifications_noticesetting
+    label: "GeoNode: Pinax Notifications Noticesetting"
+    superset_dataset_id: 127
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, pinax_notifications_noticesetting]
+    synonyms: [pinax notifications noticesetting]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: medium, role: dimension}
+      - {name: send, role: dimension}
+      - {name: scoping_object_id, role: key}
+      - {name: notice_type_id, role: key}
+      - {name: scoping_content_type_id, role: key}
+      - {name: user_id, role: key}
+
+  - name: geonode_pinax_notifications_noticetype
+    label: "GeoNode: Pinax Notifications Noticetype"
+    superset_dataset_id: 128
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, pinax_notifications_noticetype]
+    synonyms: [pinax notifications noticetype]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: label, role: dimension}
+      - {name: display, role: dimension}
+      - {name: description, role: dimension}
+      - {name: default, role: measure_source}
+
+  - name: geonode_processing_samplegeoserverprocessingtask
+    label: "GeoNode: Processing Samplegeoserverprocessingtask"
+    superset_dataset_id: 129
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, processing_samplegeoserverprocessingtask]
+    synonyms: [processing samplegeoserverprocessingtask]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: abstractprocessingtask_ptr_id, role: key}
+
+  - name: geonode_resource_executionrequest
+    label: "GeoNode: Resource Executionrequest"
+    superset_dataset_id: 130
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, resource_executionrequest]
+    synonyms: [resource executionrequest]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: exec_id, role: key}
+      - {name: status, role: dimension}
+      - {name: func_name, role: dimension}
+      - {name: created, role: dimension}
+      - {name: finished, role: dimension}
+      - {name: last_updated, role: dimension}
+      - {name: input_params, role: dimension}
+      - {name: output_params, role: dimension}
+      - {name: geonode_resource_id, role: key}
+      - {name: user_id, role: key}
+      - {name: step, role: dimension}
+      - {name: log, role: dimension}
+      - {name: action, role: dimension}
+      - {name: name, role: dimension}
+      - {name: source, role: dimension}
+
+  - name: geonode_sequences_sequence
+    label: "GeoNode: Sequences Sequence"
+    superset_dataset_id: 131
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, sequences_sequence]
+    synonyms: [sequences sequence]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: name, role: dimension}
+      - {name: last, role: measure_source}
+
+  - name: geonode_services_service
+    label: "GeoNode: Services Service"
+    superset_dataset_id: 132
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, services_service]
+    synonyms: [services service]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: resourcebase_ptr_id, role: key}
+      - {name: type, role: dimension}
+      - {name: method, role: dimension}
+      - {name: base_url, role: dimension}
+      - {name: version, role: dimension}
+      - {name: name, role: dimension}
+      - {name: description, role: dimension}
+      - {name: description_en, role: dimension}
+      - {name: name_en, role: dimension}
+      - {name: extra_queryparams, role: dimension}
+      - {name: operations, role: dimension}
+      - {name: harvester_id, role: key}
+
+  - name: geonode_services_serviceprofilerole
+    label: "GeoNode: Services Serviceprofilerole"
+    superset_dataset_id: 133
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, services_serviceprofilerole]
+    synonyms: [services serviceprofilerole]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: role, role: dimension}
+      - {name: profiles_id, role: key}
+      - {name: service_id, role: key}
+
+  - name: geonode_socialaccount_socialaccount
+    label: "GeoNode: Socialaccount Socialaccount"
+    superset_dataset_id: 134
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, socialaccount_socialaccount]
+    synonyms: [socialaccount socialaccount]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: provider, role: dimension}
+      - {name: uid, role: dimension}
+      - {name: last_login, role: dimension}
+      - {name: date_joined, role: dimension}
+      - {name: extra_data, role: dimension}
+      - {name: user_id, role: key}
+
+  - name: geonode_socialaccount_socialapp
+    label: "GeoNode: Socialaccount Socialapp"
+    superset_dataset_id: 135
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, socialaccount_socialapp]
+    synonyms: [socialaccount socialapp]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: provider, role: dimension}
+      - {name: name, role: dimension}
+      - {name: client_id, role: key}
+      - {name: secret, role: dimension}
+      - {name: key, role: dimension}
+      - {name: provider_id, role: key}
+      - {name: settings, role: dimension}
+
+  - name: geonode_socialaccount_socialapp_sites
+    label: "GeoNode: Socialaccount Socialapp Sites"
+    superset_dataset_id: 136
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, socialaccount_socialapp_sites]
+    synonyms: [socialaccount socialapp sites]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: socialapp_id, role: key}
+      - {name: site_id, role: key}
+
+  - name: geonode_socialaccount_socialtoken
+    label: "GeoNode: Socialaccount Socialtoken"
+    superset_dataset_id: 137
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, socialaccount_socialtoken]
+    synonyms: [socialaccount socialtoken]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: token, role: dimension}
+      - {name: token_secret, role: dimension}
+      - {name: expires_at, role: dimension}
+      - {name: account_id, role: key}
+      - {name: app_id, role: key}
+
+  - name: geonode_spatial_ref_sys
+    label: "GeoNode: Spatial Ref Sys"
+    superset_dataset_id: 138
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, spatial_ref_sys]
+    synonyms: [spatial ref sys]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: srid, role: measure_source}
+      - {name: auth_name, role: dimension}
+      - {name: auth_srid, role: measure_source}
+      - {name: srtext, role: dimension}
+      - {name: proj4text, role: dimension}
+
+  - name: geonode_taggit_tag
+    label: "GeoNode: Taggit Tag"
+    superset_dataset_id: 139
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, taggit_tag]
+    synonyms: [taggit tag]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: name, role: dimension}
+      - {name: slug, role: dimension}
+
+  - name: geonode_taggit_taggeditem
+    label: "GeoNode: Taggit Taggeditem"
+    superset_dataset_id: 140
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, taggit_taggeditem]
+    synonyms: [taggit taggeditem]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: object_id, role: key}
+      - {name: content_type_id, role: key}
+      - {name: tag_id, role: key}
+
+  - name: geonode_tastypie_apiaccess
+    label: "GeoNode: Tastypie Apiaccess"
+    superset_dataset_id: 141
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, tastypie_apiaccess]
+    synonyms: [tastypie apiaccess]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: identifier, role: dimension}
+      - {name: url, role: dimension}
+      - {name: request_method, role: dimension}
+      - {name: accessed, role: measure_source}
+
+  - name: geonode_tastypie_apikey
+    label: "GeoNode: Tastypie Apikey"
+    superset_dataset_id: 142
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, tastypie_apikey]
+    synonyms: [tastypie apikey]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: key, role: dimension}
+      - {name: created, role: dimension}
+      - {name: user_id, role: key}
+
+  - name: geonode_upload_upload
+    label: "GeoNode: Upload Upload"
+    superset_dataset_id: 143
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, upload_upload]
+    synonyms: [upload upload]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: import_id, role: key}
+      - {name: state, role: dimension}
+      - {name: date, role: dimension}
+      - {name: upload_dir, role: dimension}
+      - {name: name, role: dimension}
+      - {name: complete, role: dimension}
+      - {name: session, role: dimension}
+      - {name: metadata, role: dimension}
+      - {name: mosaic_time_regex, role: dimension}
+      - {name: mosaic_time_value, role: dimension}
+      - {name: mosaic_elev_regex, role: dimension}
+      - {name: mosaic_elev_value, role: dimension}
+      - {name: user_id, role: key}
+      - {name: append_to_mosaic_name, role: dimension}
+      - {name: mosaic, role: dimension}
+      - {name: append_to_mosaic_opts, role: dimension}
+      - {name: create_date, role: dimension}
+      - {name: resume_url, role: dimension}
+      - {name: store_spatial_files, role: dimension}
+      - {name: resource_id, role: key}
+
+  - name: geonode_upload_uploadparallelismlimit
+    label: "GeoNode: Upload Uploadparallelismlimit"
+    superset_dataset_id: 144
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, upload_uploadparallelismlimit]
+    synonyms: [upload uploadparallelismlimit]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: slug, role: dimension}
+      - {name: description, role: dimension}
+      - {name: max_number, role: measure_source}
+
+  - name: geonode_upload_uploadsizelimit
+    label: "GeoNode: Upload Uploadsizelimit"
+    superset_dataset_id: 145
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, upload_uploadsizelimit]
+    synonyms: [upload uploadsizelimit]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: slug, role: dimension}
+      - {name: description, role: dimension}
+      - {name: max_size, role: measure_source}
+
+  - name: geonode_user_messages_groupmemberthread
+    label: "GeoNode: User Messages Groupmemberthread"
+    superset_dataset_id: 146
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, user_messages_groupmemberthread]
+    synonyms: [user messages groupmemberthread]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: group_id, role: key}
+      - {name: thread_id, role: key}
+      - {name: user_id, role: key}
+      - {name: deleted, role: dimension}
+      - {name: unread, role: dimension}
+
+  - name: geonode_user_messages_message
+    label: "GeoNode: User Messages Message"
+    superset_dataset_id: 147
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, user_messages_message]
+    synonyms: [user messages message]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: sent_at, role: dimension}
+      - {name: content, role: dimension}
+      - {name: sender_id, role: key}
+      - {name: thread_id, role: key}
+
+  - name: geonode_user_messages_thread
+    label: "GeoNode: User Messages Thread"
+    superset_dataset_id: 148
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, user_messages_thread]
+    synonyms: [user messages thread]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: subject, role: dimension}
+
+  - name: geonode_user_messages_userthread
+    label: "GeoNode: User Messages Userthread"
+    superset_dataset_id: 149
+    grain: row
+    one_row_is: "one record (GeoNode core app table, auto-catalogued)"
+    subject_areas: [geonode, user_messages_userthread]
+    synonyms: [user messages userthread]
+    sensitivity: unrestricted_full_access
+    geography: none
+    columns:
+      - {name: id, role: key}
+      - {name: unread, role: dimension}
+      - {name: deleted, role: dimension}
+      - {name: thread_id, role: key}
+      - {name: user_id, role: key}
+
 # ---------------------------------------------------------------------------
 indicators:
   - name: facility_count_buikwe

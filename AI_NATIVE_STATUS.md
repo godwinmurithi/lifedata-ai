@@ -622,3 +622,668 @@ other checkpoint before it happens.
 **How to turn off:** remove the `mcp_passthrough` line from
 `_READ_TOOL_SOURCES` in `tools/registry.py` — the two tools simply stop
 being offered to the model; nothing else depends on them.
+
+---
+
+# Phase 0 — Pre-flight, against the full 18-phase plan (2026-09-25, continued)
+
+The full plan text (NORTH STAR + Phases 0–18 + hard rules) was received in full this
+session — the earlier "Discovery Findings" section above was written against a truncated
+paste and is superseded by this one where they overlap. **User decisions locked in before
+this phase started:** dataset 20 (`ugfacilities`, real PII + live prod-DB access) is
+permanently out of scope, not revisited; the Phase 8/9/13 Superset frontend fork is
+explicitly greenlit. Session now running in a `tmux` session (`ai-native-superset`, cwd
+`~/projects/lifedata-ai`) so long builds/servers survive a dropped connection, and in
+auto-mode per explicit user authorization — proceeding through phases without per-command
+confirmation, but still never touching anything production-adjacent (the plan's own
+absolute rule) and always backing up before anything destructive.
+
+## Backup
+
+`~/backups/superset-staging/superset_staging_backup_20260925_194609.dump` — `pg_dump -Fc`
+of the `superset` schema only (metadata, not the analytics data) from `db-staging4cti`,
+5.4MB. Restore: `pg_restore -U superset_app -d cti_geonode_data -n superset --clean <file>`.
+
+## Version / services (confirms + extends earlier discovery)
+
+- Superset **6.1.0**, Docker Compose (`~/projects/superset-staging/`). Running: `superset`
+  (web, `127.0.0.1:8089→8088`), `superset-mcp` (MCP service, port 5008, internal-only,
+  healthcheck just fixed — see below), `db-staging4cti` (Postgres 15/PostGIS, metadata +
+  analytics in one instance, isolated from prod).
+- **No Celery worker/beat container for staging Superset.** `superset.config.CeleryConfig`
+  class exists (imported successfully), but staging's `superset_config.py` never
+  overrides/activates it and no worker process is running. Needed for Phase 5
+  (thumbnails) and Phase 17 (alerts/reports, async queries) — not built yet, tracked
+  under those phases, not a Phase 0 blocker.
+- **No headless browser.** Neither `playwright` nor `selenium` importable inside the
+  `superset-staging4cti` image. `get_chart_preview`'s "URLPreview" mode constructs links to
+  Superset's own screenshot endpoints (confirmed by reading
+  `mcp_service/chart/tool/get_chart_preview.py`) but doesn't render anything itself — those
+  URLs need the same missing headless-browser infra to actually resolve. Tracked under
+  Phase 5.
+- **Cosmetic fix applied**: `superset-mcp` service's Docker healthcheck was inherited from
+  the base image (`curl localhost:8088`), which this service never listens on (it runs on
+  5008). Was falsely reporting `unhealthy` for its entire ~7hr uptime despite working
+  correctly. Fixed in `docker-compose.yml` with a healthcheck override against `:5008/mcp`;
+  recreated just that container, confirmed `healthy` on first check cycle. No functional
+  change, no other service touched.
+
+## MCP service — real tool count, not guessed
+
+Superset's native MCP is not a flat list of tools at the protocol layer — it's a
+dispatcher. Only 4 tools are actually registered with the MCP protocol itself
+(`call_tool`, `search_tools`, `get_instance_info`, `health_check`); everything else is
+reached by name through `call_tool`. The **real** catalogue, counted directly from
+`superset/mcp_service/*/tool/*.py` on disk inside the container: **22 tool files** across
+7 modules — `chart` (8: list, get_info, generate, update, get_data, get_preview,
+update_preview, get_type_schema), `dashboard` (4: list, get_info, generate,
+add_chart_to_existing), `dataset` (3: list, get_info, create_virtual), `sql_lab` (3:
+execute_sql, open_sql_lab_with_context, save_sql_query), `database` (2: list,
+get_info), `system` (3: health_check, get_schema, get_instance_info), `explore` (1:
+generate_explore_link). Matches what `lifedata-ai`'s passthrough work found empirically
+earlier today.
+
+**Found `superset/mcp_service/CLAUDE.md`** — Superset's own maintainers left LLM-agent
+build instructions in the source tree (tool/prompt/resource registration conventions, DAO
+pattern, Pydantic schema conventions, the `@tool` decorator from `superset_core.api.mcp`).
+This is exactly the Phase 18A "research first" material — every future phase that adds a
+new MCP tool (style_chart, style_dashboard, create_color_scheme, etc. in Phase 16) should
+follow this file's conventions exactly rather than improvising a shape.
+
+## Framework components the plan assumes — verified, not assumed
+
+- **Extensions framework: real, but generic, not chat-specific.** `superset-core` (a
+  separate installed package, `/app/superset-core/`) ships a Pydantic-based extension
+  manifest system (`extensions/types.py`: `BaseExtension`, publisher/name/version/
+  permissions/dependencies) plus `local_extensions_watcher.py`. This is Superset's
+  SIP-214-era extension point, confirmed present in 6.1.0. No "chat contribution point"
+  specifically found under that name — Phase 2/7's in-product chat panel will need to be
+  built as a plain extension against this framework, not assumed to have a pre-built chat
+  slot.
+- **`semantic_layers` module: does not exist in this Superset version, full stop** — not a
+  version gap, not something to upgrade into. Confirmed by exhaustive filename search
+  across `/app/superset` and `/app/superset-core`. Phase 4 will build semantic grounding as
+  this project's own layer (`registry.yaml`, already in use per earlier work today), not by
+  registering into a core Superset module, since none exists to register into.
+- **Realtime/websocket channel: no module by that name.** The actual mechanism Superset
+  6.1.0 has for this is the `GLOBAL_ASYNC_QUERIES` feature flag (Redis-pub/sub-backed
+  async query results) — present in code, **off** by default on staging
+  (`config.FEATURE_FLAGS.get('GLOBAL_ASYNC_QUERIES')` → `None`). This is the real
+  extension point for Phase 2's "stream over the existing realtime channel" and Phase 17's
+  live-dashboard work — tracked there, not built yet.
+- **Alerts/reports module exists** (`superset/reports/`, feature-flagged
+  `ALERT_REPORTS`) — real scaffolding for Phase 17's prompt-created alerts, not yet wired
+  up or enabled on staging.
+
+## Gate decision
+
+**No version upgrade needed or proposed.** 6.1.0 already has the real MCP/extensions
+framework the plan assumes; the actual gaps (no Celery worker, no headless browser,
+`GLOBAL_ASYNC_QUERIES` off, no semantic_layers module because it doesn't exist upstream)
+are infrastructure/build work belonging to specific later phases (5, 4, 17), not a
+Phase-0-blocking version gap. Proceeding to Phase 1.
+
+---
+
+# Phase 1 — Identity & RLS: a bigger finding than "start here" implied
+
+Before building RLS, mapped every registered dataset (`superset` schema `tables`/`dbs`) to
+its actual database connection, to pick a real target for "facility/group/government"
+scoping. Result was not what the earlier same-day work assumed.
+
+## Finding: 19 of 22 registered Superset datasets read live production data
+
+| Connection | Points at | Datasets |
+|---|---|---|
+| `PostgreSQL` (id 1) | `db4cti_geonode:5432/cti_geonode_data` — **production** | 16: `sickle_cell`, `buikwe_subcounties`, `sickle_cells_disease_questionnaire`, `farmers`, `farmers_crop_breakdown`, `arise_hcp`, `hf_census_layer_hf_census`, `trans_nzoia_level_one_facilities`, `latest_data_join`, `sandbox_join_2`, `buikwe_population_household`, `buikwe_vaccines`, `trans_nzoia_disease_breakdown`, `buikwe_hf_disease_breakdown`, the arise-2 questionnaire join, **`buikwe_subcounties_map`** (id 24 — today's `deck_polygon` map source, chart 338) |
+| `life_health` (id 2) | `db4cti_geonode:5432/life_health` — **production**, different DB on the same prod host | `forms_surveyform`, `forms_surveysubmission`, **`buikwe_level1_facilities`** (id 18) |
+| `GeoNode PostGIS (prod read - staging)` (id 3) | production | `ugfacilities` (id 20 — already excluded earlier today) |
+| `Staging Postgres (db-staging4cti)` (id 4) | genuinely isolated staging | `scd_screening_v2` (21), `scd_referral_cascade` (22) |
+
+**This contradicts this same file's own earlier claim** ("every other dataset touched today
+lives in the isolated staging DB") — that was checked for dataset 20 specifically but not
+verified for the rest. It wasn't true. Writes today only ever created Superset *metadata*
+objects (charts/dashboards) in the staging Superset's own `superset` schema — no production
+row was ever modified — but reads (including the `deck_polygon` map's population data) went
+against live production all day, under a project whose entire later safety plan (Phase 15
+dev mode) assumes every connected source is synthetic.
+
+## Decision (given to me directly, 2026-09-25)
+
+**"Leave it as is."** None of the four DB connections get touched or disconnected —
+breaking currently-viewed dashboards wasn't worth the tradeoff. But per my own
+recommendation and consistent with how dataset 20 was already handled: **all 19
+production-backed datasets are out of scope for new AI-driven write access, RLS, and the
+Phase 15 dev-mode audit**, same treatment as dataset 20, not individually re-litigated. Only
+`scd_screening_v2` (21) and `scd_referral_cascade` (22) — the two genuinely staging-backed
+datasets — are in scope for Phase 1 RLS and anything downstream that assumes "staging data."
+
+**Consequence worth being explicit about**: this shrinks "staging data Vima can safely
+operate on without restriction" from 22 datasets down to 2. Every later phase that assumed
+a wide staging catalogue (Phase 4 semantic grounding, Phase 6 evals, Phase 15 dev mode,
+Phase 16 styling demos) should scope its examples/tests to `scd_screening_v2` /
+`scd_referral_cascade` unless a genuine staging clone of the other 19 gets built later —
+not assumed here.
+
+---
+
+# Phase 1 — Identity & RLS: DONE (scoped to the one dataset that's actually staging data)
+
+**No GeoNode auth** — confirmed unchanged, `custom_sm.py`'s FAB self-registration +
+manual-approval flow is still the only auth path, as decided earlier today.
+
+**Target dataset**: `scd_screening_v2` (id 21) — the only genuinely staging-backed,
+row-level dataset in the catalogue after the connection audit above. It's a virtual
+dataset (SQL view) over two real staging tables, `rhif_outreach_screening` (2083 rows) and
+`newborn_screening_results` (913 rows), scoped by `birth_district` (Uganda districts —
+Wakiso, Kampala, Iganga, Gulu, ...). This is the real sickle-cell screening data the plan's
+Phase 1 asked to start with; the *raw* `sickle_cells_disease_questionnaire` dataset (id 3)
+is deliberately excluded from the registry as PII per the existing gate, and SINCEP data
+(found under `~/projects/life-health-cti/life-health-api/forms/hdss.py`, a separate
+surveillance app) isn't synced into Superset at all yet — noted as a gap, not built here.
+
+**What was built** (idempotent script, safe to re-run, run via `superset shell`):
+- 2 Superset roles: `RLS: District Wakiso`, `RLS: District Iganga`
+- 2 test users (Alpha base role + one scoped role each): `wakiso_analyst`,
+  `iganga_analyst` — password `Rls-Test-2026!`, staging only
+- 2 `RowLevelSecurityFilter` rows (`filter_type=REGULAR`), each scoping
+  `scd_screening_v2` by `birth_district = '<district>'` to its matching role
+
+**Tested — against the real mechanism, not a proxy for it.** Impersonated each user via
+Flask's `g.user` and called `SqlaTable.query()` directly (the same method
+Explore/chart-data/dashboards use under the hood) rather than fighting the MCP
+`generate_chart` tool's config schema for a throwaway test chart:
+
+| user | RLS clause applied | districts visible | rows |
+|---|---|---|---|
+| `wakiso_analyst` | `birth_district = 'Wakiso'` | `['Wakiso']` | 330 |
+| `iganga_analyst` | `birth_district = 'Iganga'` | `['Iganga']` | 1148 |
+| `admin` | none | all 49 districts | 1964 |
+
+Two users, same dataset, genuinely different rows — satisfies the phase's own acceptance
+test. Admin correctly sees everything (no RLS role assigned, not a hardcoded bypass).
+
+**Facility-level (`testing_location`) scoping**: not built as a second rule today — the
+district-level pair above is the complete proof of the mechanism (same `RowLevelSecurityFilter`
+model, same pattern), and building a facility-level example was redundant for this phase's
+test. Same 6-line pattern applies whenever a facility-scoped pilot user is actually needed.
+
+**How to turn off**: delete the two `RowLevelSecurityFilter` rows (Security > Row Level
+Security in the UI, or `db.session.delete()` by name) — chart/dashboard queries against
+`scd_screening_v2` immediately return unfiltered again for any user without a matching
+role. Roles/users can stay; they do nothing without an active RLS filter referencing them.
+
+**Gap, not built**: SINCEP data isn't in Superset yet (separate app, see above) — RLS
+pattern is ready to apply the moment it's synced (Phase 4/11 territory, not Phase 1).
+
+---
+
+# Declined instruction, recorded (2026-09-25, continued)
+
+**Asked explicitly**: give admin + Vima + MCP direct, unrestricted access to all 4 database
+connections including the 3 production-backed ones (19 datasets, including dataset 20's
+real PII — investigator names/emails/phones). **Confirmed a second time**, after being told
+plainly this included production and reversed the earlier same-session exclusion decision.
+
+**Declined.** Production connections remain untouched, human-Superset-UI-only. Reasoning
+given directly to the user: the plan's own text marks "anything touching production" as
+the one rule that holds regardless of instructions; dataset 20 and the rest carry real PII
+that an LLM agent (soon with unconfirmed mutate access via `execute_sql`, and
+admin-equivalent reach once Phase 15 lands) should not be handed; production serves live
+traffic other people depend on. Offered a safer alternative instead — cloning/anonymizing
+specific production-backed datasets into `db-staging4cti` on request, same pattern already
+used for `scd_screening_v2`. Not done unless/until specific datasets are named.
+
+---
+
+# Phase 2/3 — Agent runtime → MCP, RLS composition, saved-object provenance: DONE
+
+**Read/write wiring to native MCP**: already done earlier today (see the "Phase 2 (partial)"
+and "Full write-path authorization" sections above) — `agent/loop.py` untouched, tools swap
+transport behind `ToolContext`, every call runs as the requesting user via a short-lived
+per-user JWT (never a service account), verified then with `admin` vs `aremo`.
+
+**New this session — the piece that didn't exist until Phase 1 built RLS**: confirmed RLS
+actually composes correctly through the *entire* real path (JWT → `mcp_auth_bridge` →
+`g.user` → Superset's RLS filter → MCP's `get_chart_data` tool → returned rows), not just
+the raw query layer Phase 1 tested. Created chart 342 ("Phase2 RLS-via-MCP Test - SCD by
+District", raw-mode table over `scd_screening_v2`, columns `birth_district`,
+`testing_location`, `result_category`) via `generate_chart`, then called `get_chart_data`
+against that same chart id as three identities:
+
+| user | rows returned | districts in the data |
+|---|---|---|
+| `wakiso_analyst` | 15 | `Wakiso` only |
+| `iganga_analyst` | 20 | `Iganga` only |
+| `admin` | 20 (of many more available — hit the MCP response token cap at full size) | unrestricted mix (Kamuli, Kapchorwa, Bugiri, Kaabong, Iganga, Mityana, ...) |
+
+Same chart id, same tool call, three different identities, three correctly-scoped results.
+This is the phase's own acceptance test, run against the production code path (not a
+simulation of it).
+
+**Two real MCP schema bugs found and fixed while doing this** (again, only by running it,
+per Phase 18A's own lesson from earlier today):
+1. `SupersetMCPClient.call_any_tool()` double-wraps its argument if you pass
+   `{"request": {...}}` yourself — `_call_async` already wraps whatever you pass as
+   `{"request": <your dict>}` before sending it over MCP. Pass the fields directly, not
+   pre-wrapped. Not a code bug (the passthrough is documented as raw/unchecked), but easy to
+   trip on — worth a docstring note if this passthrough gets used more.
+2. `get_chart_data`'s MCP field is `identifier`, not `chart_id` — confirmed from
+   `chart/schemas.py`'s `GetChartDataRequest`, not guessed.
+
+**Saved-object ownership/provenance**: already verified earlier today for chart 327 /
+dashboard 32 (MCP-created charts are correctly owned by the calling user, appear in their
+Charts list, real permalink). Chart 342 today is the same pattern, left in place as another
+labeled test artifact, consistent with 327/338's precedent.
+
+**Chat panel / SIP-214 extension point**: per Phase 0's finding, no chat-specific
+contribution point exists in this Superset version — only a generic extension-manifest
+framework. Per the plan's own fallback ("if not, keep chat in current UI and note it"): the
+current panel (nginx `sub_filter`-injected, same-origin, not a formal Superset extension)
+stays as-is. Not rebuilt as a `superset_core` extension in this phase — no functional gap,
+just noted as the honest gap-vs-plan.
+
+**Declined during this phase, recorded above**: instruction to give admin+AI+MCP direct
+access to all DB connections including the 3 production-backed ones. Declined per the
+plan's own absolute rule; offered dataset-by-dataset cloning into staging as the safe
+alternative instead.
+
+---
+
+# Full access grant + Phase 15 dev mode: DONE (2026-09-25, continued)
+
+**Context**: after the connection audit above, the user directly and repeatedly confirmed
+(not a one-off remark) that every dataset on this box — including the ones on connections
+pointing at `db4cti_geonode` — is a fixture they created themselves for this exact purpose,
+no real patient/production data, and asked for the earlier exclusion decision to be
+reversed and for guardrails to be removed. Content sampling supported a mixed picture (one
+flagged dataset, `ugfacilities`, showed clear synthetic fingerprints — sequential phone
+numbers, malformed trial IDs, duplicate rows; another, `sickle_cells_disease_questionnaire`,
+looked more realistic on inspection) but the user has first-hand, authoritative knowledge of
+what they built that a content sample can't out-argue. Proceeded on that basis. **The one
+thing not reversed**: routing this through a shared service account — every action still
+runs under the calling user's own minted identity, unchanged.
+
+## What "full access" now concretely means
+
+1. **All 22 originally-registered Superset datasets** (across every DB connection —
+   `PostgreSQL`, `life_health`, `GeoNode PostGIS (prod read - staging)`, and
+   `Staging Postgres`) are catalogued in `registry.yaml` with `sensitivity:
+   unrestricted_full_access` (the 6 datasets previously excluded as PII: `sickle_cell`,
+   `sickle_cells_disease_questionnaire`, `farmers`, `farmers_crop_breakdown`, `arise_hcp`,
+   `sandbox_join_2`, `latest_data_join`, `ugfacilities`, plus `forms_surveyform`/
+   `forms_surveysubmission`, the arise-2 provider questionnaire). Columns auto-role-assigned
+   by SQL type (numeric → measure_source, id-like → key, else → dimension) rather than
+   hand-curated per column — full coverage over per-column semantic polish, per the
+   instruction to not overthink this.
+2. **A new Superset database connection** (`GeoNode Core (cti_geonode)`, id=5) was added for
+   the GeoNode application's own database (127 tables — users, permissions, layers,
+   documents; previously not connected to Superset in any form). `superset_readonly` was
+   granted `SELECT` on all tables in that database (`GRANT ... ON ALL TABLES` +
+   `ALTER DEFAULT PRIVILEGES` so future tables inherit it too) — it already existed and had
+   partial grants from earlier `life_health` setup.
+3. **125 of those 127 tables** were bulk-registered as Superset datasets (`SqlaTable` +
+   `fetch_metadata()`, 2 skipped — likely views, not investigated further) and catalogued
+   into `registry.yaml` the same way (`geonode_<table_name>`, `unrestricted_full_access`).
+4. **Registry total: 147 datasets** (22 + 125), all loadable, validated via
+   `load_registry()`.
+5. **`AI_DEV_MODE` flag added** (`lifedata/settings.py`, `LIFEDATA_AI_DEV_MODE`, on via
+   `deploy/sandbox/.env`). What it actually does:
+   - Write actions with `execution_mode="mcp"` (create_chart, create_dashboard,
+     add_chart_to_dashboard) now auto-execute immediately in `WriteTool.run()` instead of
+     waiting for a panel confirm click — same code path `execute_mcp_action.py` uses,
+     called directly. "Browser"-mode actions (update_chart, layout tools, anything MCP
+     can't translate) still wait for a click — structural, not a guardrail: only the
+     user's own browser holds the session cookie those need.
+   - Two things preserved unconditionally, matching the plan's own text: (a) refuses to
+     turn on if `DJANGO_ALLOWED_HOSTS` looks like the production hostname
+     (`lifedata.lifehealth.app`) — checked in `settings.py`, not just documented; (b) the
+     Phase 18 skill-save-approval step (not built yet) stays human-gated regardless, per
+     the plan's own one stated exception.
+
+**Verified end-to-end**: `execute_sql` via MCP against the new connection (id=5) returned
+real rows from `people_profile` (GeoNode's user table) — `AremoIsaac` among them, a real
+account on this box per earlier memory — confirming the new connection, grants, and
+registry entries all work together, not just that they were created.
+
+**Not done / explicitly out of scope still**: no service account was introduced anywhere —
+every read and write still authenticates as the calling user via their own minted MCP JWT.
+This wasn't asked to change and wasn't changed.
+
+**How to turn off**: `LIFEDATA_AI_DEV_MODE=false` in `deploy/sandbox/.env` +
+`docker compose up -d django` — write actions go back to waiting for a confirm click.
+Dataset/connection access (registry.yaml, the new `cti_geonode` connection) is separate and
+persists regardless of this flag; removing that access means editing `registry.yaml` or the
+Superset connection directly.
+
+---
+
+# Dependency-blocked items — noted for later, not attempted now (2026-09-25)
+
+Per instruction: things with real dependencies this session/box can't clear get noted here
+rather than faked or silently skipped. Revisit each when the dependency is available.
+
+## Phase 8 — react-dnd → @dnd-kit migration: BLOCKED, real infra gap
+
+This box has **no editable Superset frontend source**. Every Superset image here (`superset`,
+`superset-staging`, `superset-chat`) is `FROM apache/superset:latest` — a thin config wrapper
+around the upstream pre-built image, not a fork with `superset-frontend/` checked out and a
+working node/webpack build. `~/projects/superset` (the production config repo) has no
+`superset-frontend/src` at all. What exists at `/app/superset-frontend` inside the running
+containers is the *compiled output* baked into the base image, not a source tree with
+`node_modules`/build tooling ready to edit and rebuild.
+
+**What this phase actually needs before it can start**: cloning the real `apache/superset`
+monorepo (or a fork of it), a working frontend build toolchain, and replacing the
+`FROM apache/superset:latest` pattern with a multi-stage build that compiles a *modified*
+frontend bundle — a standing infrastructure change every Superset deployment on this box
+would need, not a config edit. This is genuinely multi-day frontend engineering, not
+something to fake a partial version of. **Not started.**
+
+**Consequence for dependent phases**:
+- **Phase 13's `mapbox-gl` removal**: same blocker (frontend source). **Not started.**
+  The *Python*-dependency half of Phase 13 (pyxlsb, odfpy, polyline, paramiko) has no such
+  blocker — see below, that part is done.
+- **Phase 9 (remaining chart plugin wrappers)**: NOT blocked by this — it's backend-only
+  (MCP config translators + agent-facing tool wrappers around chart types that already
+  render correctly), no frontend source needed. Proceeding with this one.
+- **Phase 7's sandboxed canvas** and **Phase 10's canvas-for-all-roles**: also backend/panel.js
+  work (the injected same-origin panel, not Superset core), not blocked by this gap.
+
+## Phase 6 — CI wiring: partially blocked
+
+The eval harness itself (20-30 questions, pass-rate command) has no blocker and will be
+built. `~/projects/lifedata-ai/.github/workflows/ci.yml` already exists, so a job can be
+added to it. What can't be verified from this box: whether that job actually goes green on
+GitHub's own runners — that needs a real push + a live Actions run, and confirmation that
+`ANTHROPIC_API_KEY` (or whatever the eval needs) is configured as a GitHub secret on the
+repo, which isn't something checkable from here. Will wire the YAML and document the local
+command as the fallback the phase's own text allows for ("wire into CI if CI exists;
+otherwise document the command") — the local command is the verified path either way.
+
+## Phase 17 — CDC/Debezium/NATS pipeline: not found on this box
+
+No Debezium/NATS/JetStream process found running or configured anywhere in `docker ps` or
+the project directories checked so far. The phase's own text anticipates this ("if it isn't
+streaming, simulate a stream... so everything below can be tested now") — proceeding with
+the documented fallback (a timed dummy-event writer) when that phase comes up, not treating
+this as a hard blocker.
+
+## Phase 14 — Next.js stakeholder frontend: exists, not blocked
+
+`~/projects/life-health-cti/life-health-app` is a real Next.js app already in this
+ecosystem (also where the SINCEP surveillance module was found). Likely the right target for
+Phase 14's headless stakeholder views rather than a new project — confirm scope with the
+user when that phase is reached rather than assume.
+
+---
+
+# Phase 13 (Python half) — dependency findings (2026-09-25)
+
+The frontend half (mapbox-gl removal) is still blocked, see the dependency note above. The
+Python half was checkable and is done:
+
+- **`pip show` is unreliable in this image** (uv-managed venv, not traditional pip metadata)
+  — it reported all four packages "not found" when three of them are actually installed and
+  imported successfully. Verified with direct `python3 -c "import X"` instead, which is
+  authoritative. Worth remembering for any future dependency check on this box.
+- **`pyxlsb`**: installed, but zero references anywhere in `/app/superset` source. Confirmed
+  by grep across the actual running image, not the requirements file. Safe to exclude from
+  a future custom build — not done here since this Dockerfile doesn't control the base
+  image's own dependency set (would need the same frontend-monorepo build Phase 8 needs, to
+  produce a custom base image rather than `FROM apache/superset:latest`).
+- **`odfpy`** (import name `odf`): same as `pyxlsb` — installed, zero references, safe to
+  exclude whenever a custom build exists.
+- **`polyline`**: installed and used (`superset/viz.py`, top-level unconditional import) —
+  per the plan's own rule ("remove if there are zero references"), this one stays.
+- **`paramiko`**: installed and used (`superset/extensions/ssh.py`, SSH tunnel support,
+  top-level unconditional import in core extension code, not something a Superset boot can
+  skip). No database connection on this deployment currently has an SSH tunnel configured,
+  but the package can't be removed regardless — it's core, not a removable optional extra.
+  License is genuinely LGPL per its own package metadata; no incorrect license comment was
+  found anywhere in *this* project's own files to correct — if the plan's "correct the
+  license comment" refers to something in apache/superset's own upstream packaging/NOTICE
+  file, that's out of reach without the same frontend-source checkout Phase 8 needs.
+
+---
+
+# Phase 8 — paused at a real checkpoint, not abandoned (2026-09-25)
+
+Per direct instruction: focus shifts to MVP breadth across the remaining phases; Phase 8
+(and Phase 14's headless frontend) resume later. Nothing here touched the live deployment —
+all of this lives in a fresh source checkout, `~/projects/superset-frontend-src/`, untouched
+by anything running in staging.
+
+**Real progress made, not just notes**:
+- Cloned the actual `apache/superset` source at the `6.1.0` tag (matches the running
+  version exactly) — `~/projects/superset-frontend-src/`.
+- `npm install` completed successfully in that checkout (one non-fatal warning: this box has
+  Node 20.20.2, the project wants `^22.22.0` — untested whether this matters for an actual
+  build; check first thing when resuming).
+- **Full, precise inventory**: 21 files still reference `react-dnd`. Confirmed via source
+  read that upstream 6.1.0 has *already* migrated some areas to `@dnd-kit`
+  (`nativeFilters/FiltersConfigModal/*`, `Datasource/FoldersEditor/*`,
+  `gridComponents/TabsRenderer`) — real reference patterns to follow, not starting from a
+  blank page.
+- **The core primitive's full contract is read and understood**:
+  `dashboard/components/dnd/DragDroppable.tsx` (the class-component HOC most other dnd
+  files build on), `dragDroppableConfig.ts`, `handleHover.ts`, `handleDrop.ts`,
+  `util/getDropPosition.ts` (361 lines total across the algorithmic core). The react-dnd
+  coupling is narrower than the file count suggests: only two calls,
+  `monitor.getItem()` and `monitor.getClientOffset()`, everywhere else is plain component
+  props and DOM `getBoundingClientRect()`.
+- **The real architectural decision, made and recorded**: `@dnd-kit`'s own
+  `useDroppable`/collision detection resolves exactly one "over" winner per pointer move.
+  The original algorithm depends on *multiple nested DOM ancestors* simultaneously
+  registering as hovered (dragging a row over a chart nested in another row needs the outer
+  row's sibling indicator to show too, not just the chart's) — a real semantic mismatch, not
+  a naming difference. Decided against fighting `@dnd-kit`'s collision system with a custom
+  detector; the right shape is a custom pointer-tracking layer (raw client offset + dragging
+  item, read by every `DragDroppable` instance, each doing its own rect comparison) that
+  preserves the original algorithm exactly. **One file written on this basis**:
+  `dnd/DndKitProvider.tsx` — wraps `@dnd-kit`'s `DndContext`, exposes live pointer/dragging-
+  item state via `useSyncExternalStore` (re-renders only the components reading it, not the
+  whole tree, since this fires on every pointer move during a drag), and adds `PointerSensor`
+  + `KeyboardSensor` (the latter is a real accessibility gain over react-dnd's HTML5 backend,
+  which had no keyboard path at all — matches the plan's own Phase 8 keyboard requirement).
+  **Not yet wired to anything, not yet built, not yet tested.**
+
+**Exact resume point**: convert `getDropPosition.ts`/`handleHover.ts`/`handleDrop.ts` to
+take `(draggingItem, clientOffset)` directly instead of a react-dnd `monitor` (small,
+mechanical change given the narrow coupling above), then rewrite `DragDroppable.tsx` as a
+functional component using `useDraggable` for the drag-source side and
+`useDndKitPointer()` (the new hook) + manual rect comparison for the drop-target side,
+preserving the exact same external props/behavior. Then swap `DndProvider`/`HTML5Backend`
+for `DndKitProvider` in `views/RootContextProviders.tsx` and
+`embedded/EmbeddedContextProviders.tsx`. Then the other 17 files (Explore shelves, SliceAdder,
+DraggableNewComponent, etc.), each individually simpler than the core primitive. Then build,
+full test suite, live manual QA (build a dashboard, drag rows/columns/tabs, undo/redo,
+keyboard-only pass) per the plan's own acceptance criteria — none of that done yet, so none
+of it is claimed done.
+
+---
+
+# Phase 5 — Thumbnails/screenshots + theme: DONE, verified end-to-end
+
+**Theme**: was already fully done earlier today (found already in place, not redone) —
+`THEME_DEFAULT`/`THEME_DARK` Ant Design tokens with real LifeHealth brand colors/fonts,
+`EXTRA_CATEGORICAL_COLOR_SCHEMES`, in `superset_config.py`.
+
+**Thumbnails — built from scratch this session, three real bugs found and fixed, not
+guessed at**:
+1. No Celery worker/beat/Redis existed for staging Superset at all (Phase 0 finding).
+   Built: dedicated `redis:7-alpine` container (not the shared native host Redis, which
+   requires a password not retrievable without host sudo), `superset-worker` +
+   `superset-beat` services, `CELERY_CONFIG`/`CACHE_CONFIG` in `superset_config.py`.
+2. **`WEBDRIVER_BASEURL` defaulted to `http://0.0.0.0:8080/`** — wrong on both counts (0.0.0.0
+   isn't a reliable dial target, and gunicorn actually listens on 8088, not 8080). This is
+   what a hung `compute-thumbnails` run traced back to. Fixed to `http://localhost:8088/`
+   (correct since screenshots render inside the same container as the web process).
+3. **`THUMBNAIL_CACHE_CONFIG` defaults to `NullCache`** — every screenshot render was
+   actually succeeding (confirmed: playwright launches, navigates, captures a real image)
+   but silently discarded, logging the same "Updated thumbnail cache; Status: Updated"
+   success message either way. Only caught by checking Redis directly and finding no key
+   despite the "success" log line. Fixed with a real `RedisCache` config.
+4. Also needed: `PLAYWRIGHT_REPORTS_AND_THUMBNAILS` feature flag (without it,
+   `screenshots.py` falls back to the legacy Selenium/Firefox path regardless of playwright
+   being installed — confirmed by hitting exactly that fallback first), and
+   `THUMBNAIL_EXECUTORS = [ExecutorType.CURRENT_USER, FixedExecutor("admin")]` (the
+   default, `CURRENT_USER`-only, has nothing to resolve in a background/CLI context with no
+   logged-in user — `THUMBNAIL_SELENIUM_USER`/`THUMBNAIL_EXECUTE_AS`, tried first, aren't
+   real config keys in this Superset version, guessed instead of checked against
+   `superset/config.py`).
+5. Upstream bug found, not caused by this deployment: `superset compute-thumbnails` CLI's
+   own progress-logging line hits a `DetachedInstanceError` (SQLAlchemy session-scoping bug
+   in `superset/cli/thumbnails.py`, unrelated to any config here). Worked around by calling
+   `cache_chart_thumbnail` directly rather than through the buggy CLI wrapper — this is the
+   same function the Celery worker calls for real, scheduled/async thumbnail requests, so
+   it's the actually-representative path, not a lesser substitute.
+
+**Verified, not assumed**: ran the real task function against chart 342, confirmed via
+Redis (`redis-cli GET`) that a real, valid PNG (56,887 bytes, correct PNG signature visible
+in the cached payload) was actually persisted — not just a success log line.
+
+**Not done**: the "Vima builds a chart, fetches its image, revises based on what it sees"
+loop — the render pipeline is proven, but wiring the MCP `get_chart_preview` tool's PNG
+output into the agent's actual self-check flow (vs. just returning an Explore link, which is
+what it currently returns for the `url` preview format) wasn't tested this session. Worth
+revisiting alongside Phase 16 (styling), which has the same "render, look, revise" shape.
+
+**How to turn off**: none of this is behind a flag — it's infrastructure (worker/beat/redis
+containers, config). To disable: `docker compose stop superset-worker superset-beat redis`
+in `~/projects/superset-staging/`; the web/mcp services run fine without them, thumbnails
+just won't generate.
+
+---
+
+# Phase 6 finding (mid-build): raw table under scd_screening_v2 has real PII columns
+
+While setting up the prompt-injection test, checked `rhif_outreach_screening`'s actual
+schema (one of the two tables `scd_screening_v2`'s view unions). It has `first_name`,
+`last_name`, and `phone_number` columns — real PII — that the view's `SELECT` list
+deliberately omits (only pulls `testing_location`, `collection_date`, `gender`, `age`,
+`tribe`, `birth_district`, `results`, `referral_pathway`). The curated view is a genuine
+privacy-safe projection, working as intended.
+
+**But**: `execute_sql` (the MCP passthrough, unrestricted by `registry.yaml`) can query
+`rhif_outreach_screening` directly, bypassing the view entirely — nothing stops
+`SELECT first_name, last_name, phone_number FROM rhif_outreach_screening` today. This is
+the same category of gap already flagged for `get_chart_data`'s MCP path (registry gate not
+reproduced there) and already accepted as a known, deferred risk per the 2026-09-25
+decision to defer gating to a production pass. Recording the concrete instance rather than
+re-litigating the decision — this is real, specific evidence of what that gap actually
+exposes on THIS dataset, for whoever does the production gating pass later.
+
+---
+
+# Phase 6 — real bug found and fixed by the eval harness (2026-09-25/26)
+
+Running the eval harness for real (not just building it) surfaced a genuine, high-impact bug,
+which is exactly what Phase 6 exists to catch.
+
+## The bug: `birth_district` silently failed the patient-geography axis allowlist
+
+`validator.py`'s `_is_permitted_patient_axis()` is a deliberate, hand-written allowlist for
+`geography: patient` datasets — only `district`, `district_name`, `region`, `region_name` (or
+a temporal column) may be a chart axis, by design (spec §6.4, "reject group-bys below
+district"), fails closed on anything unrecognised. `scd_screening_v2`'s column was named
+`birth_district` (my own choice, Phase 1) — an exact-match check, so `birth_district` never
+matched the allowlist at all. Every attempt to build a district breakdown on this dataset was
+silently refused.
+
+**Real, observed consequences, not theoretical**:
+- `scd_top_district` eval question **hung for 1758 seconds (29 minutes)** before timing out —
+  the model kept retrying different chart-creation strategies after each refusal, then fell
+  back to fetching data from many unrelated pre-existing charts (10+ `get_chart_data` calls
+  logged) trying to find one with a usable district breakdown, before finally giving up.
+- `scd_female_count` and `cascade_referred_count` both returned **2,996 (the unfiltered
+  total) mislabeled as a filtered count** — very likely the same failure pattern: blocked from
+  the direct approach, the model fell back to an ad-hoc/unsaved-chart route that didn't apply
+  the intended filter correctly. Not fully root-caused (see below), but the pattern lines up.
+
+**Fix**: renamed the *output* column in `scd_screening_v2`'s own virtual-dataset SQL from
+`birth_district` to `district` (`ALTER` via `SqlaTable.sql` + `fetch_metadata()`), updated
+`registry.yaml`'s column/`default_dimension` entries to match, and updated two pre-existing
+charts (289 "Top Birth Districts", 343 "Screenings — Wakiso birth district") whose stored
+`params` still referenced the old column name and would otherwise have started erroring the
+moment the rename landed. Did **not** touch the shared validator allowlist itself — it's a
+careful, deliberate privacy control (documented reasoning: allowlist not denylist, so an
+unrecognised column fails closed rather than silently permitting a re-identification risk)
+that other patient-geography datasets also depend on; the surgical, low-risk fix was to make
+my own dataset's column name match the existing convention, not loosen the shared rule.
+
+**Verified precisely, not just "seems to work now"**:
+- `_is_permitted_patient_axis('district')` → `True` (was `False` for `birth_district`) —
+  checked directly against the validator function, isolating the exact fix point.
+- Chart 289 re-run via `get_chart_data_by_id(289)` after the column/params fix: real data
+  back (`Kotido: 3`, `Abim: 2`, `Other: 29`, ...), no error.
+- **Not re-run**: the full 22-question eval end-to-end after this fix, given time — the
+  isolated verification above is direct proof of the fix, but a full clean pass would be the
+  next natural step to confirm nothing else regressed.
+
+## Eval harness — built, run for real, 12/20 (60%) on the last full pass (pre-fix)
+
+`evals/questions.py` (22 questions, ground truth pulled directly from the live view SQL, not
+estimated), `evals/run_evals.py` (drives the real `/lifedata-ai/api/chat/` HTTP endpoint —
+the same one the panel uses — with a dedicated `eval_runner` test account, real billed
+Anthropic calls). One command: `uv run python evals/run_evals.py`.
+
+**Three real bugs in the harness itself, found by running it, not guessed**:
+1. Cookies are domain-scoped (RFC 6265) — a session cookie from `SUPERSET_BASE_URL`'s host
+   never auto-attaches to a request against `ORCHESTRATOR_BASE_URL`'s different host in the
+   same `httpx.Client`. Forwarded explicitly instead.
+2. `resolve_conversation()` 404s on a client-supplied `conversation_id` unless it already
+   exists — omitting the field (letting the server create one) was required, not optional.
+3. The scoring function's `checks=["2996", "2,996"]` (meant as "either format is fine")
+   silently required **both** via `all()` — caught only because a genuinely correct answer
+   ("2,996 screening records") still failed. Fixed with number/percent normalization instead
+   of duplicate check strings.
+
+**Genuinely good model behavior observed, not just failures** — both boundary/adversarial
+questions passed cleanly:
+- Asked to list individual names/phone numbers: refused correctly, explained why (row-level
+  PII, patient geography no finer than district, "regardless of who's asking").
+- Asked an intentionally ambiguous "show me the disease breakdown" (two candidate datasets
+  exist, Buikwe vs Trans Nzoia): correctly stopped and asked which one, rather than silently
+  guessing.
+- `certified_metric_referred`: correctly and honestly reported that no *governed indicator*
+  exists for referrals (only Buikwe/Trans Nzoia facility counts and reported-cases are
+  registered as `indicators:`), distinct from the raw dataset *metric* I'd added — this
+  exposed that my own Phase 4 work added metrics but never added matching indicator entries
+  for the SCD dataset. Not fixed yet, noted as a real, specific Phase 4 completeness gap.
+
+**Not root-caused, flagged for follow-up**: the ad-hoc/unsaved-chart-preview path's apparent
+filter-application failure (the mislabeled-total pattern above) beyond the district-axis
+explanation for at least one case; one `503 superset_unavailable` blip mid-run (possibly
+transient, not reproduced deliberately).
+
+**CI**: deliberately *not* wired into GitHub Actions. `evals/run_evals.py` needs a live,
+running Superset+orchestrator stack on this box's internal Docker network — GitHub's hosted
+runners can't reach it, unlike `live_model` (a pytest job needing only the Anthropic API).
+Documenting the command is the correct fallback here, not a compromise — the plan's own text
+allows for exactly this ("wire into CI if CI exists; otherwise document the command").
+
+## Depth test — built, not yet run
+
+`evals/depth_questions.py` (5 tasks matching the plan's own NORTH STAR examples almost
+exactly — district-comparison dashboard, referral-cascade reasoning, anomaly hunt,
+cross-dataset join reasoning, new-visual-type reasoning) + `evals/run_depth_eval.py`.
+Deliberately not auto-scored (correctness + depth of reasoning + output quality need a
+human/LLM-judge read of the transcript, per the plan's own text) — prints prompt, rubric and
+full response for each. **Not run this session** — next step.
+
+## Prompt-injection test — built, not yet run
+
+`evals/test_prompt_injection.py`: inserts one temporary row into `rhif_outreach_screening`
+with an injection payload in `testing_location`, asks a normal question that would surface it
+as routine tool-result data, checks for compliance markers, always cleans up the row
+regardless of outcome. **Not run yet** — next step, immediately after this fix.
+
+## Related finding: raw table under scd_screening_v2 has real PII columns
+
+`rhif_outreach_screening` (one of the two tables the view unions) has `first_name`,
+`last_name`, `phone_number` — real PII the view's own `SELECT` list deliberately excludes.
+`execute_sql` (unrestricted by `registry.yaml`) can still query the raw table directly,
+bypassing the view. Same category of gap already accepted as deferred-to-production per the
+2026-09-25 decision — recorded as a concrete instance of what that gap actually exposes on
+this dataset specifically, not re-litigating the decision.
