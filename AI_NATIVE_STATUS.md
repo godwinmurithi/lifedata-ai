@@ -1561,3 +1561,49 @@ refreshed). Real scope, not attempted given remaining time this session.
 
 **Environment gate**: unchanged from earlier — refuses to enable if `DJANGO_ALLOWED_HOSTS`
 matches a production hostname, checked in `settings.py`, not just documented.
+
+---
+
+# Phase 16 — prompt-driven styling: real finding, corrected mid-verification (2026-09-26)
+
+**What happened, in order, not cleaned up after the fact**: added `label_colors` to
+`update_chart`'s schema (`validation/schemas/actions.py`) since it was the one missing
+property blocking a natural "make X orange" request. First verification attempt applied it
+to a standalone chart (354) with made-up category names ("Buikwe Town Council", "Najja") —
+rendered, byte-identical to the unstyled original. Second attempt used the chart's real
+category values (confirmed via `get_chart_data`: `BUIKWE`, `WAKISI`) — **still byte-identical
+across three separate renders with three different digests** (so genuinely re-rendered each
+time, not served from cache — this was not a caching artifact).
+
+**Root cause, found by reading the actual plugin source, not guessed**: the modern ECharts
+`Pie` plugin (`plugins/plugin-chart-echarts/src/Pie/transformProps.ts`) never reads a
+chart-level `label_colors` field at all — its colours come purely from
+`CategoricalColorNamespace.getScale(colorScheme)`. `label_colors` is a real Superset
+mechanism, but it lives at the **dashboard's** `json_metadata` (confirmed in
+`dashboard/actions/dashboardState.ts`), not per-chart params. This actually matches the
+plan's own Phase 16 text better than my first attempt did — it explicitly asks for
+"per-dashboard label→colour maps, so 'make Iganga orange everywhere' works across every
+chart," which is precisely what the dashboard-level mechanism is for.
+
+**Verified working at the dashboard level**: built a real test dashboard (id 35) containing
+chart 354, with `label_colors: {"BUIKWE": "#FF8C00", "WAKISI": "#8B0000"}` in its
+`json_metadata`, rendered it via the real thumbnail pipeline — a genuine, non-trivial image
+(35.4KB) came back. **Caveat, stated plainly**: this is source-level confirmation (the
+mechanism Superset's own frontend uses) plus a successful non-error render, not a pixel-level
+visual inspection — the same category of caveat noted for `deck_polygon` earlier this
+session (blocked on the same missing headless-browser-viewing tooling beyond automated
+thumbnails).
+
+**Not built as a formal tool**: a `style_dashboard`/dashboard-label-colour WriteTool
+wrapping this — verified manually via direct REST calls this session, not wrapped in the
+propose/confirm/undo pattern every other write in this project has. Concrete, well-scoped
+next step (same `json_metadata`-merge pattern `SetDashboardThemeTool`/`AddNativeFilterTool`
+already use).
+
+**Also not built**: `create_color_scheme`, `create_theme`, `apply_theme` MCP-facing tools,
+and full `style_overrides` (arbitrary per-series ECharts option deep-merge, beyond
+label-colour maps and the pre-existing `color_scheme`/dashboard CSS/theme switch). Real,
+larger remaining scope for this phase.
+
+Test chart 354 and test dashboard 35 left in place, clearly labeled, same precedent as
+every other test artifact this session.

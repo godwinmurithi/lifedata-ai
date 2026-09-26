@@ -264,6 +264,23 @@ CHART_PARAMS_SCHEMA: Final[dict[str, Any]] = {
             "maxLength": 64,
             "pattern": r"^[A-Za-z0-9_\-]+$",
         },
+        # Phase 16: per-category colour overrides ("make Iganga orange
+        # everywhere"). Superset's own form_data field name and shape --
+        # {category_label: "#RRGGBB"} -- not a new mechanism, just newly
+        # allowed through this schema. Hex-only: Superset's own control
+        # accepts named CSS colours too, but validating that safely would
+        # need the same allowlist Superset's own colour picker has, which
+        # isn't exposed anywhere this project can read -- hex is the subset
+        # that's unambiguous to validate.
+        "label_colors": {
+            "type": "object",
+            "maxProperties": 50,
+            "propertyNames": {"maxLength": 128},
+            "additionalProperties": {
+                "type": "string",
+                "pattern": r"^#[0-9A-Fa-f]{6}$",
+            },
+        },
         "stack": {"type": "boolean"},
         "show_legend": {"type": "boolean"},
         "legend_orientation": {"enum": ["top", "bottom", "left", "right"]},
