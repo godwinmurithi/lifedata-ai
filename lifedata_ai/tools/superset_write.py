@@ -46,6 +46,9 @@ _VIZ_ALIASES: dict[str, str] = {
     "bar": "echarts_timeseries_bar",
     "dist_bar": "echarts_timeseries_bar",
     "line": "echarts_timeseries_line",
+    "treemap": "treemap_v2",
+    "sunburst": "sunburst_v2",
+    "heatmap": "heatmap_v2",
 }
 
 #: Our operator vocabulary -> Superset's adhoc-filter operators.
@@ -106,6 +109,7 @@ def _to_superset_form_data(params: dict[str, Any], dataset_id: int) -> dict[str,
         form["adhoc_filters"] = [_to_superset_filter(f) for f in filters]
 
     _apply_histogram(form)
+    _apply_sunburst(form)
     _apply_country_map(form, dataset_id)
     # Order matters: this derives form["metric"] from form["metrics"][0] for
     # every viz in _SINGLE_METRIC_VIZ, deck_polygon included -- it must run
@@ -172,6 +176,25 @@ def _apply_histogram(form: dict[str, Any]) -> None:
     if column:
         form["column"] = column
     form.setdefault("link_length", "25")
+    form.pop("x_axis", None)
+
+
+def _apply_sunburst(form: dict[str, Any]) -> None:
+    """Turn "breakdown by district then facility type" into sunburst_v2's
+    controls (Phase 9).
+
+    Verified against Superset's own example fixture
+    (`superset/examples/featured_charts/charts/Sunburst.yaml`): the
+    hierarchical grouping dimensions live under `columns`, not `groupby` --
+    same underlying idea (an ordered list of dimensions), different key
+    name. `metric` (singular) is handled by `_apply_single_metric_alias`
+    once `sunburst_v2` is in `_SINGLE_METRIC_VIZ`.
+    """
+    if form.get("viz_type") != "sunburst_v2":
+        return
+    groupby = form.pop("groupby", None)
+    if groupby:
+        form["columns"] = groupby
     form.pop("x_axis", None)
 
 
@@ -388,7 +411,10 @@ def _temporal_column(form: dict[str, Any], dataset_id: int) -> str | None:
 #: types (`echarts_timeseries_line`, `echarts_timeseries_bar`, `table`) render
 #: correctly from `metrics` and must NOT be added here.
 _SINGLE_METRIC_VIZ: frozenset[str] = frozenset(
-    {"big_number_total", "pie", "country_map", "deck_polygon", "funnel"}
+    {
+        "big_number_total", "pie", "country_map", "deck_polygon", "funnel",
+        "treemap_v2", "waterfall", "sunburst_v2",
+    }
 )
 
 

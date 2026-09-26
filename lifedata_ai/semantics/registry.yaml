@@ -4250,6 +4250,16 @@ viz_allowlist:
   - box_plot
   - funnel
   - histogram_v2
+  # Phase 9 (2026-09-26): same doctrine, same real-render verification.
+  # treemap_v2 and waterfall both fit _SINGLE_METRIC_VIZ directly (verified
+  # against their own example fixtures). sunburst_v2 needed one more small
+  # adapter (_apply_sunburst) -- its hierarchy lives under `columns`, not
+  # `groupby`. Charts 351 (treemap, beds by subcounty), 352 (waterfall,
+  # referral cascade stages), 353 (sunburst, beds by subcounty+facility_level)
+  # all rendered real PNGs (14.6KB/10KB/65KB).
+  - treemap_v2
+  - waterfall
+  - sunburst_v2
 
 patient_geography_forbidden_viz:
   - deck_scatter

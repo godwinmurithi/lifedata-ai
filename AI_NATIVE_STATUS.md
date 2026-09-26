@@ -1386,3 +1386,27 @@ Client-actions and sandboxed-canvas sub-items of Phase 7: see the separate note 
 (client actions researched, real mechanism identified, not yet built) — canvas not
 attempted this session, moving to remaining phases per explicit instruction to prioritize
 breadth.
+
+---
+
+# Phase 9 — 6 new chart plugins total this session, honest tally (2026-09-26)
+
+Allowlist grew from 6 to 12 viz types: `box_plot`, `funnel`, `histogram_v2` (Phase 7) +
+`treemap_v2`, `waterfall`, `sunburst_v2` (this phase) — each built against a real dataset,
+rendered via the actual Playwright thumbnail pipeline, and confirmed as a real non-trivial
+PNG before being added, per the registry's own doctrine. Two adapters added to
+`superset_write.py`: `_apply_histogram` (bare `column`, not metrics/groupby) and
+`_apply_sunburst` (`columns` for the hierarchy, not `groupby`); `treemap_v2`/`waterfall`/
+`sunburst_v2` also added to `_SINGLE_METRIC_VIZ` (all three want singular `metric`, same as
+`pie`/`big_number_total`).
+
+**Not claiming "all remaining" — that's not true, and saying so plainly**: still not covered
+— `Bubble`, `Gantt`, `Gauge`, `Graph` (network), `Heatmap_v2` (needs a real two-axis-groupby
+adapter, more involved than the ones done so far — its example fixture shows one `groupby`
+field but the plugin actually needs two independent dimensions, x and y, not investigated
+deeply), `MixedTimeseries`, `Radar`, `Sankey`, `Tree`, `pivot_table_v2`, `ag-grid-table`, the
+non-patient-geography deck.gl variants (`deck_scatter`/`deck_heatmap`/`deck_hex`/
+`deck_geojson`/`deck_path` — currently only forbidden *for patient-geography datasets*
+specifically, not built/tested for anything else), and `mapbox`. Same build-verify-allowlist
+pattern applies to each — genuinely more of the same work, not a new kind of problem, just
+not done in this session given the instruction to prioritize breadth across the whole plan.
