@@ -180,6 +180,40 @@ def _flatten_top_level_union(schema: Any) -> Any:
     return flattened
 
 
+def _is_strict_schema(schema: Any) -> bool:
+    """Recursive check backing `Tool.supports_strict`.
+
+    An object subschema qualifies only with `additionalProperties: false`
+    (the literal `False`, not a value schema) and `required` covering every
+    key in `properties` — then each property's own schema is checked the same
+    way, plus `items` and every branch of `oneOf`/`anyOf`/`allOf`.
+    """
+    if not isinstance(schema, dict):
+        return True
+    schema_type = schema.get("type")
+    if schema_type == "object":
+        # Anthropic's requirement applies to every object schema, not only ones
+        # with a fixed `properties` list — a pure dynamic-keyed map (like
+        # label_colors: category -> hex colour, no `properties` at all) is
+        # still an 'object' type and still needs this, and can never honestly
+        # satisfy it without losing the ability to accept any keys.
+        if schema.get("additionalProperties") is not False:
+            return False
+        properties = schema.get("properties")
+        if properties is not None:
+            required = schema.get("required") or []
+            if set(properties) != set(required):
+                return False
+            if not all(_is_strict_schema(value) for value in properties.values()):
+                return False
+    if schema_type == "array" and "items" in schema and not _is_strict_schema(schema["items"]):
+        return False
+    for branch_key in ("oneOf", "anyOf", "allOf"):
+        if not all(_is_strict_schema(branch) for branch in schema.get(branch_key, [])):
+            return False
+    return True
+
+
 def _strip_keywords(schema: Any) -> Any:
     """Recursively drop keywords the Anthropic tool API will not accept."""
     if isinstance(schema, dict):
@@ -391,15 +425,24 @@ class Tool(ABC):
         return _sanitise_for_anthropic(schema)
 
     def supports_strict(self) -> bool:
-        """Whether the input schema meets the strict-tool-use requirements."""
-        schema = self.input_schema
-        if not isinstance(schema, dict) or schema.get("type") != "object":
-            return False
-        if schema.get("additionalProperties") is not False:
-            return False
-        properties = schema.get("properties") or {}
-        required = schema.get("required") or []
-        return set(properties) == set(required)
+        """Whether the input schema meets the strict-tool-use requirements.
+
+        Checked recursively, not just at the top level: Anthropic rejects the
+        whole tool ("tools.N.custom: For 'object' type, 'additionalProperties'
+        must be explicitly set to false") if ANY nested object subschema —
+        inside `properties`, `items`, or a union branch — lacks its own
+        `additionalProperties: false`, however deep. A tool like create_chart
+        legitimately has a nested dynamic-keyed map (`params.label_colors`,
+        category label -> hex colour) where `additionalProperties` is a value
+        schema, not `false` — closing it would mean accepting no colours at
+        all. That tool simply does not qualify for `strict: true`; the real
+        enforcement of its shape still happens in `validate_arguments` /
+        `validate_action` against the full, unrelaxed schema regardless of
+        whether the API pre-validated it. Not qualifying for strict is a
+        (harmless) loss of one guarantee, not a functionality loss — the
+        alternative of forcing `additionalProperties: false` here would be.
+        """
+        return _is_strict_schema(self.input_schema)
 
     # -- validation -------------------------------------------------------
 

@@ -38,6 +38,7 @@ rather than a change to the agent loop's own routing.
 
 from __future__ import annotations
 
+import json
 from typing import Any, ClassVar
 
 from django.utils import timezone
@@ -86,8 +87,16 @@ class ProposeSkillTool(Tool):
                 "description": "Named inputs a future call should vary (e.g. ['dataset_id', 'groupby_column']).",
             },
             "template_args": {
-                "type": "object",
-                "description": "The tool arguments, with generalized_inputs as {{placeholders}}.",
+                "type": "string",
+                "description": (
+                    "The tool arguments, with generalized_inputs as {{placeholders}}, as a "
+                    'JSON object string -- e.g. \'{"dataset_id": "{{dataset_id}}"}\'. A JSON '
+                    "string, not a nested object: Anthropic's strict tool schema rejects any "
+                    "object-type (sub)schema that doesn't itself declare "
+                    "additionalProperties, and this field's shape varies per replayed tool "
+                    "so it can never be that closed -- same reasoning as call_mcp_tool's "
+                    "arguments_json (tools/mcp_passthrough.py)."
+                ),
             },
         },
         "required": [
@@ -106,8 +115,19 @@ class ProposeSkillTool(Tool):
         research_brief: str,
         tool_name: str,
         generalized_inputs: list[str],
-        template_args: dict[str, Any],
+        template_args: str,
     ) -> dict[str, Any]:
+        try:
+            parsed_template_args = json.loads(template_args)
+        except ValueError as exc:
+            raise ToolError(
+                f"template_args is not valid JSON: {exc}", code="invalid_template_args"
+            ) from exc
+        if not isinstance(parsed_template_args, dict):
+            raise ToolError(
+                "template_args must decode to a JSON object.", code="invalid_template_args"
+            )
+
         skill = Skill.objects.create(
             name=name,
             description=description,
@@ -116,7 +136,7 @@ class ProposeSkillTool(Tool):
             template={
                 "tool_name": tool_name,
                 "generalized_inputs": generalized_inputs,
-                "template_args": template_args,
+                "template_args": parsed_template_args,
             },
             proposed_by_username=context.identity.username,
             status=Skill.Status.PENDING,
@@ -190,15 +210,30 @@ class ApplySkillTool(Tool):
         "properties": {
             "skill_id": {"type": "integer"},
             "input_values": {
-                "type": "object",
-                "description": "Values for the skill's generalized_inputs.",
+                "type": "string",
+                "description": (
+                    "Values for the skill's generalized_inputs, as a JSON object string -- "
+                    'e.g. \'{"dataset_id": 21}\'. A JSON string for the same reason as '
+                    "propose_skill's template_args above."
+                ),
             },
         },
         "required": ["skill_id", "input_values"],
         "additionalProperties": False,
     }
 
-    def run(self, context: ToolContext, skill_id: int, input_values: dict[str, Any]) -> dict[str, Any]:
+    def run(self, context: ToolContext, skill_id: int, input_values: str) -> dict[str, Any]:
+        try:
+            parsed_input_values = json.loads(input_values)
+        except ValueError as exc:
+            raise ToolError(
+                f"input_values is not valid JSON: {exc}", code="invalid_input_values"
+            ) from exc
+        if not isinstance(parsed_input_values, dict):
+            raise ToolError(
+                "input_values must decode to a JSON object.", code="invalid_input_values"
+            )
+
         try:
             skill = Skill.objects.get(id=skill_id, status=Skill.Status.APPROVED)
         except Skill.DoesNotExist as exc:
@@ -209,11 +244,11 @@ class ApplySkillTool(Tool):
         def fill(value: Any) -> Any:
             if isinstance(value, str) and value.startswith("{{") and value.endswith("}}"):
                 key = value[2:-2].strip()
-                if key not in input_values:
+                if key not in parsed_input_values:
                     raise ToolError(
                         f"Skill {skill_id} needs a value for {key!r}.", code="missing_input"
                     )
-                return input_values[key]
+                return parsed_input_values[key]
             if isinstance(value, dict):
                 return {k: fill(v) for k, v in value.items()}
             if isinstance(value, list):

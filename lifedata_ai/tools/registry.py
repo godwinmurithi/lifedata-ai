@@ -61,10 +61,26 @@ class ToolRegistry:
     def filter_by_mode(self, mode: ToolMode) -> list[Tool]:
         return [tool for tool in self._tools.values() if tool.mode is mode]
 
+    #: Anthropic's own hard ceiling: "Too many strict tools (N). The maximum
+    #: number of strict tools supported is 20." Exceeding it 400s the whole
+    #: turn, same as an unclosed schema would. `strict` is an opportunistic
+    #: guarantee, not a safety mechanism — `execute()` runs `validate_arguments`
+    #: / `validate_action` against the full schema regardless, so capping which
+    #: tools get it costs a convenience, not correctness.
+    _MAX_STRICT_TOOLS = 20
+
     def to_anthropic_specs(self, mode: ToolMode | None = None) -> list[dict[str, Any]]:
         """Tool definitions for the Messages API `tools` parameter."""
         tools = self.all() if mode is None else self.filter_by_mode(mode)
-        return [tool.to_anthropic_spec() for tool in tools]
+        specs = [tool.to_anthropic_spec() for tool in tools]
+        strict_seen = 0
+        for spec in specs:
+            if not spec.get("strict"):
+                continue
+            strict_seen += 1
+            if strict_seen > self._MAX_STRICT_TOOLS:
+                del spec["strict"]
+        return specs
 
     def names(self) -> list[str]:
         return list(self._tools)
