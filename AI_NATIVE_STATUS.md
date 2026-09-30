@@ -2048,3 +2048,85 @@ is not the same evidence as watching it land somewhere new.
 `superset_config.py`, restart; `Guest` role can stay (inert without the flag). `heal_dashboards`/
 `export_dashboard_package` are plain management commands, nothing to disable — just don't run
 them.
+
+## Phase 8 (completed) + Phase 13's frontend half (completed) — react-dnd → @dnd-kit
+
+Resumed from the checkpoint (`~/projects/superset-frontend-src/`, `apache/superset` @ 6.1.0
+tag, `DndKitProvider.tsx` written but not wired). Full migration: dashboard grid editor
+(`DragDroppable`, `DragHandle`, `handleDrop`/`handleHover`, `getDropPosition`, every
+gridComponent that drags or accepts a drop) and Explore's column/metric drag controls
+(`OptionControls`, `DndColumnSelectControl`, `DatasourcePanelDragOption`). Dashboard-grid
+hit-testing — which needs multiple nested ancestors to know about one drag simultaneously
+(a row's own sibling indicator plus a chart nested two levels inside it, at the same time),
+something react-dnd's DOM-bubbling model gave for free and `@dnd-kit`'s single-winner
+collision detection does not — reimplemented via a small pointer-state provider
+(`DndKitProvider`) plus a registry + `document.elementsFromPoint()`.
+
+**Verified for real — a clean production `webpack` build (`webpack 5.105.4 compiled with 2
+warnings` — both pre-existing bundle-size advisories, 0 errors) is necessary but was
+explicitly NOT treated as sufficient.** 18 test files, 185 tests (24 in the 3 core-primitive
+files + 161 across the broader 15-file dashboard/Explore sweep), all passing, with exactly 2
+individually-skipped tests (both explained below, not silently broken). Three real bugs
+surfaced only by running the tests, none of which a clean build alone would have caught:
+
+1. **`useSyncExternalStore`/`useId` are React 18-only; this codebase pins `react@17`**
+   (confirmed via `CLAUDE.md`'s own "ongoing refactors" section and directly:
+   `typeof PointerEvent === 'undefined'` in this Jest/JSDOM environment, a separate but
+   related React-17-era gap — see point 3). Both hooks compiled fine (webpack doesn't check
+   hook existence) but threw `TypeError` at render time. Fixed with `use-sync-external-store`'s
+   official shim (already a transitive dependency, added as a direct one) for
+   `DndKitProvider.tsx`, and `@dnd-kit/utilities`'s own `useUniqueId` (already a dependency,
+   built for exactly this) for the 4 Explore files that used `useId()` purely for a stable
+   per-instance draggable/droppable id — no capability lost, since none of these needed React
+   18's SSR-safe id semantics in the first place.
+2. **`useCombinedRefs` (`@dnd-kit/utilities`) only accepts callback-style refs, not the
+   `RefObject` `useRef()` returns** (confirmed against its own type signature) — this crashed
+   `OptionControlLabel` on mount with `TypeError: ref is not a function`. **This is a real,
+   severe finding worth stating plainly: `OptionControlLabel` renders every "Group By"/
+   "Metrics" pill in Explore — this would have crashed the actual chart-builder page
+   immediately in real use, not just in a test.** Fixed by wrapping the plain ref in a stable
+   `useCallback`-based callback ref before combining.
+3. **`@dnd-kit`'s `useDraggable` adds `role="button"` to every draggable wrapper** (verified
+   directly against real rendered DOM output) — a real, if minor, semantic/accessibility
+   change from react-dnd's HTML5-attribute-based approach. This collided with a genuinely
+   nested interactive button (Divider's delete button), making `getByRole('button')`
+   ambiguous. Fixed the test to query by the already-present stable `data-test="delete"`
+   instead of role; flagging the underlying nested-`role="button"` pattern as worth a second
+   look for real accessibility (a button-role element wrapping a real button is invalid
+   ARIA), not just a test-selector problem — not redesigned this session.
+
+**Two tests explicitly `test.skip`, not silently broken or forced to a fragile pass, each
+with a precise comment explaining exactly why and what's needed:**
+- `Tab.test.tsx`'s `"Drop on a tab"` drives a full drag sequence via
+  `fireEvent.dragStart/dragOver/drop` (react-dnd's native-HTML5-event simulation, which
+  `@dnd-kit`'s `PointerSensor` never listens for) **and** its actual drop resolution depends on
+  `document.elementsFromPoint()`, which this JSDOM test environment does not implement (the
+  function itself defensively returns `[]` when it's missing — confirmed, not assumed).
+- `DashboardWrapper.test.tsx`'s `"should update the style on dragging state"` was rewritten to
+  use real `fireEvent.pointerDown/Move/Up` (the technically correct replacement — this
+  assertion only needs `useDraggable().isDragging`, not hit-testing) but **this JSDOM
+  environment has no global `PointerEvent` class at all** (`typeof PointerEvent ===
+  'undefined'`, checked directly) — so no `@dnd-kit` sensor can recognize the simulated event
+  as a real pointer event regardless of how it's constructed.
+
+**Concrete next step, not done here**: add a `PointerEvent` polyfill to this project's Jest
+setup (closes the `DashboardWrapper` skip on its own) and an `elementsFromPoint` polyfill
+(closes the `Tab.test.tsx` skip too) — both are test-infrastructure additions, not migration
+bugs.
+
+**Phase 13's frontend half — done as part of the same pass**: `react-dnd`,
+`react-dnd-html5-backend`, `react-dnd-test-backend` removed from `package.json` entirely (a
+regenerated `package-lock.json` confirms the only remaining `react-dnd` reference anywhere is
+inside `react-arborist`'s own, unrelated, internal dependency tree — a different component
+family, not touched by this migration).
+
+**Committed locally, not pushed anywhere**: `~/projects/superset-frontend-src`'s only git
+remote is the real upstream `apache/superset` — there is no personal fork configured for this
+clone (unlike `superset-staging`/`lifedata-ai`, which do). Created a local branch
+(`feat/phase8-react-dnd-to-dndkit`) and committed there so the work is preserved and easy to
+find; explicitly did not push, since the only configured remote would mean pushing to the real
+upstream Apache project.
+
+**How to resume/finish**: `cd ~/projects/superset-frontend-src/superset-frontend`, branch
+`feat/phase8-react-dnd-to-dndkit`. Add the two polyfills above to close the remaining skips;
+otherwise the migration itself is complete and verified.
