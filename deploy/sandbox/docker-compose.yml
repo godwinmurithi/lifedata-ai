@@ -81,6 +81,49 @@ services:
     # choice of victim is not something to leave to chance.
     mem_limit: 768m
 
+  scheduler:
+    # Phase 17: continuous analyst + stream simulation on a schedule, instead
+    # of manual-only invocation. A single lightweight loop (run_scheduler.py),
+    # not a Celery worker/beat/Redis trio -- this host has ~1.4GB free with
+    # GeoServer alone holding 3GB, and standing up a full Celery stack for two
+    # periodic jobs would cost real memory this box doesn't have to spare.
+    build:
+      context: ../..
+      dockerfile: deploy/django/Dockerfile
+    image: lifedata/orchestrator:sandbox
+    container_name: lifedata-ai-scheduler4cti
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - db-staging_default
+    volumes:
+      - ../..:/app
+      - /app/.venv
+    # `uv sync` first, then run: this service's own `/app/.venv` anonymous
+    # volume starts from the image's baked virtualenv, which has drifted
+    # from the `django` service's long-running one (dependencies added via a
+    # live `uv sync` inside that container, never rebuilt into the image --
+    # found the hard way: a fresh container crashed with `ModuleNotFoundError:
+    # No module named 'jwt'`, confirmed present in neither the image nor a
+    # brand-new container's venv). Syncing on every start is self-healing
+    # against exactly this drift, cheap (uv's own cache makes a no-op sync
+    # near-instant), and avoids a full image rebuild for a one-line fix.
+    command:
+      - sh
+      - -c
+      - "uv sync --frozen && uv run --no-sync python manage.py run_scheduler"
+    healthcheck:
+      # No HTTP endpoint to probe -- the process itself being alive (PID 1
+      # running) is the health signal, same pattern as the Superset worker/
+      # beat services in superset-staging's own docker-compose.yml.
+      test: ["CMD-SHELL", "grep -q manage.py /proc/1/cmdline"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    mem_limit: 256m
+
 networks:
   cti_geonode_default:
     external: true

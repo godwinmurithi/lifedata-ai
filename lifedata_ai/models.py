@@ -363,3 +363,32 @@ class Skill(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} v{self.version} ({self.status})"
+
+
+class StreamEvent(models.Model):
+    """Phase 17: simulated real-time stream (the plan's own permitted fallback).
+
+    No CDC/Debezium/NATS pipeline exists on this box (confirmed in Phase 0 --
+    this deployment has none, and standing one up was out of scope). The
+    plan's own text permits simulating a stream instead: "write dummy events
+    on a timer." That's what this is -- `manage.py simulate_stream` (or the
+    scheduler, see run_scheduler.py) writes a row here periodically,
+    standing in for what a real ingestion pipeline would emit when a new
+    screening record lands. Nothing downstream currently reacts to a new
+    row appearing (no websocket push, no live-updating chart) -- this is the
+    event log a real reactive layer would consume, not that layer itself.
+    """
+
+    class EventType(models.TextChoices):
+        SCREENING_INGESTED = "screening_ingested", "Screening record ingested"
+        REFERRAL_UPDATED = "referral_updated", "Referral status updated"
+
+    event_type = models.CharField(max_length=32, choices=EventType.choices)
+    payload = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.event_type} at {self.created_at:%Y-%m-%d %H:%M:%S}"
