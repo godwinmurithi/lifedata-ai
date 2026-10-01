@@ -16,9 +16,9 @@ So this test closes the loop the only way it can be closed: take the real
 open it in Explore, and read the page. `pie` turned out to have the same defect
 and was found this way.
 
-**When a viz type is added to `viz_allowlist`, it gets a case here.** The list
-below is checked against the registry, so forgetting is a failing test rather
-than a silently untested chart type.
+**When a viz type is added to `VIZ_ALLOWLIST`, it gets a case here.** The list
+below is checked against that constant (validation/schemas/actions.py), so
+forgetting is a failing test rather than a silently untested chart type.
 
     uv run pytest -m superset_live tests_browser/test_viz_renders.py
     uv run python tests_browser/test_viz_renders.py --headed
@@ -106,8 +106,8 @@ def pipeline_form_data() -> dict[str, dict]:
 
     Inside the container deliberately: that is the code that runs in production,
     and a host-side import would test a copy that may not even load (the host has
-    no GDAL). It also means the registry, the saved metrics and the viz allowlist
-    are the real ones.
+    no GDAL). It also means the saved metrics and the viz allowlist are the
+    real ones.
     """
     out = _django_shell(
         "import json;"
@@ -124,8 +124,8 @@ def pipeline_form_data() -> dict[str, dict]:
 
 def allowlisted_viz() -> list[str]:
     out = _django_shell(
-        "from lifedata_ai.semantics.loader import load_registry;"
-        "print('@@' + ','.join(load_registry().viz_allowlist))"
+        "from lifedata_ai.validation.schemas import VIZ_ALLOWLIST;"
+        "print('@@' + ','.join(VIZ_ALLOWLIST))"
     )
     marker = out.rfind("@@")
     if marker < 0:

@@ -3,11 +3,23 @@
 This module is the gate between "the model said so" and "Superset was changed".
 Spec §6 fixes both the rules and their order; the order matters because each
 rule assumes the previous one has already held. Schema first, because no policy
-rule can reason about a payload of unknown shape. Viz allowlist next, because
-the viz type decides which other params are even meaningful. Then the SQL ban,
-the geography policy, the column allowlist, and finally risk classification —
-which is not a rejection but a routing decision (execute now vs. show the user a
-preview card first).
+rule can reason about a payload of unknown shape. Then the SQL ban and per-viz
+coherence check, and finally risk classification — which is not a rejection
+but a routing decision (execute now vs. show the user a preview card first).
+
+The semantics-registry-backed geography policy and column/metric role checks
+(per-dataset grain, sensitivity, and declared-column allowlisting) have been
+removed along with the registry itself. This module no longer knows what any
+dataset's rows mean or which of its columns are safe to group by — see
+git history if that policy needs reconstructing.
+
+The viz-type and colour-scheme allowlist rules have also been removed, by
+explicit direction (2026-10-01): no restriction on viz type or colour scheme
+for now, to be applied later. Every Superset viz type (including maps) and
+any identifier-shaped colour scheme value now passes schema and validator
+unconditionally — see validation/schemas/actions.py's "Allowlists (NOT
+currently enforced)" section for where to re-wire this if restrictions come
+back.
 
 The first failing rule short-circuits. That is deliberate: a validation result
 is fed back to the model as a tool result so it can self-correct (spec §5 step
@@ -49,7 +61,6 @@ from typing import Any, Final
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
 
-from lifedata_ai.semantics.loader import Dataset, Registry, load_registry
 from lifedata_ai.validation.schemas import (
     ALLOWED_ACTION_TYPES,
     UnknownActionTypeError,
@@ -62,13 +73,18 @@ _log = logging.getLogger(__name__)
 #: is keyed by these so a caller (or a test) can see exactly which rule spoke.
 #: `row_limit` and `risk` are normalisation/classification rather than gates,
 #: which is why they sit last and never reject on their own.
+#:
+#: `geography` and `column_roles` were removed along with the semantics
+#: registry (they enforced per-dataset grain/sensitivity/column-role policy
+#: that no longer exists anywhere in this codebase).
+#:
+#: `viz_allowlist` and `color_scheme` were removed by explicit direction
+#: (2026-10-01): no restriction on viz type or colour scheme for now, to be
+#: applied later — see the "Allowlists (NOT currently enforced)" section in
+#: validation/schemas/actions.py for where the values live if reintroduced.
 RULE_ORDER: Final[tuple[str, ...]] = (
     "schema",
-    "viz_allowlist",
     "no_adhoc_sql",
-    "geography",
-    "column_roles",
-    "color_scheme",
     "viz_coherence",
     "row_limit",
     "risk",
@@ -148,7 +164,6 @@ class ValidationContext:
     identity_user_id: int | None = None
     dashboard_owners: list[Any] | None = None
     dashboard_component_count: int | None = None
-    registry: Registry = field(default_factory=load_registry)
 
 
 # --- Rule 3: adhoc-SQL detection ------------------------------------------
@@ -245,175 +260,6 @@ _SQL_PATTERNS_QUERY_VALUES: Final[tuple[tuple[re.Pattern[str], str], ...]] = (
 )
 
 
-# --- Rule 4: geography policy ---------------------------------------------
-
-#: The only columns a `geography: patient` dataset may be grouped by (spec §6.4:
-#: "reject group-bys below district"). Region is coarser than district, so it is
-#: permitted too. Anything else is refused rather than inspected, because on a
-#: patient-grain dataset an unrecognised grouping column is exactly the case
-#: where guessing wrong discloses something.
-_PATIENT_GEOGRAPHY_GROUPBY_ALLOWED: Final[frozenset[str]] = frozenset(
-    {"district_name", "district", "region", "region_name"}
-)
-
-#: Name fragments that mark a column as finer than district, or as a coordinate.
-#: Matched against `_` / non-alphanumeric separated tokens with a prefix/suffix
-#: test — substring matching would flag "population" for containing "lat".
-#:
-#: This list is a DENYLIST and therefore fails open on vocabulary nobody thought
-#: of: an early version knew "subcounty" but not "sub_county" (two tokens), and
-#: knew Ugandan units but not Rwandan ones ("sector", "umudugudu"), so those
-#: columns sailed through. Grouping columns no longer depend on this list at all
-#: — see `_is_permitted_patient_axis`, which is an allowlist — but filter columns
-#: still do, so keep the vocabulary generous. When in doubt add the word: the
-#: cost of a false positive is one refusal message naming district_name.
-_FINER_THAN_DISTRICT_TOKENS: Final[tuple[str, ...]] = (
-    # sub-district administrative units, several countries' vocabularies
-    "sub",  # sub_county, sub_district, sub_ward — the two-token spellings
-    "subcounty",
-    "subdistrict",
-    "parish",
-    "village",
-    "ward",
-    "cell",
-    "sector",
-    "zone",
-    "locality",
-    "settlement",
-    "hamlet",
-    "neighbourhood",
-    "neighborhood",
-    "suburb",
-    "commune",
-    "kebele",
-    "barangay",
-    "umudugudu",
-    "lc1",
-    "estate",
-    "camp",
-    "catchment",
-    # premises and individuals
-    "facility",
-    "patient",
-    "household",
-    "home",
-    "house",
-    "dwelling",
-    "compound",
-    "resid",  # residence, resident, residential
-    "street",
-    "road",
-    "plot",
-    "site",
-    "address",
-    "postcode",
-    # coordinates
-    "gps",
-    "lat",
-    "lon",
-    "lng",
-    "point",
-    "geom",
-    "coord",
-)
-
-#: Column names that read as a date or period. Used to keep time axes and date
-#: filters legal on a patient-geography dataset: "district counts by month" is
-#: not a disclosure question, and refusing it would make the dataset useless.
-#: Matched on whole tokens only — a prefix test would make `last_update`
-#: temporal because "update" ends with "date", and a permissive test on this
-#: list widens what is allowed, so it must not guess.
-_TEMPORAL_TOKENS: Final[frozenset[str]] = frozenset(
-    {
-        "date",
-        "dates",
-        "datetime",
-        "time",
-        "timestamp",
-        "ts",
-        "dt",
-        "epoch",
-        "hour",
-        "minute",
-        "day",
-        "daily",
-        "week",
-        "weekly",
-        "month",
-        "monthly",
-        "quarter",
-        "year",
-        "yearly",
-        "period",
-    }
-)
-
-#: Tokens naming a human subject, and tokens naming an identifier. A column is
-#: treated as a person identifier when it carries one of each — so `patient_id`
-#: and `client_uuid` are refused while `patient_count` and `facility_name` are
-#: untouched. See `_is_person_identifier` for why this check exists at all.
-_PERSON_ENTITY_TOKENS: Final[frozenset[str]] = frozenset(
-    {"patient", "person", "client", "individual", "subject", "beneficiary", "member"}
-)
-
-_IDENTIFIER_TOKENS: Final[frozenset[str]] = frozenset(
-    {"id", "ids", "uuid", "guid", "identifier", "number", "no", "code", "name", "hash"}
-)
-
-#: Tokens that mark a column as an aggregate measure rather than a place. They
-#: exempt a filter column from the sub-district denylist, because
-#: `patient_count` — the only measure `rpt_patient_geography` has — otherwise
-#: trips the "patient" marker, making "districts with at least fifty patients"
-#: unaskable. Coordinates below are exempt from the exemption.
-_MEASURE_TOKENS: Final[frozenset[str]] = frozenset(
-    {
-        "count",
-        "counts",
-        "total",
-        "totals",
-        "sum",
-        "avg",
-        "average",
-        "mean",
-        "median",
-        "rate",
-        "ratio",
-        "percent",
-        "percentage",
-        "pct",
-        "num",
-        "volume",
-    }
-)
-
-#: Coordinate markers. Never exempted by `_MEASURE_TOKENS`: an "average
-#: latitude" is still a location.
-_COORDINATE_TOKENS: Final[tuple[str, ...]] = (
-    "gps",
-    "lat",
-    "lon",
-    "lng",
-    "point",
-    "geom",
-    "coord",
-)
-
-#: Identifiers that need no entity token because they name a person by
-#: themselves.
-_STANDALONE_PERSON_IDENTIFIERS: Final[frozenset[str]] = frozenset(
-    {"mrn", "nid", "nin", "national_id", "nhis_number", "phone", "phone_number", "msisdn", "email"}
-)
-
-#: Viz-name tokens that mean "renders individual points". Kept separate from the
-#: registry's explicit `patient_geography_forbidden_viz` list so a newly added
-#: point-map type is refused on patient data from the moment it appears, rather
-#: than from the moment someone remembers to add it to the list.
-_POINT_RENDERING_VIZ_TOKENS: Final[frozenset[str]] = frozenset(
-    {"scatter", "point", "heat", "heatmap", "hex", "geojson", "path", "mapbox", "cluster", "marker", "dot"}
-)
-
-
-# --- Rule 6: risk classification ------------------------------------------
 
 #: Actions that are `preview` no matter how small they look. Removal is
 #: destructive, so it is confirmed however few components it touches (spec §6.6).
@@ -493,88 +339,6 @@ def _json_path(parts: Any) -> str:
     return path
 
 
-def _tokens(name: str) -> list[str]:
-    return [token for token in re.split(r"[^A-Za-z0-9]+", name.lower()) if token]
-
-
-def _suggests_finer_than_district(column: str) -> bool:
-    """Whether a column name reads as sub-district or as a coordinate."""
-    for token in _tokens(column):
-        for marker in _FINER_THAN_DISTRICT_TOKENS:
-            if token == marker or token.startswith(marker) or token.endswith(marker):
-                return True
-    return False
-
-
-def _is_temporal(column: str) -> bool:
-    """Whether a column name reads as a date, timestamp or reporting period."""
-    return bool(_TEMPORAL_TOKENS.intersection(_tokens(column)))
-
-
-def _is_permitted_patient_axis(column: str) -> bool:
-    """Whether `column` may be a chart axis on a `geography: patient` dataset.
-
-    An ALLOWLIST, not a denylist, and that asymmetry is the whole point.
-    `groupby` has always been allowlisted; `x_axis` used to be screened with
-    `_suggests_finer_than_district` instead, which meant any sub-district word
-    missing from that vocabulary (`sub_county`, `sector`, `locality`,
-    `umudugudu`) became a legal category axis — a per-sub-district breakdown by
-    another name, since on a bar or timeseries chart the axis *is* a grouping.
-    An axis is now permitted only if it is a district/region column or a date,
-    so an unrecognised column is refused rather than waved through.
-    """
-    return column.strip().lower() in _PATIENT_GEOGRAPHY_GROUPBY_ALLOWED or _is_temporal(column)
-
-
-def _is_permitted_patient_filter_column(column: str) -> bool:
-    """Whether `column` may be filtered on a `geography: patient` dataset.
-
-    Deliberately weaker than `_is_permitted_patient_axis`: a filter narrows the
-    population, it does not set the output grain, and the output stays district
-    aggregated with small cells suppressed in the reporting view itself (spec
-    §1). Measure filters ("districts with at least 50 patients") therefore stay
-    available, at the price of failing open on a place word this module has
-    never heard of. Add unknown place words to `_FINER_THAN_DISTRICT_TOKENS`.
-    """
-    if _is_temporal(column):
-        return True
-    tokens = set(_tokens(column))
-    if any(
-        token == marker or token.startswith(marker) or token.endswith(marker)
-        for token in tokens
-        for marker in _COORDINATE_TOKENS
-    ):
-        return False
-    if tokens & _MEASURE_TOKENS:
-        return True
-    return not _suggests_finer_than_district(column)
-
-
-def _is_person_identifier(column: str) -> bool:
-    """Whether a column identifies an individual human being.
-
-    Not a geography question, and not one of spec §6's six numbered rules —
-    but grouping *any* dataset by `patient_id` turns an aggregate chart into a
-    row-per-patient listing saved on a shared dashboard, which is the disclosure
-    spec §1's privacy boundary exists to prevent. The registry's `geography`
-    flag does not catch it, because a dataset can be `geography: facility` and
-    still carry a patient key (`rpt_encounters` does).
-
-    Requires an entity token *and* an identifier token so that `patient_count`,
-    `unique_patients` and `facility_name` are untouched. Delete the two calls in
-    `_rule_geography` to remove this control; nothing else depends on it.
-    """
-    normalised = column.strip().lower()
-    if normalised in _STANDALONE_PERSON_IDENTIFIERS:
-        return True
-    tokens = set(_tokens(column))
-    return bool(tokens & _PERSON_ENTITY_TOKENS) and bool(tokens & _IDENTIFIER_TOKENS)
-
-
-def _renders_points(viz_type: str) -> bool:
-    return bool(_POINT_RENDERING_VIZ_TOKENS.intersection(_tokens(viz_type)))
-
-
 def _owner_identifiers(owners: list[Any] | None) -> set[str] | None:
     """Every string an owner can be recognised by, casefolded.
 
@@ -633,8 +397,6 @@ class _Check:
     payload: dict[str, Any]
     context: ValidationContext
     warnings: list[str] = field(default_factory=list)
-    #: Resolved by the geography rule and reused by risk classification.
-    dataset: Dataset | None = None
 
 
 def _rule_schema(check: _Check) -> tuple[list[str], str]:
@@ -689,38 +451,6 @@ def _schema_operations(action_type: str) -> list[str]:
         if const:
             operations.append(const)
     return operations
-
-
-def _rule_viz_allowlist(check: _Check) -> tuple[list[str], str]:
-    """Rule 2 — the viz type must be on the registry allowlist (spec §6.2)."""
-    params = _params(check.payload)
-    if params is None:
-        return [], f"{_NOT_APPLICABLE} — {check.action_type} carries no chart params"
-
-    viz_type = params.get("viz_type")
-    if not isinstance(viz_type, str):
-        return [], f"{_NOT_APPLICABLE} — no viz_type declared"
-
-    registry = check.context.registry
-    if registry.is_viz_allowed(viz_type):
-        return [], f"{_PASS} — viz_type {viz_type}"
-
-    message = (
-        f"Viz type {viz_type!r} is not approved for this deployment. "
-        f"Permitted viz types: {_quote_list(registry.viz_allowlist)}."
-    )
-    # The geography policy is stated here as well as in rule 4, because rule 2
-    # runs first and would otherwise refuse a point map with a bland "not on the
-    # list" — hiding the actual reason (spec §6.4, Phase 4 acceptance criterion).
-    if viz_type in registry.patient_geography_forbidden_viz or _renders_points(viz_type):
-        message += (
-            " Point, scatter, cluster and heat maps are never permitted: they plot "
-            "individual locations, and on patient data the policy is district-level "
-            "aggregation only. Use echarts_timeseries_bar or table to rank districts — "
-            "this deployment has no map viz type, because rpt_patient_geography carries "
-            "district centroids (points) and a choropleth needs polygon boundaries."
-        )
-    return [message], f"fail — viz_type {viz_type} not on the allowlist"
 
 
 def _rule_no_adhoc_sql(check: _Check) -> tuple[list[str], str]:
@@ -792,392 +522,6 @@ def _rule_no_adhoc_sql(check: _Check) -> tuple[list[str], str]:
                 )
 
     return [], f"{_PASS} — no SQL constructs found"
-
-
-def _rule_geography(check: _Check) -> tuple[list[str], str]:
-    """Rule 4 — the patient-geography policy (spec §6.4).
-
-    A `geography: patient` dataset may be grouped no finer than district and may
-    never be drawn as points. `geography: facility` datasets are institutions,
-    not people, so exact coordinates are fine.
-
-    One control here goes beyond spec §6.4: `_person_identifier_errors` refuses a
-    grouping by a patient key on *every* dataset, because the registry's
-    geography flag does not cover a facility-geography dataset that happens to
-    carry `patient_id`. See that function for how to back it out.
-
-    FAIL CLOSED on an unresolvable dataset. An action whose dataset cannot be
-    identified is treated exactly as if it were patient geography, because the
-    alternative — assuming a benign dataset — means the one case where the
-    lookup is broken or the id is unknown is also the case where the policy is
-    silently skipped. The refusal names the fix (`params.datasource`), so the
-    model can correct it in one turn.
-    """
-    registry = check.context.registry
-    params = _params(check.payload)
-
-    if params is None:
-        return _geography_for_filter(check)
-
-    declared_id = check.payload.get("dataset_id")
-    datasource = params.get("datasource")
-    datasource_id = datasource.get("id") if isinstance(datasource, dict) else None
-
-    # Cross-field check: the policy is evaluated against one dataset, so the
-    # payload must not name two (a chart pointed at a dataset the validator never
-    # inspected is precisely the hole this closes).
-    if declared_id is not None and datasource_id is not None and declared_id != datasource_id:
-        return (
-            [
-                f"params.datasource.id ({datasource_id}) does not match dataset_id "
-                f"({declared_id}). Both must name the same dataset."
-            ],
-            "fail — dataset_id and params.datasource.id disagree",
-        )
-
-    dataset_id = declared_id if declared_id is not None else datasource_id
-    if dataset_id is None:
-        return (
-            [
-                "The dataset for this chart could not be identified, so the geography "
-                "policy cannot be applied and the action is refused. Include "
-                'params.datasource as {"id": <dataset id>, "type": "table"} — call '
-                "get_chart to find the dataset an existing chart uses."
-            ],
-            "fail — dataset unresolved (failed closed)",
-        )
-
-    dataset = registry.dataset_by_superset_id(dataset_id)
-    check.dataset = dataset
-    if dataset is None:
-        return (
-            [
-                f"Dataset id {dataset_id} is not in the LifeData semantics registry, so "
-                "its privacy classification is unknown and the action is refused. Use "
-                "recommend_dataset or list_datasets to choose a registered dataset."
-            ],
-            f"fail — dataset {dataset_id} unregistered (failed closed)",
-        )
-
-    # Row-level grain is refused on every dataset, not only patient-geography
-    # ones: `rpt_encounters` is `geography: facility` and still carries
-    # `patient_id`, so the geography flag alone would let a per-patient table
-    # onto a shared dashboard.
-    identifier_errors = _person_identifier_errors(params, dataset)
-    if identifier_errors:
-        return identifier_errors, f"fail — row-level grouping on {dataset.name}"
-
-    if not dataset.is_patient_geography:
-        return (
-            [],
-            f"{_NOT_APPLICABLE} — {dataset.name} has geography={dataset.geography!r}",
-        )
-
-    errors: list[str] = []
-    viz_type = params.get("viz_type")
-    if isinstance(viz_type, str) and (
-        viz_type in registry.patient_geography_forbidden_viz or _renders_points(viz_type)
-    ):
-        errors.append(
-            f"{viz_type!r} plots individual points and {dataset.name} holds patient "
-            "geography, which may only be shown aggregated to district. Use "
-            "echarts_timeseries_bar or table for a district ranking; this deployment "
-            "has no map viz type."
-        )
-
-    for column in params.get("groupby") or []:
-        if str(column).lower() not in _PATIENT_GEOGRAPHY_GROUPBY_ALLOWED:
-            errors.append(
-                f"{column!r} may not be used to group {dataset.name}: patient geography "
-                "is aggregated to district, so the only permitted grouping columns are "
-                f"{_quote_list(_PATIENT_GEOGRAPHY_GROUPBY_ALLOWED)}."
-            )
-
-    # On a bar or timeseries chart the x axis IS a grouping, so it is allowlisted
-    # exactly like `groupby` — plus dates, because "district counts by month" is
-    # not a privacy question. Screening it with the sub-district word list
-    # instead was the hole that let `x_axis: "sub_county"` through.
-    x_axis = params.get("x_axis")
-    if isinstance(x_axis, str) and not _is_permitted_patient_axis(x_axis):
-        errors.append(
-            f"{x_axis!r} cannot be the axis of a chart on {dataset.name}: patient "
-            "geography is aggregated to district, so the axis must be one of "
-            f"{_quote_list(_PATIENT_GEOGRAPHY_GROUPBY_ALLOWED)} or a date/period column."
-        )
-
-    for index, filter_spec in enumerate(params.get("adhoc_filters") or []):
-        column = filter_spec.get("column") if isinstance(filter_spec, dict) else None
-        if isinstance(column, str) and not _is_permitted_patient_filter_column(column):
-            errors.append(
-                f"adhoc_filters[{index}] filters {dataset.name} on {column!r}, which is "
-                "finer than district. Filter on district_name or region instead."
-            )
-
-    if errors:
-        return errors, f"fail — patient-geography policy on {dataset.name}"
-
-    if dataset.small_cell_threshold:
-        check.warnings.append(
-            f"{dataset.name} suppresses districts with fewer than "
-            f"{dataset.small_cell_threshold} patients in the view itself; describe gaps "
-            "as suppressed small counts, not as absence of patients."
-        )
-    return [], f"{_PASS} — district-level use of {dataset.name}"
-
-
-def _person_identifier_errors(params: dict[str, Any], dataset: Dataset) -> list[str]:
-    """Refuse groupings that would make one chart row equal one person.
-
-    Only `groupby` and `x_axis` are inspected: those set the output grain. A
-    *metric* over a patient key is the opposite — `COUNT_DISTINCT(patient_id)`
-    is the governed way to count people (see the `unique_patients` indicator) —
-    and a *filter* on one narrows the population without listing it.
-    """
-    errors: list[str] = []
-    candidates: list[str] = [str(column) for column in params.get("groupby") or []]
-    x_axis = params.get("x_axis")
-    if isinstance(x_axis, str):
-        candidates.append(x_axis)
-
-    for column in candidates:
-        if _is_person_identifier(column):
-            errors.append(
-                f"{column!r} identifies individual people, so grouping {dataset.name} by "
-                "it would put one person per row on a saved chart. Aggregate instead: "
-                "count people with a COUNT_DISTINCT metric over that column and group by "
-                "facility, district or period."
-            )
-    return errors
-
-
-def _geography_for_filter(check: _Check) -> tuple[list[str], str]:
-    """Geography policy for actions with no chart params.
-
-    Only `add_native_filter` can name a dataset and column outside `params`. The
-    fail-closed rule does not extend to actions that carry no dataset reference
-    at all (renames, layout moves, theme changes): they cannot express a
-    grouping or a viz type, so there is no geography decision to fail closed on.
-    """
-    if check.action_type != "add_native_filter":
-        return [], f"{_NOT_APPLICABLE} — {check.action_type} expresses no query"
-
-    column = check.payload.get("column")
-    filter_type = check.payload.get("filter_type")
-    needs_dataset = filter_type in {"value", "numerical_range"} or column is not None
-
-    dataset_id = check.payload.get("dataset_id")
-    if dataset_id is None:
-        # FAIL CLOSED. `dataset_id` is optional in the schema because a
-        # `time_range` filter needs none, and that optionality was a hole: a
-        # filter naming `column: "village_name"` and no dataset skipped the
-        # geography policy entirely, because there was no dataset to classify.
-        if needs_dataset:
-            return (
-                [
-                    f"A {filter_type!r} filter on {column!r} must name the dataset it "
-                    "filters, because the privacy policy that applies depends on it. "
-                    "Include dataset_id — use list_datasets or get_dashboard to find it."
-                ],
-                "fail — filter names a column but no dataset (failed closed)",
-            )
-        return [], f"{_NOT_APPLICABLE} — filter names no dataset"
-
-    dataset = check.context.registry.dataset_by_superset_id(dataset_id)
-    check.dataset = dataset
-    if dataset is None:
-        return (
-            [
-                f"Dataset id {dataset_id} is not in the LifeData semantics registry, so "
-                "its privacy classification is unknown and the filter is refused."
-            ],
-            f"fail — dataset {dataset_id} unregistered (failed closed)",
-        )
-    if not dataset.is_patient_geography:
-        return [], f"{_NOT_APPLICABLE} — {dataset.name} is not patient geography"
-
-    if isinstance(column, str) and not _is_permitted_patient_filter_column(column):
-        return (
-            [
-                f"A filter on {column!r} would expose {dataset.name} below district "
-                "level. Filter on district_name or region instead."
-            ],
-            f"fail — sub-district filter column on {dataset.name}",
-        )
-    return [], f"{_PASS} — district-level filter on {dataset.name}"
-
-
-def _rule_column_roles(check: _Check) -> tuple[list[str], str]:
-    """Only declared dimension or temporal columns may set a chart's grain.
-
-    An ALLOWLIST, deliberately, and the reasoning is worth keeping. The obvious
-    alternative is to forbid `role: key` — refuse `facility_id`, allow the rest.
-    Three reasons this is better:
-
-    * It is one rule, not a list of forbidden roles that grows every time the
-      registry learns a new one.
-    * It matches what the catalogue in the prompt actually claims: *"complete;
-      nothing else exists"*. A denylist contradicts that header.
-    * It closes the case a denylist leaves open. A column the registry has never
-      heard of — a new column on a reporting view, a dataset added without
-      curation — would silently become groupable under a denylist. Here it is
-      refused, which is the same fail-closed posture the geography rule takes.
-
-    The refusal names the alternatives, so the model corrects in one turn rather
-    than guessing: *"facility_id is an internal key; group by facility_name"*.
-
-    Filters are NOT policed here. A filter narrows the population without setting
-    the output grain, and refusing a filter on `turnaround_hours` would make
-    "orders that took over 48 hours" unaskable for no privacy gain. The
-    patient-geography rule above still polices filter columns on the one dataset
-    where they matter.
-    """
-    params = _params(check.payload)
-    if params is None:
-        return [], f"{_NOT_APPLICABLE} — {check.action_type} carries no chart params"
-    dataset = check.dataset
-    if dataset is None:
-        # Rule 4 fails closed on an unresolvable dataset, so reaching here with
-        # none means the action legitimately names no dataset at all.
-        return [], f"{_NOT_APPLICABLE} — no dataset resolved for {check.action_type}"
-    if not dataset.columns:
-        # A dataset in the registry that declares no columns yet. Refusing every
-        # grouping on it would break it entirely; the geography and
-        # person-identifier rules still apply.
-        return (
-            [],
-            f"{_NOT_APPLICABLE} — {dataset.name} declares no columns in the registry",
-        )
-
-    candidates: list[tuple[str, str]] = [
-        ("groupby", str(column)) for column in params.get("groupby") or []
-    ]
-    x_axis = params.get("x_axis")
-    if isinstance(x_axis, str):
-        # On a bar or timeseries chart the axis IS a grouping, so it goes
-        # through the same gate rather than a looser one.
-        candidates.append(("x_axis", x_axis))
-    # A choropleth's `entity` is NOT checked here, because the model cannot set
-    # it: `entity` is absent from CHART_PARAMS_SCHEMA. A map is requested the
-    # same way as a bar chart — `groupby: [district_name]` — and the write path
-    # translates that to the boundary code Superset joins on. So the gate below
-    # is the only gate, and `district_iso` is reachable only through it.
-
-    errors: list[str] = []
-    for where, name in candidates:
-        column = dataset.column(name)
-        if column is not None and column.is_groupable:
-            continue
-        errors.append(_column_role_message(where, name, column, dataset))
-
-    errors.extend(_metric_errors(params, dataset))
-
-    if errors:
-        return errors, f"fail — ungroupable column or unknown metric on {dataset.name}"
-    checked = ", ".join(name for _where, name in candidates) or "nothing to check"
-    return [], f"{_PASS} — {checked}"
-
-
-#: Metrics Superset creates on every dataset without anyone declaring them, so a
-#: chart may legitimately name them even though the registry does not.
-_SUPERSET_BUILTIN_METRICS: Final[frozenset[str]] = frozenset({"count"})
-
-
-def _metric_errors(params: dict[str, Any], dataset: Dataset) -> list[str]:
-    """Refuse a saved-metric name that does not exist on this dataset.
-
-    A bare string in `params.metrics` is a *saved metric reference*, and Superset
-    fails an unknown one at query time — the chart saves happily and then renders
-    a red Data error on the dashboard, which the executive discovers and the
-    copilot never learns about. Refusing here turns that into a tool error the
-    model corrects in the same turn.
-
-    Aggregation objects are untouched: they name a column, and the column rules
-    above already govern what may be charted.
-    """
-    if not dataset.metrics:
-        return []
-
-    available = ", ".join(f"{m.name} ({m.display_label})" for m in dataset.metrics)
-    errors: list[str] = []
-    for metric in params.get("metrics") or []:
-        if not isinstance(metric, str) or metric in _SUPERSET_BUILTIN_METRICS:
-            continue
-        if dataset.metric(metric) is not None:
-            continue
-        errors.append(
-            f"{metric!r} is not a saved metric on {dataset.name}. Use one of: "
-            f"{available}; or express the figure as "
-            "{aggregate, column: {column_name}}."
-        )
-    return errors
-
-
-def _column_role_message(where: str, name: str, column: Any, dataset: Dataset) -> str:
-    """A refusal that names the fix, because the model reads this and retries."""
-    alternatives = ", ".join(
-        f"{c.name} ({c.display_label})" for c in dataset.dimensions()[:6]
-    ) or "none are declared"
-
-    if column is None:
-        return (
-            f"{name!r} is not a column of {dataset.name}, so it cannot be used as "
-            f"params.{where}. The catalogue in your instructions lists every column "
-            f"that exists. Break this dataset down by: {alternatives}."
-        )
-    if column.role == "key":
-        return (
-            f"{name!r} is an internal key on {dataset.name}, so grouping by it would "
-            f"put one row per record on a saved chart. Group by "
-            f"{dataset.default_dimension or (dataset.dimensions()[0].name if dataset.dimensions() else 'a dimension')} "
-            f"instead. Available: {alternatives}."
-        )
-    if column.role == "measure_source":
-        return (
-            f"{name!r} is a number to aggregate on {dataset.name}, not a category to "
-            f"break down by. Put it in params.metrics as an aggregation, and set "
-            f"params.{where} to one of: {alternatives}."
-        )
-    if column.role == "internal":
-        note = f" {column.note}" if column.note else ""
-        return (
-            f"{name!r} is an internal helper column on {dataset.name} and is not "
-            f"available for charting.{note} Break down by: {alternatives}."
-        )
-    return (
-        f"{name!r} has role {column.role!r} on {dataset.name} and may not set a "
-        f"chart's grain. Break down by: {alternatives}."
-    )
-
-
-def _rule_color_scheme(check: _Check) -> tuple[list[str], str]:
-    """A chart's palette must be one Superset actually registers.
-
-    Small, and worth keeping after `apply_dashboard_theme` was dropped. An
-    unvetted scheme name does not error — Superset silently falls back to its
-    default — so the chart renders in the wrong palette and nobody is told. A
-    consistent palette across a dashboard is exactly the kind of coherence an
-    executive notices without being able to name.
-
-    The schema's own identifier pattern already makes CSS unrepresentable here;
-    this rule is about correctness, not injection.
-    """
-    params = _params(check.payload) or {}
-    scheme = params.get("color_scheme")
-    if not isinstance(scheme, str):
-        return [], f"{_NOT_APPLICABLE} — no colour scheme requested"
-
-    approved = check.context.registry.color_schemes
-    if scheme in approved:
-        return [], f"{_PASS} — color_scheme {scheme}"
-    return (
-        [
-            f"Colour scheme {scheme!r} is not one this Superset build registers, so the "
-            f"chart would silently fall back to the default. Approved values: "
-            f"{_quote_list(approved)}. Omit color_scheme to inherit the dashboard's "
-            "palette, which is the usual choice."
-        ],
-        f"fail — unapproved colour scheme {scheme}",
-    )
 
 
 def _rule_viz_coherence(check: _Check) -> tuple[list[str], str]:
@@ -1314,11 +658,7 @@ def _classify_risk(check: _Check) -> tuple[str, str]:
 
 _RULES: Final[tuple[tuple[str, Any], ...]] = (
     ("schema", _rule_schema),
-    ("viz_allowlist", _rule_viz_allowlist),
     ("no_adhoc_sql", _rule_no_adhoc_sql),
-    ("geography", _rule_geography),
-    ("column_roles", _rule_column_roles),
-    ("color_scheme", _rule_color_scheme),
     ("viz_coherence", _rule_viz_coherence),
     ("row_limit", _rule_row_limit),
 )

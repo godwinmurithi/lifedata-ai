@@ -31,12 +31,6 @@ from django.conf import settings
 from lifedata_ai.superset_client import SupersetError
 from lifedata_ai.tools.base import Tool, ToolContext, ToolError, ToolMode
 
-# Shared rather than duplicated: a chart names its dataset in more than one
-# place depending on the endpoint, and two copies of that knowledge would drift.
-# Safe in this direction only — `superset_write` does not import this module,
-# and must not start, or the import becomes a cycle.
-from lifedata_ai.tools.superset_write import _chart_dataset_id
-
 logger = logging.getLogger(__name__)
 
 
@@ -104,35 +98,6 @@ def _person(entry: Any) -> str:
 
 def _truncate_list(items: list[Any], cap: int) -> tuple[list[Any], bool]:
     return (items[:cap], True) if len(items) > cap else (items, False)
-
-
-def _registry_context(context: ToolContext, dataset_id: int | None) -> dict[str, Any] | None:
-    """Governed notes for a dataset, if the semantics registry knows it.
-
-    Attaching this to metadata reads is what keeps interpretation and
-    enforcement aligned (spec §8): the model sees the grain and the geography
-    policy at the moment it is deciding what to chart, not after the validator
-    rejects it.
-    """
-    if dataset_id is None:
-        return None
-    dataset = context.registry().dataset_by_superset_id(dataset_id)
-    if dataset is None:
-        return None
-    entry: dict[str, Any] = {
-        "registry_name": dataset.name,
-        "grain": dataset.grain,
-        "subject_areas": dataset.subject_areas,
-        "sensitivity": dataset.sensitivity,
-        "geography": dataset.geography,
-        "notes": dataset.notes,
-    }
-    if dataset.is_patient_geography:
-        entry["geography_policy"] = (
-            "Patient geography: grouping below district level and point/scatter/heat "
-            "map viz types are refused by the validator. Use district-level choropleths."
-        )
-    return entry
 
 
 # --- Databases and datasets ---------------------------------------------
@@ -208,23 +173,18 @@ class ListDatasetsTool(Tool):
         client = context.superset_mcp_client() if context.use_mcp_reads else context.superset_client()
         rows = client.list_datasets(q or None)
         items, truncated = _truncate_list(rows, MAX_LISTING_ITEMS)
-        registry = context.registry()
-        datasets = []
-        for row in items:
-            known = registry.dataset_by_superset_id(row.get("id"))
-            datasets.append(
-                {
-                    "id": row.get("id"),
-                    "table_name": row.get("table_name"),
-                    "schema": row.get("schema"),
-                    "kind": row.get("kind"),
-                    # No `database` here on purpose: `SupersetClient._listing`
-                    # asks for a narrow column set, so it would always be null.
-                    # Use get_dataset when the connection matters.
-                    "in_semantics_registry": known is not None,
-                    "grain": known.grain if known else None,
-                }
-            )
+        datasets = [
+            {
+                "id": row.get("id"),
+                "table_name": row.get("table_name"),
+                "schema": row.get("schema"),
+                "kind": row.get("kind"),
+                # No `database` here on purpose: `SupersetClient._listing`
+                # asks for a narrow column set, so it would always be null.
+                # Use get_dataset when the connection matters.
+            }
+            for row in items
+        ]
         return {
             "datasets": datasets,
             "count": len(datasets),
@@ -239,10 +199,9 @@ class GetDatasetTool(Tool):
     name = "get_dataset"
     description = (
         "Return the columns (name, type, whether temporal, whether groupable or "
-        "filterable) and the saved metrics of one Superset dataset, plus its "
-        "governed notes from the LifeData semantics registry. Call this before "
-        "proposing or explaining any chart on the dataset, so that the columns and "
-        "metrics you name are real and you state the correct counting grain."
+        "filterable) and the saved metrics of one Superset dataset. Call this "
+        "before proposing or explaining any chart on the dataset, so that the "
+        "columns and metrics you name are real."
     )
     mode = ToolMode.READ
     input_schema: dict[str, Any] = {
@@ -307,7 +266,6 @@ class GetDatasetTool(Tool):
                 }
                 for metric in payload.get("metrics") or []
             ],
-            "semantics": _registry_context(context, payload.get("id", dataset_id)),
         }
 
 
@@ -415,7 +373,6 @@ class GetChartTool(Tool):
             # get_chart_data can only run when a query context was stored; say so
             # up front rather than letting the model discover it by failing.
             "has_stored_query_context": bool(query_context),
-            "semantics": _registry_context(context, dataset_id),
         }
         if params_note:
             result["warning"] = params_note
@@ -816,36 +773,23 @@ class GetChartDataTool(Tool):
                 f"No chart with id {chart_id} is visible to you.", code="not_found"
             )
 
-        # THE READ-SIDE OF THE PRIVACY BOUNDARY, and it was missing.
+        # THE READ-SIDE PRIVACY GATE THAT USED TO LIVE HERE HAS BEEN REMOVED
+        # ALONG WITH THE SEMANTICS REGISTRY, DELIBERATELY, WITH THE CONSEQUENCE
+        # KNOWN AND ACCEPTED (not an oversight — read this before re-adding it
+        # casually or assuming it is a bug).
         #
-        # The validator refuses to WRITE a chart against a dataset the registry
-        # does not declare, because an undeclared dataset has no privacy
-        # classification. Reading was not held to the same rule — this tool
-        # replays whatever query a chart already carries — and on a deployment
-        # where Superset also holds row-level tables, that is the whole boundary
-        # gone. A table chart a person built over a dataset of names returns
-        # those names here, and they go straight to the model.
+        # What used to be here: this tool replays whatever query a chart
+        # already carries, so it refused to do that for a dataset the registry
+        # did not declare, because an undeclared dataset had no privacy
+        # classification. On a deployment where Superset also holds row-level
+        # tables (names, dates of birth, clinical results), that check was the
+        # entire thing standing between "a table chart someone built over a
+        # PII-bearing dataset" and "those rows go straight to the model". It is
+        # gone now. This method will happily return exactly that.
         #
-        # The synthetic deployment could not show this: every dataset was a
-        # governed aggregate view, so "the chart's dataset" was always declared
-        # and the gap had no way to bite. The CTI deployment reads real tables
-        # holding names, dates of birth and clinical results beside them.
-        #
-        # Same verdict as the write path, for the same reason.
-        #
-        # NOTE: this check is NOT reproduced in the MCP path (_run_mcp above)
-        # -- see that method's docstring.
-        dataset_id = _chart_dataset_id(chart)
-        if context.registry().dataset_by_superset_id(dataset_id) is None:
-            raise ToolError(
-                f"Chart {chart_id} reads dataset {dataset_id if dataset_id is not None else '?'}, "
-                "which is not in the LifeData semantics registry. Its privacy "
-                "classification is unknown, so its rows cannot be read. Use get_chart to "
-                "describe how the chart is defined, and say plainly that you cannot read "
-                "its figures.",
-                code="dataset_not_governed",
-                details={"chart_id": chart_id, "dataset_id": dataset_id},
-            )
+        # The MCP path (_run_mcp above) never had an equivalent check at all
+        # (see its own docstring) — so removing this one makes both read paths
+        # consistent, not newly unsafe in a way the other path wasn't already.
 
         query_context, note = _parse_json_field(
             chart.get("query_context"), "query_context"

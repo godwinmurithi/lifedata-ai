@@ -22,8 +22,10 @@ stops the copilot editing a colleague's chart the moment two people share a role
 `LifeData Executive` is built to be exactly enough:
 
 * `can_write` on Chart and Dashboard — create and edit their own.
-* `can_read` on Chart, Dashboard, Dataset, Database, Query — see the catalogue.
-* datasource access to the five `rpt_*` views, and nothing else.
+* `can_read` on Chart, Dashboard, Dataset, Database, Query — see what exists.
+* datasource access to every dataset on the instance by default (full data
+  access, per explicit direction), or to just the names passed via
+  `--dataset` when narrower scoping is wanted for a particular run.
 
 Deliberately absent: Admin, SQL Lab, database creation, and any permission on
 the operational tables. Superset's read-only database role cannot see `public.*`
@@ -40,10 +42,6 @@ import secrets
 
 import httpx
 from django.core.management.base import BaseCommand, CommandError
-
-#: The datasets a pilot participant may build on — the reporting views, and
-#: nothing else. Kept in step with `semantics/registry.yaml` by reading it.
-from lifedata_ai.semantics.loader import load_registry
 
 ROLE_NAME = "LifeData Executive"
 
@@ -97,6 +95,18 @@ class Command(BaseCommand):
             "--from-file",
             help='A file of "Full Name:email" lines, one per participant.',
         )
+        parser.add_argument(
+            "--dataset",
+            action="append",
+            default=[],
+            metavar="DATASET_NAME",
+            help=(
+                "A dataset name to grant datasource_access on, repeatable. "
+                "Omit to grant every dataset on the instance (the default, "
+                "per explicit direction to give pilot accounts full data "
+                "access now that the semantics registry no longer scopes this)."
+            ),
+        )
         parser.add_argument("--superset-url", default=os.environ.get(
             "LIFEDATA_AI_SUPERSET_INTERNAL_URL", "http://superset:8088"))
         parser.add_argument("--username", default=os.environ.get("SUPERSET_ADMIN_USERNAME", "admin"))
@@ -115,26 +125,25 @@ class Command(BaseCommand):
                 "(repeatable) or --from-file."
             )
 
-        registry = load_registry()
-        datasets = [d.name for d in registry.datasets.values()]
-
-        if options["dry_run"]:
-            self.stdout.write(f"Would create role {ROLE_NAME!r} with:")
-            for permission, view in ROLE_PERMISSIONS:
-                self.stdout.write(f"  {permission} on {view}")
-            self.stdout.write(f"  datasource access to: {', '.join(datasets)}")
-            self.stdout.write("")
-            self.stdout.write("Would create users:")
-            for name, email in participants:
-                self.stdout.write(f"  {_username(email):<20} {name} <{email}>")
-            return
-
         base = options["superset_url"].rstrip("/")
         with httpx.Client(timeout=httpx.Timeout(connect=5.0, read=30.0, write=30.0, pool=5.0)) as c:
             token = self._login(c, base, options["username"], options["password"])
             headers = {"Authorization": f"Bearer {token}"}
             csrf, cookies = self._csrf(c, base, headers)
             headers["X-CSRFToken"] = csrf
+
+            datasets = options["dataset"] or self._all_dataset_names(c, base, headers)
+
+            if options["dry_run"]:
+                self.stdout.write(f"Would create role {ROLE_NAME!r} with:")
+                for permission, view in ROLE_PERMISSIONS:
+                    self.stdout.write(f"  {permission} on {view}")
+                self.stdout.write(f"  datasource access to: {', '.join(datasets)}")
+                self.stdout.write("")
+                self.stdout.write("Would create users:")
+                for name, email in participants:
+                    self.stdout.write(f"  {_username(email):<20} {name} <{email}>")
+                return
 
             role_id = self._ensure_role(c, base, headers, cookies, datasets)
             self.stdout.write(f"role {ROLE_NAME!r}: id {role_id}")
@@ -187,6 +196,33 @@ class Command(BaseCommand):
         if r.status_code != 200:
             raise CommandError(f"Could not obtain CSRF token ({r.status_code}): {r.text[:200]}")
         return r.json()["result"], dict(r.cookies)
+
+    def _all_dataset_names(self, c: httpx.Client, base: str, headers: dict) -> list[str]:
+        """Every dataset name on this Superset instance, paginated.
+
+        The default scope for `--dataset` when it is omitted: full data access
+        for pilot accounts, per explicit direction, now that there is no
+        registry to read a curated subset from.
+        """
+        names: list[str] = []
+        page = 0
+        page_size = 100
+        while True:
+            r = c.get(
+                f"{base}/api/v1/dataset/",
+                headers=headers,
+                params={"q": f"(page:{page},page_size:{page_size})"},
+            )
+            if r.status_code != 200:
+                raise CommandError(
+                    f"Could not list datasets ({r.status_code}): {r.text[:300]}"
+                )
+            result = r.json().get("result", [])
+            names.extend(row["table_name"] for row in result if row.get("table_name"))
+            if len(result) < page_size:
+                break
+            page += 1
+        return names
 
     def _ensure_role(self, c, base, headers, cookies, datasets: list[str]) -> int:
         """Create the role and grant it exactly `ROLE_PERMISSIONS`.

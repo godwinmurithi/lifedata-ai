@@ -186,15 +186,40 @@
     return value.length > max ? value.slice(0, max) + "…" : value;
   }
 
+  // A raw tool name ("call_mcp_tool", "execute_sql") is implementation detail,
+  // not something a user should read mid-conversation — it exposes the wiring
+  // instead of what's actually happening. These rotate through whenever the
+  // server hasn't sent its own summary, so the fallback never looks like a
+  // function name that leaked into the UI.
+  var WORKING_PHRASES = [
+    "Digesting",
+    "Preparing",
+    "Thinking it through",
+    "Connecting the dots",
+    "Crunching the numbers",
+    "Consulting the data",
+    "Piecing it together",
+    "Double-checking",
+  ];
+  var workingPhraseIndex = 0;
+
+  function nextWorkingPhrase() {
+    var phrase = WORKING_PHRASES[workingPhraseIndex % WORKING_PHRASES.length];
+    workingPhraseIndex += 1;
+    return phrase;
+  }
+
   /** Human phrasing for a tool name the server did not summarise. */
   function toolLabel(data) {
     // The server sends a specific summary on every tool_use frame ("inspecting
-    // dataset 2", "building chart Patients by facility"). The panel used to
-    // recompute a coarse label from its own table instead — a byte-for-byte
-    // fork of the server's, which labelled none of the twelve write tools and
-    // held a dead `review_dashboard_design` entry. Preferring the server's is
-    // one line and fixes all of that.
-    return data.summary || String(data.name || "working").replace(/_/g, " ");
+    // dataset 2", "building chart Patients by facility") and that is always
+    // preferred. Only the fallback changed: it used to recompute a coarse
+    // label from the raw tool name (`data.name.replace(/_/g, " ")`), which for
+    // any tool without a dedicated summary — including every MCP-passthrough
+    // call — surfaced the literal function name verbatim ("call mcp tool").
+    // A rotating, content-free phrase reads as progress without describing
+    // internals the user has no use for.
+    return data.summary || nextWorkingPhrase();
   }
 
   /** Read/write panel-scoped localStorage without letting private mode throw. */
@@ -1134,15 +1159,39 @@
     // works for another minute.
     var send = el("button", { type: "submit", class: "ld-send", text: "Send" });
 
-    var composer = el("form", { class: "ld-composer" }, [
-      el("label", {
-        class: "ld-visually-hidden",
-        for: "lifedata-ai-input",
-        text: "Message the LifeData copilot",
-      }),
-      input,
-      send,
-    ]);
+    // Hidden entirely rather than shown-disabled when the browser has no
+    // SpeechRecognition (only Chromium-family browsers ship it, prefixed, as
+    // of this writing) — a disabled mic invites "why doesn't this work"
+    // where a missing one just reads as "there's no mic button here".
+    var SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var voiceButton = SpeechRecognitionCtor
+      ? el(
+          "button",
+          {
+            type: "button",
+            class: "ld-voice",
+            "aria-label": "Dictate your message",
+            "aria-pressed": "false",
+            title: "Dictate your message",
+          },
+          [icon("M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v4 M8 23h8")]
+        )
+      : null;
+
+    var composer = el(
+      "form",
+      { class: "ld-composer" },
+      [
+        el("label", {
+          class: "ld-visually-hidden",
+          for: "lifedata-ai-input",
+          text: "Message the LifeData copilot",
+        }),
+        input,
+        voiceButton,
+        send,
+      ].filter(Boolean)
+    );
 
     var panel = el(
       "aside",
@@ -1190,6 +1239,7 @@
       status: status,
       composer: composer,
       input: input,
+      voiceButton: voiceButton,
       send: send,
     };
   }
@@ -1366,7 +1416,10 @@
         return wrapper;
       },
 
-      /** @param {{title: string, detail?: string, action?: {label: string, run: () => void}}} spec */
+      /**
+       * @param {{title: string, detail?: string, action?: {label: string, run: () => void}, variant?: "network"}} spec
+       * @returns {{remove: () => void}}
+       */
       addError: function (spec) {
         var children = [el("span", { class: "ld-error__title", text: spec.title })];
         if (spec.detail) {
@@ -1382,9 +1435,21 @@
             })
           );
         }
+        var className = "ld-error" + (spec.variant === "network" ? " ld-notice--network" : "");
         // No role="alert". The card is already inside an aria-live region, and
         // nesting one inside the other announces the same text twice.
-        append(el("div", { class: "ld-error" }, children));
+        var card = el("div", { class: className }, children);
+        append(card);
+        return {
+          // Used when connectivity returns mid-retry: the "waiting for
+          // network" card should disappear rather than sit stale once the
+          // auto-retry it promised has actually started.
+          remove: function () {
+            if (card.parentNode) {
+              card.parentNode.removeChild(card);
+            }
+          },
+        };
       },
 
       /**
@@ -1962,6 +2027,77 @@
       }
     });
 
+    // --- Voice dictation ---------------------------------------------------
+    //
+    // Dictation into the composer, not a separate voice-command grammar: the
+    // copilot already understands free-text requests, so transcribing speech
+    // into the same textarea the user would otherwise type into reuses that
+    // entirely rather than building and maintaining a second, narrower command
+    // language. The user reviews the transcript exactly like typed text and
+    // sends it the same way — nothing is spoken directly into an action.
+    if (refs.voiceButton) {
+      var recognition = null;
+      var dictationBaseText = "";
+
+      function stopDictation() {
+        if (recognition) {
+          // onend still fires after this; it no-ops there via the null check.
+          recognition.stop();
+          recognition = null;
+        }
+        refs.voiceButton.classList.remove("is-listening");
+        refs.voiceButton.setAttribute("aria-pressed", "false");
+      }
+
+      function startDictation() {
+        if (recognition || state.busy) {
+          return;
+        }
+        recognition = new SpeechRecognitionCtor();
+        recognition.lang = document.documentElement.lang || "en-US";
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        // Captured once at start, not re-read per result: appending every
+        // interim result onto whatever is currently in the box would
+        // duplicate text, since each interim replaces the previous interim
+        // for the same utterance rather than extending it.
+        dictationBaseText = refs.input.value;
+        refs.voiceButton.classList.add("is-listening");
+        refs.voiceButton.setAttribute("aria-pressed", "true");
+
+        recognition.onresult = function (event) {
+          var transcript = "";
+          for (var i = 0; i < event.results.length; i += 1) {
+            transcript += event.results[i][0].transcript;
+          }
+          var joiner = dictationBaseText && !/\s$/.test(dictationBaseText) ? " " : "";
+          refs.input.value = dictationBaseText + joiner + transcript;
+          autosize();
+        };
+        // Browsers raise "no-speech"/"aborted" routinely (a pause, the user
+        // clicking stop) — these are not failures worth an error card, just
+        // the end of this dictation session.
+        recognition.onerror = function () {
+          stopDictation();
+        };
+        recognition.onend = function () {
+          recognition = null;
+          refs.voiceButton.classList.remove("is-listening");
+          refs.voiceButton.setAttribute("aria-pressed", "false");
+          refs.input.focus();
+        };
+        recognition.start();
+      }
+
+      refs.voiceButton.addEventListener("click", function () {
+        if (recognition) {
+          stopDictation();
+        } else {
+          startDictation();
+        }
+      });
+    }
+
     /**
      * @param {boolean} busy
      * @param {{stoppable?: boolean}} [options]
@@ -2341,13 +2477,21 @@
       })
         .then(function () {
           // A stream that stops without message_stop means the connection was
-          // cut mid-turn (proxy timeout, worker restart). Say so rather than
-          // leaving a half-written answer looking complete.
+          // cut mid-turn (proxy timeout, worker restart, or the user's own
+          // network dropping). Say so rather than leaving a half-written
+          // answer looking complete. If the browser already knows it's
+          // offline, this is the same situation showError's "unreachable"
+          // branch handles — route it the same way rather than showing a
+          // harder-edged error for what is, from here, indistinguishable.
           if (!sawStop && !sawError && !stopped) {
-            transcript.addError({
-              title: "The response ended unexpectedly. The answer above may be incomplete.",
-              action: retryFor("stream_cut", options),
-            });
+            if (!navigator.onLine) {
+              pauseForNetwork(options);
+            } else {
+              transcript.addError({
+                title: "The response ended unexpectedly. The answer above may be incomplete.",
+                action: retryFor("stream_cut", options),
+              });
+            }
           }
         })
         .catch(function (err) {
@@ -2405,6 +2549,57 @@
       };
     }
 
+    /**
+     * A dropped connection and a dead backend share the same `kind`
+     * ("unreachable") but are not the same situation for the user: one
+     * resolves itself the moment they're back online, the other won't no
+     * matter how many times they retry. `navigator.onLine` going false is the
+     * clear signal; the fetch-level failure message is the fallback for
+     * flaky connections a browser doesn't always notice losing (captive
+     * portals, VPN drops) before reporting itself online again.
+     * @param {any} err
+     */
+    function isLikelyNetworkDrop(err) {
+      if (!navigator.onLine) {
+        return true;
+      }
+      return Boolean(err) && err.kind === "unreachable" && /reach the lifedata copilot/i.test(err.message || "");
+    }
+
+    /**
+     * The calm path for a dropped connection: a muted notice instead of an
+     * error card, and an automatic retry the moment the browser reports it's
+     * back online — the user does not have to notice the reconnect and click
+     * something themselves.
+     * @param {{message?: string, resume?: boolean}} options
+     */
+    function pauseForNetwork(options) {
+      var resumed = false;
+      // Deferred one tick (setTimeout, not a bare call): both triggers below
+      // can fire while this turn's own promise chain is still mid-cleanup
+      // (setBusy(false) hasn't landed yet), and run() no-ops while state.busy
+      // is true. A macrotask always runs after the pending microtask queue
+      // drains, so by the time this fires, cleanup is done and the retry is
+      // actually allowed to start.
+      function retryNow() {
+        if (resumed) {
+          return;
+        }
+        resumed = true;
+        card.remove();
+        window.setTimeout(function () {
+          run(options);
+        }, 0);
+      }
+      var card = transcript.addError({
+        title: "Paused — waiting for network…",
+        detail: "I'll pick this back up as soon as you're reconnected.",
+        variant: "network",
+        action: { label: "Try again now", run: retryNow },
+      });
+      window.addEventListener("online", retryNow, { once: true });
+    }
+
     /** @param {any} err */
     function showError(err, options) {
       var kind = err && err.kind ? err.kind : "server";
@@ -2420,6 +2615,10 @@
             },
           },
         });
+        return;
+      }
+      if (kind === "unreachable" && isLikelyNetworkDrop(err)) {
+        pauseForNetwork(options);
         return;
       }
       transcript.addError({

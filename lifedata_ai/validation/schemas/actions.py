@@ -20,10 +20,10 @@ classes of attack unrepresentable rather than merely detectable:
   understands — `sqlExpression`, `query_mode`, `custom_sql`, `where`, `having`,
   `js_columns`, CSS keys — is rejected by `additionalProperties: false`.
 
-Two allowlists are imported from the semantics registry at module import time
-rather than restated here, because spec §8 requires that interpretation and
-enforcement come from one source and cannot drift: viz types and layout presets.
-If `registry.yaml` gains a viz type, these schemas gain it too, with no code change.
+Two allowlists used to be imported from the semantics registry at module import
+time (spec §8's single-source argument); the semantics registry has been
+removed, so they are plain constants here instead. Adding a viz type or layout
+preset is now a code change to this file, not a `registry.yaml` edit.
 
 Every schema is checked with `Draft202012Validator.check_schema` at import time,
 so a malformed schema fails at Django startup instead of during a user's turn.
@@ -42,38 +42,62 @@ from typing import Any, Final
 
 from jsonschema import Draft202012Validator
 
-from lifedata_ai.semantics.loader import load_registry
-
 JSON_SCHEMA_DIALECT: Final = "https://json-schema.org/draft/2020-12/schema"
 
 
-# --- Registry-derived allowlists -----------------------------------------
+# --- Allowlists (NOT currently enforced — see below) ------------------------
+#
+# Formerly sourced from semantics/registry.yaml (removed). Explicit direction
+# (2026-10-01): no restriction on viz type, colour scheme or layout preset for
+# now — every Superset chart type (including maps), any colour scheme/value,
+# and any layout shape should be available, "to be applied later on". None of
+# these three lists are read by the schema or validator.py any more; they are
+# kept only as (a) VIZ_ALLOWLIST's existing other use in
+# tests_browser/test_viz_renders.py (the set of viz types that test suite has
+# a rendering case for — a genuinely different, narrower purpose than "the
+# allowlist the validator permits"), and (b) a ready-made starting point if
+# limits are reintroduced later — re-wiring them back into the schema/rules
+# below is the way to do that, not recreating the lists from scratch.
 
-_registry = load_registry()
-
-#: Layout preset ids (spec §8). Used only as a hint on `create_dashboard`; the
-#: compiler decides the actual geometry.
-LAYOUT_PRESET_IDS: Final[list[str]] = [p["id"] for p in _registry.layout_presets]
-
-#: Viz types the schema will *parse*. Deliberately wider than the allowlist: it
-#: is the allowlist plus the point-map types forbidden on patient geography.
-#: Reason — if `deck_scatter` were rejected here as "not a known viz type", the
-#: user would never see the geography policy that is the real reason for the
-#: refusal (spec §6.4, Phase 4 acceptance criterion). Letting the known-bad
-#: types through the schema lets `validator.py` refuse them *with the policy
-#: stated*, while still barring viz types nobody has vetted at all.
-KNOWN_VIZ_TYPES: Final[list[str]] = [
-    *_registry.viz_allowlist,
-    *_registry.patient_geography_forbidden_viz,
+#: Layout preset ids this deployment used to restrict `create_dashboard` to.
+#: Not enforced — see above.
+LAYOUT_PRESET_IDS: Final[list[str]] = [
+    "executive_overview",
+    "facility_infrastructure",
 ]
 
-if not _registry.viz_allowlist or not LAYOUT_PRESET_IDS:
-    # An empty `enum` is legal JSON Schema but matches nothing, which would turn
-    # a registry mistake into a baffling "no theme is valid" at request time.
-    raise RuntimeError(
-        "semantics registry is missing viz_allowlist or layout_presets; action "
-        "schemas cannot be built. Check lifedata_ai/semantics/registry.yaml."
-    )
+#: Chart palettes Superset registers on this deployment. Not enforced — see
+#: above; `color_scheme` currently accepts any identifier-shaped string so the
+#: model can apply whatever palette a user asks for.
+COLOR_SCHEMES: Final[list[str]] = [
+    "supersetColors",
+    "d3Category10",
+    "googleCategory10c",
+    "lyftColors",
+    "bnbColors",
+    "echarts4Colors",
+]
+
+#: Viz types this deployment had verified end-to-end (built, rendered via
+#: Playwright, looked at — see tests_browser/test_viz_renders.py, which still
+#: uses this list for that purpose). Not enforced as a restriction — see
+#: above; `viz_type` currently accepts any identifier-shaped string, so an
+#: unverified or new Superset viz type is schema-valid and only fails (loudly,
+#: at save time) if Superset itself does not recognise it.
+VIZ_ALLOWLIST: Final[list[str]] = [
+    "big_number_total",
+    "echarts_timeseries_line",
+    "echarts_timeseries_bar",
+    "pie",
+    "table",
+    "deck_polygon",
+    "box_plot",
+    "funnel",
+    "histogram_v2",
+    "treemap_v2",
+    "waterfall",
+    "sunburst_v2",
+]
 
 
 # --- Primitive building blocks -------------------------------------------
@@ -227,7 +251,12 @@ CHART_PARAMS_SCHEMA: Final[dict[str, Any]] = {
     "required": ["viz_type"],
     "properties": {
         # -- what and where --
-        "viz_type": {"enum": KNOWN_VIZ_TYPES},
+        # No allowlist — see the "Allowlists (NOT currently enforced)" section
+        # above. `_IDENTIFIER`'s pattern is a safety floor, not a policy
+        # restriction: it blocks injection (no spaces/quotes/parens/commas),
+        # not any particular viz type, so every Superset viz type (including
+        # maps) is schema-valid, known or not.
+        "viz_type": _IDENTIFIER,
         "datasource": _DATASOURCE,
         # -- the query --
         "metrics": _METRIC_LIST,
@@ -370,7 +399,10 @@ _CREATE_DASHBOARD: Final[dict[str, Any]] = {
             "maxItems": 20,
             "uniqueItems": True,
         },
-        "layout_preset": {"enum": LAYOUT_PRESET_IDS},
+        # No allowlist — see the "Allowlists (NOT currently enforced)" section
+        # above; the compiler decides the actual geometry regardless, this is
+        # only ever a hint.
+        "layout_preset": _IDENTIFIER,
     },
 }
 

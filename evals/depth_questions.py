@@ -89,8 +89,9 @@ TASKS: list[DepthTask] = [
         "Is there a way to visualize the referral funnel as an actual "
         "funnel chart rather than a table? If not, what would it take?",
         rubric=(
-            "Depth: this deployment's viz_allowlist doctrine (registry.yaml) "
-            "requires building and looking at a chart type before adding it "
+            "Depth: this deployment's viz_allowlist doctrine "
+            "(validation/schemas/actions.py) requires building and looking "
+            "at a chart type before adding it "
             "-- a good answer either finds a viz type already in the "
             "allowlist that renders this reasonably (e.g. a bar chart "
             "ordered by stage) or is honest that a true funnel type isn't "

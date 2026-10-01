@@ -69,7 +69,6 @@ from lifedata_ai.superset_client import SupersetClient
 if TYPE_CHECKING:  # Import-time cycles and app-registry ordering, not runtime needs.
     from lifedata_ai.middleware import SupersetIdentity
     from lifedata_ai.models import Conversation
-    from lifedata_ai.semantics.loader import Registry
 
 
 #: JSON Schema keywords the Anthropic tool API rejects.
@@ -346,24 +345,16 @@ class ToolContext:
         """A Superset MCP client bound to this user's identity (never a service account).
 
         See superset_mcp_client.py's module docstring for how identity is
-        carried (a minted JWT, not the session cookie) and for the one
-        deliberate gap (get_chart_data has no registry-allowlist gate here).
+        carried (a minted JWT, not the session cookie) and for the real,
+        un-mitigated gap (get_chart_data has no privacy gate on this path, nor
+        on the REST path, now that the semantics registry that used to gate
+        the REST path is gone).
         """
         if self._mcp_client is None:
             from lifedata_ai.superset_mcp_client import SupersetMCPClient
 
             self._mcp_client = SupersetMCPClient(username=self.username)
         return self._mcp_client
-
-    def registry(self) -> Registry:
-        """The semantics registry (spec §8).
-
-        Exposed here so the LifeData tools do not each import the loader; it is
-        `lru_cache`d upstream, so repeated calls are free.
-        """
-        from lifedata_ai.semantics.loader import load_registry
-
-        return load_registry()
 
 
 # --- Tool ----------------------------------------------------------------

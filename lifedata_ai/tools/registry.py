@@ -114,13 +114,6 @@ _READ_TOOL_SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "GetPageContextTool",
         ),
     ),
-    (
-        "lifedata_ai.tools.lifedata",
-        (
-            "ExplainIndicatorTool",
-            "RecommendDatasetTool",
-        ),
-    ),
     # `review_dashboard_design` reads a dashboard and returns a verdict; it
     # changes nothing, so it is a read tool despite being about writing.
     ("lifedata_ai.tools.review", ("ReviewDashboardDesignTool",)),

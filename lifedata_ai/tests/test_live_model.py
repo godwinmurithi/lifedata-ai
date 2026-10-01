@@ -120,12 +120,9 @@ def test_the_cache_breakpoints_are_accepted_and_report_a_write(live_client) -> N
     from lifedata_ai.agent.context import PageContext
     from lifedata_ai.agent.loop import _cacheable_tool_specs
     from lifedata_ai.agent.prompts import build_system_blocks
-    from lifedata_ai.semantics.loader import load_registry
     from lifedata_ai.tools import get_registry
 
-    blocks = build_system_blocks(
-        PageContext.from_payload({"page_type": "chart_list"}), load_registry()
-    )
+    blocks = build_system_blocks(PageContext.from_payload({"page_type": "chart_list"}))
 
     response = live_client.messages.create(
         model=settings.LIFEDATA_AI_MODEL,

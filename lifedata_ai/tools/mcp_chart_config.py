@@ -5,9 +5,9 @@ Superset's own form_data vocabulary (metrics, groupby, adhoc_filters). MCP's
 `generate_chart`/`update_chart` tools take a different, typed, chart-type-
 specific `config` object instead (superset/mcp_service/chart/schemas.py:
 XYChartConfig, PieChartConfig, TableChartConfig, BigNumberChartConfig, ...).
-This module is the one-way bridge, covering exactly the 5 viz types
-semantics/registry.yaml's `viz_allowlist` permits -- the only ones this
-system's validator lets the model create in the first place:
+This module is the one-way bridge, covering exactly 5 of the viz types
+validation/schemas/actions.py's `VIZ_ALLOWLIST` permits -- the simplest ones
+this system's validator lets the model create in the first place:
 
     big_number_total, echarts_timeseries_bar, echarts_timeseries_line,
     pie, table

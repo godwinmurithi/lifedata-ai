@@ -88,7 +88,6 @@ from lifedata_ai.agent.events import PANEL_EVENTS
 from lifedata_ai.agent.prompts import build_system_blocks
 from lifedata_ai.middleware import SupersetIdentity
 from lifedata_ai.models import ActionRecord, Clarification, Conversation, Message
-from lifedata_ai.semantics.loader import load_registry
 from lifedata_ai.tools import ToolContext, ToolMode, audit_refusal, execute, get_registry
 
 logger = logging.getLogger(__name__)
@@ -133,8 +132,6 @@ _TOOL_SUMMARIES: dict[str, str] = {
     "get_dashboard": "inspecting dashboard",
     "get_chart_data": "reading aggregate results",
     "get_page_context": "reading page context",
-    "explain_indicator": "looking up the indicator definition",
-    "recommend_dataset": "matching datasets to the goal",
     "review_dashboard_design": "reviewing the dashboard design",
     "ask_user": "asking you a question",
     "list_forms": "listing dynamic forms",
@@ -758,44 +755,8 @@ def _summarise_tool_call(name: str, arguments: dict[str, Any] | None) -> str:
         value = (arguments or {}).get(key)
         if value in (None, ""):
             continue
-        if key in _IDENTIFIER_ARGUMENT_KEYS:
-            label = _label_for_identifier(str(value))
-            return f"{summary} {clean_text(label, 60)}" if label else summary
         return f"{summary} {clean_text(value, 60)}"
     return summary
-
-
-#: Summary arguments that carry a registry IDENTIFIER rather than something a
-#: person wrote. `chart_name` and `dashboard_title` are the user's own words and
-#: belong on screen; `name` is whatever `explain_indicator` was asked about.
-_IDENTIFIER_ARGUMENT_KEYS = frozenset({"name"})
-
-
-def _label_for_identifier(identifier: str) -> str:
-    """The human label for a registry identifier, or nothing at all.
-
-    This line is addressed to the user, so it is bound by the same rule as the
-    model's prose: no raw identifiers in a sentence someone reads. It was
-    breaking that rule — an acceptance run caught
-
-        looking up the indicator definition lab_turnaround_hours
-
-    and it read as a leak by the copilot, which it was not. The panel renders
-    `data.summary`, so this function is the only place it can be fixed.
-
-    Indicators have no label of their own; they are reached through the saved
-    metric that cites them, which does. When nothing resolves, the identifier is
-    DROPPED rather than shown — "looking up the indicator definition" on its own
-    is a slightly vaguer progress line, and a raw identifier is a broken promise.
-    """
-    from lifedata_ai.semantics.loader import load_registry
-
-    registry = load_registry()
-    for dataset in registry.datasets.values():
-        for metric in dataset.metrics:
-            if identifier in (metric.name, getattr(metric, "indicator", None)):
-                return metric.display_label or ""
-    return ""
 
 
 # --- The loop ------------------------------------------------------------
@@ -869,7 +830,7 @@ def run_turn(
     # Read AND write tools. A write tool only ever proposes: it returns a signed
     # envelope that the panel executes with the user's own session (spec §1).
     tool_specs = _cacheable_tool_specs(registry.to_anthropic_specs())
-    system_blocks = build_system_blocks(page_context, load_registry(), identity)
+    system_blocks = build_system_blocks(page_context, identity)
 
     # Built from the database, not from the in-memory blocks: the rows for this
     # turn were written above, so replaying history is the same code path

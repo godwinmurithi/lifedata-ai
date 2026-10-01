@@ -1,9 +1,13 @@
 """Tests for page-context normalisation and system prompt assembly.
 
-The three properties under test are the ones that would fail silently in
-production: the clinical hard rules must actually reach the model, the registry
-must be excerpted rather than dumped whole, and a hostile page context must not
-be able to smuggle instructions into the prompt.
+The properties under test are the ones that would fail silently in production:
+the clinical hard rules must actually reach the model, and a hostile page
+context must not be able to smuggle instructions into the prompt.
+
+This file used to also test the semantics-registry-backed catalogue and
+governed-definitions excerpt (`build_catalogue_block`, `build_semantics_block`)
+— both removed along with the registry. There is no pre-loaded dataset/column/
+metric listing in the prompt any more; see agent/prompts.py's module docstring.
 """
 
 from __future__ import annotations
@@ -15,16 +19,14 @@ from lifedata_ai.agent.prompts import (
     build_system_blocks,
     build_system_prompt,
 )
-from lifedata_ai.semantics.loader import load_registry
 
-#: rpt_lab_orders in the live registry; used to prove the excerpt is scoped.
+#: Arbitrary dataset id used where a test needs one.
 LAB_ORDERS_DATASET_ID = 3
 
 
 def _prompt(raw_page_context: dict | None = None) -> str:
     return build_system_prompt(
         PageContext.from_payload(raw_page_context),
-        load_registry(),
         identity=None,
     )
 
@@ -74,7 +76,6 @@ def test_read_only_capabilities_still_forbid_every_write():
     """
     prompt = build_system_prompt(
         PageContext.from_payload({"page_type": "dashboard", "dashboard_id": 7}),
-        load_registry(),
         identity=None,
         phase_capabilities=PHASE_1_READ_ONLY,
     )
@@ -99,70 +100,28 @@ def test_the_live_prompt_tells_the_model_to_build_rather_than_describe():
     assert "do not ask permission" in prompt
 
 
-# --- Registry excerpt ----------------------------------------------------
+# --- Stable prefix ---------------------------------------------------------
 
 
-def test_the_catalogue_lists_every_dataset_column_and_metric():
-    """The catalogue is complete, and that completeness is the point.
-
-    Before it existed, the model could not legally name a column without calling
-    `list_datasets` then `get_dataset` first — and on the common path the prompt
-    did not even carry the dataset *id*, so every chart cost two round trips
-    before any work started. Each hop was an invitation to describe a chart
-    instead of building one.
-    """
-    registry = load_registry()
-    prompt = _flat(_prompt({"page_type": "chart_list"}))
-
-    for dataset in registry.datasets.values():
-        assert dataset.name in prompt
-        assert f"dataset id {dataset.superset_dataset_id}" in prompt
-        for column in dataset.dimensions():
-            assert column.name in prompt, f"{dataset.name}.{column.name} missing"
-        for metric in dataset.metrics:
-            assert metric.name in prompt, f"{dataset.name}.{metric.name} missing"
-
-
-def test_the_catalogue_is_identical_on_every_page():
+def test_the_stable_prefix_is_identical_on_every_page():
     """Page-independence is what makes the cache breakpoint worth anything.
 
     A single per-request byte anywhere in the stable prefix invalidates it AND
-    the 27 tool schemas that follow — by far the largest stable block in the
-    request. Scoping the catalogue to the current dataset would save a few
-    hundred tokens and cost the cache on every route change.
-    """
-    registry = load_registry()
+    the tool schemas that follow it — by far the largest stable block in the
+    request.
 
-    prefix = build_stable_prefix(registry)
+    Used to also prove the catalogue (semantics-registry-backed, removed) was
+    part of this identical-everywhere prefix; now just the prefix itself.
+    """
+    prefix = build_stable_prefix()
     for page in (
         {"page_type": "chart_list"},
         {"page_type": "explore", "dataset_id": LAB_ORDERS_DATASET_ID},
         {"page_type": "dashboard", "dashboard_id": 7},
     ):
-        blocks = build_system_blocks(PageContext.from_payload(page), registry, identity=None)
+        blocks = build_system_blocks(PageContext.from_payload(page), identity=None)
         assert blocks[0]["text"] == prefix
         assert blocks[0]["cache_control"] == {"type": "ephemeral"}
-
-
-def test_the_default_breakdown_is_declared_so_it_need_not_be_asked():
-    """"By facility" must be deterministic and free, not a question."""
-    prompt = _flat(_prompt({"page_type": "chart_list"}))
-
-    assert "DEFAULT BREAKDOWN: facility_name" in prompt
-
-
-def test_governed_definitions_are_scoped_to_the_page():
-    """The catalogue is complete; the indicator definitions are not.
-
-    Definitions are long and only sometimes relevant, so they stay in the
-    volatile tail scoped to whatever the user is looking at. That split is what
-    keeps the cached prefix identical everywhere.
-    """
-    lab = _flat(_prompt({"page_type": "explore", "dataset_id": LAB_ORDERS_DATASET_ID}))
-    elsewhere = _flat(_prompt({"page_type": "chart_list"}))
-
-    assert "Positive completed malaria tests divided by" in lab
-    assert "Positive completed malaria tests divided by" not in elsewhere
 
 
 # --- Hostile input -------------------------------------------------------

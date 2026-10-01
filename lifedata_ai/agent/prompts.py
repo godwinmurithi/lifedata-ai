@@ -8,7 +8,6 @@ tidy:
     hard rules                           page context (what they are looking at)
     capabilities
     how to work
-    the catalogue          <- §4.5
     how to build           <- §7.3
     what a dashboard is    <- §6.3
     how to choose a chart  <- §6.6
@@ -17,18 +16,14 @@ tidy:
 Everything above the line is byte-identical for every user on every page, which
 is what makes an Anthropic cache breakpoint at the end of it worth anything. The
 prefix costs roughly 2.5k tokens; against cache-read pricing that is a rounding
-error, and it removes one to two `get_dataset` round trips from every build. The
-net token cost is negative.
+error.
 
-**The catalogue is the ease-of-use crux.** Before it existed, the model could not
-legally name a column without calling `list_datasets` then `get_dataset` first —
-and `build_semantics_block` resolved a dataset only from `page_context.dataset_id`,
-so on the common path it did not even emit the dataset *id*. Every chart cost two
-round trips before any work started, and every hop was an invitation to describe
-a chart instead of building one. The catalogue is projected from the same
-`registry.yaml` that `--sync-metadata` projects onto Superset's own dataset
-metadata, so the labels the model reads and the labels Superset renders are one
-source.
+The catalogue section (`build_catalogue_block`) and the governed-definitions
+volatile-tail supplement (`build_semantics_block`) that used to sit here were
+both projected from the LifeData semantics registry, which has been removed.
+The model now has no pre-loaded dataset/column/metric listing and must use
+`list_datasets`/`get_dataset` to discover them, same as any other Superset
+metadata — see `_HOW_TO_BUILD` below for the model-facing wording of that.
 
 `build_system_prompt` returns a string. `build_system_blocks` returns the same
 text split into cache-controllable blocks, which is what `agent/loop.py` sends.
@@ -36,7 +31,6 @@ text split into cache-controllable blocks, which is what `agent/loop.py` sends.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -44,7 +38,6 @@ from lifedata_ai.agent.context import PageContext, clean_text
 
 if TYPE_CHECKING:  # Avoids importing Django/httpx machinery just for type names.
     from lifedata_ai.middleware import SupersetIdentity
-    from lifedata_ai.semantics.loader import Dataset, Registry
 
 
 # --- Capabilities --------------------------------------------------------
@@ -86,8 +79,6 @@ PHASE_1_READ_ONLY = PhaseCapabilities(
         "Inspect Superset metadata: databases, datasets and their columns and saved metrics,"
         " charts and their visualisation type and query definition, dashboards and their charts.",
         "Read the aggregated results behind an existing chart, and explain what they show.",
-        "Explain a governed indicator definition verbatim from the LifeData semantics registry.",
-        "Recommend which dataset suits an analysis goal, and say why.",
         "Explain the chart or dashboard the user is currently looking at, using the page context.",
         "Describe how a chart could be built, precisely enough to be useful.",
     ),
@@ -113,13 +104,10 @@ FULL_CAPABILITIES = PhaseCapabilities(
         "Inspect Superset metadata: databases, datasets and their columns and saved metrics,"
         " charts and their visualisation type and query definition, dashboards and their charts.",
         "Read the aggregated results behind an existing chart, and explain what they show.",
-        "Explain a governed indicator definition verbatim from the LifeData semantics registry.",
-        "Recommend which dataset suits an analysis goal, and say why.",
         "CREATE and UPDATE charts, and create dashboards, using the write tools. When the user"
         " asks for a chart or a dashboard, build it — do not merely describe how one could be"
-        " built. The catalogue below already gives you every dataset id, column and metric you"
-        " need, so build directly; call get_dataset only when the catalogue genuinely does not"
-        " answer the question.",
+        " built. Use list_datasets/get_dataset to find the dataset id, columns and metrics you"
+        " need before building.",
         "Add charts to dashboards, rearrange them (make_full_width, move_after, kpi_row and the"
         " other named layout operations), rename things, and add native dashboard filters.",
         "Set a dashboard's custom CSS (set_dashboard_css) or switch it between the light and"
@@ -215,25 +203,23 @@ _HARD_RULES = """\
    reflect reporting completeness".
 
 10. Do not invent metrics, columns, datasets or figures. If you have not read it from a tool
-    result or the catalogue below, you do not know it. Say what you would need to check
-    and call the appropriate tool."""
+    result, you do not know it. Say what you would need to check and call the appropriate
+    tool."""
 
 _STYLE = """\
 # How to work
 
-- Ground every factual claim about this deployment in a tool call or in the catalogue below.
-  Metadata you were not shown does not exist as far as this answer is concerned.
+- Ground every factual claim about this deployment in a tool call. Metadata you were not
+  shown does not exist as far as this answer is concerned.
 - Prefer calling several independent read tools at once rather than one at a time.
-- Use the governed definitions in the registry verbatim where one exists; do not
-  paraphrase an indicator definition into something looser.
 - Be concise. Lead with the answer, then the interpretation you used, then any caveat that
   changes how the number should be read.
 - Where a figure is materially limited (partial period, unverified orders, suppressed small
   cells), state the limitation in the same breath as the number, not in a footnote.
 
 - SPEAK ENGLISH, NOT SCHEMA. Never put a raw column, table, dataset or metric identifier in
-  a sentence addressed to the user. The catalogue below gives every one of them a label —
-  use it.
+  a sentence addressed to the user. Column and metric labels come from get_dataset — use
+  them.
 
       say "Laboratory orders"            not "rpt_lab_orders"
       say "by facility"                  not "grouped by facility_name"
@@ -261,19 +247,15 @@ built, do not offer to build it, and do not ask permission — authorising chang
 panel's job, not yours. The user sees an Apply button for anything broad; small changes
 apply straight away.
 
-Build with what the catalogue gives you. It carries every dataset id, every column you may
-group by and every metric you may measure, so you do not need to browse datasets before
-starting. Call get_dataset only when the catalogue genuinely does not answer your question.
+Call list_datasets to find the dataset, then get_dataset for its columns and metrics, before
+building. There is no pre-loaded catalogue any more — every dataset, column and metric must
+be discovered through these tools, on every turn that needs one.
 
-The catalogue bounds what you may USE. It does not describe everything this Superset
-holds. Other datasets exist that are deliberately not available to you — usually because
-they hold row-level records about identifiable people, which this copilot does not touch.
-So when you are asked for something the catalogue does not cover, say that it is not
-available to you and, if you can, why. Do NOT say the data does not exist: you are not in
-a position to know that, the user often knows perfectly well that it does, and being told
-otherwise by a system that simply is not allowed to see it destroys their trust in
-everything else you told them. "I don't have access to that here" is honest. "There is no
-such data" is not.
+What you may USE is whatever Superset itself exposes to this user's role; there is no
+separate allow/deny list layered on top. If list_datasets or get_dataset cannot find
+something the user asked for, say plainly that you could not find it in what is visible to
+them, rather than claiming the data does not exist — you are not in a position to know
+that, and the user often knows perfectly well that it does.
 
 When you have built something, say what you built in ONE sentence, including the
 interpretation you used:
@@ -350,15 +332,13 @@ without a plain-English label beside it.
 
 Before building, you must be able to state in ONE sentence all four of: what is measured, how
 it is broken down, over what period, and from which dataset. If one is genuinely undetermined
-by the request AND by the catalogue above, call `ask_user` — once — with the choices.
+by the request AND by what get_dataset returns, call `ask_user` — once — with the choices.
 
 ASK when two or more readings are equally defensible AND would produce materially different
 charts. "By facility" can mean the facility's name or its level. "Patients" can mean people or
 visits. "Recently" can mean 3 months or 12.
 
 DO NOT ASK when:
-  - the catalogue already names a default. A DEFAULT BREAKDOWN is the answer to an unqualified
-    "by facility". Use it and say that you did.
   - a tool can determine it. Never ask which columns or charts exist.
   - the answer does not change what the user sees: colours, legend position, row limit, the
     exact grain when a period is already stated.
@@ -378,200 +358,6 @@ Prefer a stated default over a question. "I'll show unique patients by facility 
 
 Do NOT ask the user to confirm that they want the thing they just asked for. Authorising
 changes is the panel's job, not yours."""
-
-
-# --- The catalogue (§4.5) -------------------------------------------------
-
-
-def build_catalogue_block(registry: Registry) -> str:
-    """Render the whole registry as the model-facing catalogue.
-
-    Page-independent on purpose. It is the same bytes for every user on every
-    page, which is what lets it sit in the cached prefix; scoping it to the
-    current dataset would save a few hundred tokens and invalidate the cache on
-    every route change, which costs far more.
-
-    What it must contain, and why each part earns its tokens:
-
-    * the **dataset id**, so a chart can be built without `list_datasets`;
-    * **column names with labels**, so the model can group correctly and still
-      speak English to the user;
-    * **saved metric names**, which pass into `params.metrics` as bare strings
-      and clear validation unchanged — that is the whole reason three
-      structurally unrepresentable indicators became chartable;
-    * the **default breakdown**, which makes an unqualified "by facility"
-      deterministic and free rather than a question;
-    * the **traps**, because an order is not a result and a screening finding is
-      not a diagnosis, and those distinctions have to survive contact with a
-      hurried request.
-    """
-    lines = [
-        "# What you can chart (the LifeData catalogue — complete; nothing else exists)",
-        "",
-        "Every dataset, column and metric available to you is listed here. You do not need to "
-        "browse datasets before building. A column not listed here cannot be charted, and a "
-        "metric not listed here does not exist.",
-        "",
-        'Each entry gives an identifier and a "Quoted Label". Build with the identifier; '
-        "speak to the user with the label. The heading of each section is the dataset's "
-        "label — use that name, not the rpt_ one, whenever you mention it.",
-    ]
-    for dataset in registry.datasets.values():
-        lines.append("")
-        lines.extend(_catalogue_entry(dataset))
-    return "\n".join(lines)
-
-
-def _catalogue_entry(dataset: Dataset) -> list[str]:
-    lines = [
-        f"## {dataset.display_label}  ·  dataset id {dataset.superset_dataset_id}  "
-        f"·  {dataset.name}"
-    ]
-    if dataset.one_row_is:
-        lines.append(f"one row is {dataset.one_row_is}")
-    if dataset.synonyms:
-        lines.append("use for: " + ", ".join(dataset.synonyms[:12]))
-
-    timing: list[str] = []
-    if dataset.time_column:
-        timing.append(f"time column: {dataset.time_column}")
-    if dataset.default_time_range:
-        timing.append(f"default period: {dataset.default_time_range}")
-    if timing:
-        lines.append("   ·   ".join(timing))
-
-    if dataset.default_dimension:
-        lines.append(
-            f"DEFAULT BREAKDOWN: {dataset.default_dimension}  <- use this for an "
-            f"unqualified \"by {_bare(dataset.default_dimension)}\", and say that you did"
-        )
-
-    dimensions = dataset.dimensions()
-    if dimensions:
-        lines.append("break down by: " + " | ".join(_column_phrase(c) for c in dimensions))
-
-    if dataset.metrics:
-        lines.append("measure with: " + " | ".join(_metric_phrase(m) for m in dataset.metrics))
-
-    never = [c.name for c in dataset.columns if c.role in {"key", "internal"}]
-    if never:
-        lines.append(f"never group by: {', '.join(never)} (internal keys and helpers)")
-
-    if dataset.is_patient_geography:
-        lines.append(
-            "POLICY: patient geography. District is the finest grouping permitted and point, "
-            "scatter and heat maps are refused. A district CHOROPLETH is permitted and is "
-            "usually what someone means by a map: country_map, grouped by district. Or rank "
-            "districts with a bar chart or a table."
-        )
-    if dataset.traps:
-        lines.append(f"traps: {dataset.traps}")
-    return lines
-
-
-def _column_phrase(column: Any) -> str:
-    phrase = f'{column.name} "{column.display_label}"'
-    if column.note:
-        phrase += f" ({column.note})"
-    return phrase
-
-
-def _metric_phrase(metric: Any) -> str:
-    phrase = f'{metric.name} "{metric.display_label}"'
-    if metric.d3format:
-        phrase += f" ({metric.d3format})"
-    return phrase
-
-
-def _bare(column_name: str) -> str:
-    """`facility_name` -> "facility", for reading the default breakdown aloud."""
-    return column_name.removesuffix("_name").removesuffix("_id").replace("_", " ")
-
-
-# --- Registry excerpt (the volatile tail) ---------------------------------
-
-
-def _render_excerpt(excerpt: dict[str, Any]) -> str:
-    """Render `Registry.excerpt_for` output as compact prompt text."""
-    lines: list[str] = []
-    for dataset in excerpt.get("datasets", []):
-        header = f"- dataset {dataset['name']} (grain: {dataset['grain']}"
-        if dataset.get("geography"):
-            header += f", geography: {dataset['geography']}"
-        if dataset.get("sensitivity"):
-            header += f", sensitivity: {dataset['sensitivity']}"
-        lines.append(header + ")")
-        if dataset.get("notes"):
-            lines.append(f"    notes: {dataset['notes']}")
-
-    indicators = excerpt.get("indicators", [])
-    if indicators:
-        lines.append("")
-        lines.append("Governed indicator definitions (use verbatim):")
-        for indicator in indicators:
-            lines.append(
-                f"- {indicator['name']}: {indicator['definition']}"
-                f" [unit: {indicator['unit']}, counts: {indicator['counts']}]"
-            )
-            if indicator.get("caveats"):
-                lines.append(f"    caveats: {indicator['caveats']}")
-    return "\n".join(lines)
-
-
-def resolve_dataset_names(
-    page_context: PageContext,
-    registry: Registry,
-    dataset_hints: Sequence[str] | None = None,
-) -> list[str]:
-    """Which registry datasets are in scope for this turn.
-
-    Only the dataset id is resolvable from page context alone — a chart or
-    dashboard id would need a Superset round-trip, which the prompt assembler
-    must not make. Callers that already know more (a prior tool result naming
-    datasets, say) pass `dataset_hints`.
-    """
-    names: list[str] = []
-    for hint in dataset_hints or ():
-        if hint in registry.datasets and hint not in names:
-            names.append(hint)
-
-    if page_context.dataset_id is not None:
-        dataset = registry.dataset_by_superset_id(page_context.dataset_id)
-        if dataset is not None and dataset.name not in names:
-            names.append(dataset.name)
-    return names
-
-
-def build_semantics_block(
-    page_context: PageContext,
-    registry: Registry,
-    dataset_hints: Sequence[str] | None = None,
-) -> str:
-    """The governed-definition detail for whatever the user is looking at.
-
-    This is now a *supplement* to the catalogue, not a substitute for it. The
-    catalogue in the stable prefix already names every dataset and column; what
-    this adds is the indicator definitions for the dataset in front of the user,
-    which are long and only sometimes relevant.
-
-    It returns an empty string when nothing is identifiable, because the fallback
-    it used to emit — headline information for every dataset — is now strictly
-    less informative than the catalogue above it.
-    """
-    names = resolve_dataset_names(page_context, registry, dataset_hints)
-    if not names:
-        return ""
-
-    return "\n".join(
-        [
-            "# Governed definitions for what the user is looking at",
-            "",
-            "Quote these verbatim rather than paraphrasing them; the wording encodes"
-            " distinctions a paraphrase loses.",
-            "",
-            _render_excerpt(registry.excerpt_for(names)),
-        ]
-    )
 
 
 # --- Identity ------------------------------------------------------------
@@ -607,7 +393,6 @@ def build_identity_block(identity: SupersetIdentity | None) -> str:
 
 
 def build_stable_prefix(
-    registry: Registry,
     *,
     phase_capabilities: PhaseCapabilities = FULL_CAPABILITIES,
 ) -> str:
@@ -625,7 +410,6 @@ def build_stable_prefix(
             _HARD_RULES,
             phase_capabilities.to_prompt_block(),
             _STYLE,
-            build_catalogue_block(registry),
             _HOW_TO_BUILD,
             _DASHBOARD_POLICY,
             _CHART_POLICY,
@@ -636,11 +420,9 @@ def build_stable_prefix(
 
 def build_system_blocks(
     page_context: PageContext,
-    registry: Registry,
     identity: SupersetIdentity | None = None,
     *,
     phase_capabilities: PhaseCapabilities = FULL_CAPABILITIES,
-    dataset_hints: Sequence[str] | None = None,
 ) -> list[dict[str, Any]]:
     """The system prompt as Anthropic content blocks, with a cache breakpoint.
 
@@ -650,10 +432,11 @@ def build_system_blocks(
         [1] identity + page context, which change per request
 
     A cache breakpoint marks the end of a prefix to reuse, so putting it on the
-    *last stable block* caches the role, the hard rules and the catalogue while
-    leaving the volatile tail free to change. `agent/loop.py` puts a second
-    breakpoint on the final tool spec, which is the larger win of the two — 27
-    tool schemas were being re-billed at full price on every round of every turn.
+    *last stable block* caches the role, the hard rules and the capabilities
+    while leaving the volatile tail free to change. `agent/loop.py` puts a
+    second breakpoint on the final tool spec, which is the larger win of the
+    two — 27 tool schemas were being re-billed at full price on every round of
+    every turn.
 
     The module used to document this ordering discipline at length and then hand
     `system=` to the SDK as a plain string, which cannot carry a breakpoint. The
@@ -662,7 +445,6 @@ def build_system_blocks(
     volatile = "\n\n".join(
         section.strip()
         for section in (
-            build_semantics_block(page_context, registry, dataset_hints),
             build_identity_block(identity),
             page_context.to_prompt_block(),
         )
@@ -672,7 +454,7 @@ def build_system_blocks(
     return [
         {
             "type": "text",
-            "text": build_stable_prefix(registry, phase_capabilities=phase_capabilities),
+            "text": build_stable_prefix(phase_capabilities=phase_capabilities),
             "cache_control": {"type": "ephemeral"},
         },
         {"type": "text", "text": volatile},
@@ -681,11 +463,9 @@ def build_system_blocks(
 
 def build_system_prompt(
     page_context: PageContext,
-    registry: Registry,
     identity: SupersetIdentity | None = None,
     *,
     phase_capabilities: PhaseCapabilities = FULL_CAPABILITIES,
-    dataset_hints: Sequence[str] | None = None,
 ) -> str:
     """The whole system prompt as one string.
 
@@ -694,9 +474,7 @@ def build_system_prompt(
     """
     blocks = build_system_blocks(
         page_context,
-        registry,
         identity,
         phase_capabilities=phase_capabilities,
-        dataset_hints=dataset_hints,
     )
     return "\n\n".join(block["text"] for block in blocks if block["text"].strip())

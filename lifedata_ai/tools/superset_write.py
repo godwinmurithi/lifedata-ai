@@ -110,7 +110,7 @@ def _to_superset_form_data(params: dict[str, Any], dataset_id: int) -> dict[str,
 
     _apply_histogram(form)
     _apply_sunburst(form)
-    _apply_country_map(form, dataset_id)
+    _apply_country_map(form)
     # Order matters: this derives form["metric"] from form["metrics"][0] for
     # every viz in _SINGLE_METRIC_VIZ, deck_polygon included -- it must run
     # BEFORE _apply_deck_polygon, which only reshapes that already-derived
@@ -198,7 +198,7 @@ def _apply_sunburst(form: dict[str, Any]) -> None:
     form.pop("x_axis", None)
 
 
-def _apply_country_map(form: dict[str, Any], dataset_id: int) -> None:
+def _apply_country_map(form: dict[str, Any]) -> None:
     """Turn "map it by district" into the three controls a choropleth needs.
 
     The model asks for a map exactly as it asks for a bar chart — a viz type and
@@ -212,26 +212,19 @@ def _apply_country_map(form: dict[str, Any], dataset_id: int) -> None:
       white, which reads as a broken map rather than a failed join;
     * `metric`, singular, handled by `_apply_single_metric_alias` below.
 
-    `district_iso` is `role: map_key` in the registry, so it is not groupable and
-    cannot be a bar chart's axis. Nobody should ever see a chart of "UG-102,
-    UG-113, UG-204" — the code exists to join boundaries and for nothing else,
-    which is why the model never names it and never sees it.
+    This used to resolve the ISO-code column (`role: map_key`) per dataset from
+    the semantics registry (removed). At removal time, no dataset in the
+    registry actually declared a `map_key` column, so `form["entity"]` was
+    never being set by this path anyway — this is the verified current
+    behaviour, not a regression. A dataset that needs this would need its ISO
+    column named here directly, or `entity` set explicitly by the caller.
     """
     if form.get("viz_type") != "country_map":
         return
 
-    from lifedata_ai.semantics.loader import load_registry
-
     form.setdefault("select_country", MAP_COUNTRY)
     form.setdefault("linear_color_scheme", MAP_COLOR_SCHEME)
 
-    dataset = load_registry().dataset_by_superset_id(int(dataset_id))
-    map_key = next(
-        (column.name for column in (dataset.columns if dataset else ()) if column.role == "map_key"),
-        None,
-    )
-    if map_key:
-        form["entity"] = map_key
     # `groupby` would add a second grain to a chart that already has one, and
     # Superset answers that with "Duplicate column/metric labels".
     form.pop("groupby", None)
@@ -270,13 +263,12 @@ def _apply_deck_polygon(form: dict[str, Any], dataset_id: int) -> None:
     if form.get("viz_type") != "deck_polygon":
         return
 
-    from lifedata_ai.semantics.loader import load_registry
-
-    dataset = load_registry().dataset_by_superset_id(int(dataset_id))
-    geometry_column = next(
-        (column.name for column in (dataset.columns if dataset else ()) if column.role == "geometry"),
-        None,
-    )
+    # Formerly a lookup of the dataset's `role: geometry` column in the
+    # semantics registry (removed). Only one dataset ever declared one --
+    # buikwe_subcounties_map (superset_dataset_id 24), geometry_geojson --
+    # so that single mapping is hardcoded here instead. A second
+    # deck_polygon-capable dataset needs a second entry in this dict.
+    geometry_column = {24: "geometry_geojson"}.get(int(dataset_id))
     if not geometry_column:
         # No declared geometry column on this dataset -- leave viz_type as
         # requested and let Superset's own validation refuse it with ITS real
@@ -340,10 +332,11 @@ def _apply_time_range(form: dict[str, Any], dataset_id: int) -> None:
     showing the all-time figure is worse than a blank one: it is wrong in a way
     that looks right, and an executive has no way to tell.
 
-    The column comes from the registry — the chart's own `x_axis` when that is
-    genuinely temporal, otherwise the dataset's declared `time_column`. Without
-    a temporal column there is nothing to filter on and the period is dropped
-    rather than guessed at.
+    The column used to come from the semantics registry — the chart's own
+    `x_axis` when that was declared genuinely temporal, otherwise the dataset's
+    declared `time_column` (see `_temporal_column`'s own docstring: that
+    signal is gone along with the registry, so this never finds a column any
+    more and the period is always dropped rather than guessed at).
 
     The bare `time_range` key is kept alongside. Superset's own UI writes both,
     `_merge_form_data` and the design review read it, and it records what was
@@ -379,24 +372,22 @@ def _apply_time_range(form: dict[str, Any], dataset_id: int) -> None:
 _TEMPORAL_RANGE = "TEMPORAL_RANGE"
 
 
-def _temporal_column(form: dict[str, Any], dataset_id: int) -> str | None:
-    """Which column a period applies to, per the registry.
+def _temporal_column(form: dict[str, Any], dataset_id: int) -> str | None:  # noqa: ARG001
+    """Which column a period applies to. Currently always none.
 
-    The `x_axis` only when it is genuinely temporal: on a categorical bar chart
-    the x_axis is something like `facility_name`, and a period filter against
-    that matches nothing at all.
+    REAL FUNCTIONAL REGRESSION, not a dead-code cleanup like the map helpers
+    above: this used to check whether `x_axis` was declared `role: temporal`
+    on the dataset in the semantics registry (26 such declarations existed
+    across multiple datasets at removal time), and otherwise fall back to the
+    dataset's declared `time_column`. Both signals came from the registry,
+    which is gone, so `time_range` filters no longer get attached to a chart's
+    x_axis automatically -- the model or user must add the adhoc_filter
+    directly, or this needs a replacement signal (Superset's own per-column
+    `is_dttm` flag, read live via GetDatasetTool/the Superset client, would
+    work and doesn't need a registry -- not implemented here, since wiring a
+    live client into this context-free helper is new work, not a removal).
     """
-    from lifedata_ai.semantics.loader import load_registry
-
-    dataset = load_registry().dataset_by_superset_id(int(dataset_id))
-    if dataset is None:
-        return None
-    x_axis = form.get("x_axis")
-    if x_axis:
-        declared = dataset.column(x_axis)
-        if declared is not None and getattr(declared, "role", None) == "temporal":
-            return str(x_axis)
-    return dataset.time_column
+    return None
 
 
 #: Viz types whose query is built from the SINGULAR `metric` control.
@@ -1595,12 +1586,12 @@ def _owner_labels(owners: Any) -> list[str]:
 # facility”" tells them what was actually built, in their own vocabulary.
 
 
-def _describe_query(params: dict[str, Any], registry: Any = None) -> str:
+def _describe_query(params: dict[str, Any]) -> str:
     """What this chart measures, how it is broken down, and over what period."""
     parts: list[str] = []
 
     metrics = params.get("metrics") or []
-    labels = [_metric_label(m, registry) for m in metrics]
+    labels = [_metric_label(m) for m in metrics]
     if labels:
         parts.append(" and ".join(labels[:2]) + ("…" if len(labels) > 2 else ""))
 
@@ -1609,7 +1600,7 @@ def _describe_query(params: dict[str, Any], registry: Any = None) -> str:
     if x_axis and x_axis not in dimensions:
         dimensions.insert(0, x_axis)
     if dimensions:
-        parts.append("by " + ", ".join(_column_label(d, registry) for d in dimensions[:2]))
+        parts.append("by " + ", ".join(_column_label(d) for d in dimensions[:2]))
 
     time_range = params.get("time_range")
     if time_range and time_range.lower() != "no filter":
@@ -1622,17 +1613,15 @@ def _describe_query(params: dict[str, Any], registry: Any = None) -> str:
     return ", ".join(parts)
 
 
-def _metric_label(metric: Any, registry: Any = None) -> str:
+def _metric_label(metric: Any) -> str:
     """A metric's plain-English label, falling back to something readable.
 
-    A bare string is a *saved metric* name. The registry declares a label for
-    every one it projects onto Superset ("Malaria positivity"), which is what an
-    executive should see on the receipt card rather than `malaria_positivity`.
+    A bare string is a *saved metric* name. This used to also check the
+    semantics registry for a declared label ("Malaria positivity" instead of
+    `malaria_positivity`) before falling back to this same underscore-to-space
+    heuristic; the registry is gone, so the heuristic is now the only path.
     """
     if isinstance(metric, str):
-        declared = registry.metric(metric) if registry is not None else None
-        if declared is not None and declared.label:
-            return declared.label
         return metric.replace("_", " ")
     aggregate = metric.get("aggregate", "")
     column = (metric.get("column") or {}).get("column_name", "")
@@ -1643,19 +1632,12 @@ def _metric_label(metric: Any, registry: Any = None) -> str:
     return f"{aggregate.lower()} {column.replace('_', ' ')}".strip()
 
 
-def _column_label(column: str, registry: Any = None) -> str:
-    if registry is not None:
-        declared = registry.column(column)
-        if declared is not None and declared.label:
-            return declared.label.lower()
+def _column_label(column: str) -> str:
     return column.replace("_", " ")
 
 
 def _describe_chart(payload: dict[str, Any]) -> str:
-    from lifedata_ai.semantics.loader import load_registry
-
-    registry = load_registry()
-    query = _describe_query(payload.get("params") or {}, registry)
+    query = _describe_query(payload.get("params") or {})
     name = payload.get("chart_name") or "chart"
     lead = f"{query} → " if query else ""
     return f"{lead}new chart “{name}”"

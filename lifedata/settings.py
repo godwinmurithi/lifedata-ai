@@ -239,8 +239,9 @@ LIFEDATA_AI_USE_MCP_WRITES = _env_bool("LIFEDATA_AI_USE_MCP_WRITES", True)
 #:      approval even with this on -- the plan's one stated exception.
 #: What this flag actually removes when true: the propose-then-click-confirm
 #: step for MCP-executable writes (WriteTool.run() auto-executes instead of
-#: waiting for the panel to POST a confirm), and the registry.yaml dataset
-#: gate as defense-in-depth beyond just cataloguing every dataset (Phase 4).
+#: waiting for the panel to POST a confirm). The semantics registry's own
+#: dataset gate (Phase 4) has since been removed entirely, so there is no
+#: longer a separate registry-based layer for this flag to additionally skip.
 #: It does NOT introduce a service account -- every action still runs under
 #: the calling user's own minted MCP identity, same invariant as always.
 _PRODUCTION_HOST_MARKERS = ("lifedata.lifehealth.app",)

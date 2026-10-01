@@ -23,13 +23,17 @@ etc. have for the exact same underlying operations.
 
 execute_sql specifically is the largest capability this unlocks: raw SQL
 Lab access to any database connection the calling user's Superset role can
-reach -- not scoped by semantics/registry.yaml's dataset allowlist at all,
-which only ever gated dataset/chart-shaped access. This was deliberately
-NOT wired in during the earlier MCP work for exactly this reason. It is
-wired in now because the instruction was explicit and repeated: staging,
-full authorization, the user's own call to make. Recorded here, not to
-relitigate it, but so the next person reading this code knows it was a
-decision, not an oversight -- see AI_NATIVE_STATUS.md for the full context.
+reach -- not scoped by any dataset allowlist at all. The semantics registry
+that used to gate dataset/chart-shaped access elsewhere in this codebase
+never covered this path either way (it only ever gated dataset/chart-shaped
+access, never raw SQL), and has since been removed entirely, so this
+module's lack of a dataset-level gate is no longer an exception to anything
+-- nothing in this codebase has one any more. This was deliberately NOT
+wired in during the earlier MCP work for exactly this reason. It is wired in
+now because the instruction was explicit and repeated: staging, full
+authorization, the user's own call to make. Recorded here, not to relitigate
+it, but so the next person reading this code knows it was a decision, not an
+oversight -- see AI_NATIVE_STATUS.md for the full context.
 """
 
 from __future__ import annotations

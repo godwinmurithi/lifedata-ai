@@ -5,8 +5,8 @@ WHY THIS FILE IS THE IMPORTANT ONE
 Every other test in the suite mocks something big — the SDK, the transport, or
 Superset. This one drives the *real* stack against a *scripted* provider: real
 URL routing, real identity middleware, real agent loop, real Anthropic SDK, real
-tool registry, real semantics registry, real database writes. Only the provider's
-answer is canned.
+tool registry, real database writes. Only the provider's answer (and, in the
+hermetic tests, Superset's own API responses) is canned.
 
 The provider is canned on purpose, not from necessity: the account is funded and
 a live call would succeed. Scripting it keeps the suite deterministic, fast and
@@ -30,7 +30,7 @@ judgement. A green run here says the plumbing is sound, not that Claude would
 pick the right tool.
 
 The tool-result assertions deliberately look for ``rpt_lab_orders`` in data the
-tool fetched for itself — the governed semantics registry in the hermetic tests,
+tool fetched for itself — a mocked Superset response in the hermetic tests,
 and live Superset in the marked ``superset_live`` ones. A tool that silently
 returned an empty payload would still produce a well-formed SSE stream, so
 asserting on real content is what makes this test load-bearing rather than
@@ -48,11 +48,14 @@ import urllib.error
 import urllib.request
 import uuid
 from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
+import respx
 from django.conf import settings
 from django.test import Client, override_settings
 from django.urls import clear_url_caches
@@ -91,9 +94,20 @@ PANEL_PATH = _REPO_ROOT / "lifedata_ai" / "static" / "panel" / "panel.js"
 #: asserted rather than assumed.
 FORBIDDEN_REQUEST_KEYS = ("temperature", "top_p", "top_k", "thinking")
 
-#: A goal whose keywords overlap `rpt_lab_orders`' declared subject areas
-#: (laboratory, turnaround) and nothing else's — see semantics/registry.yaml.
-LAB_GOAL = "laboratory turnaround by facility"
+@contextmanager
+def _superset() -> Iterator[respx.MockRouter]:
+    """respx router bound to whatever Superset URL this environment configures.
+
+    Mirrors tests/test_tools.py's helper of the same name; duplicated rather
+    than imported because this module intentionally stays independent of the
+    unit-test fixtures (see the module docstring: this proves the *real*
+    stack, not a shared mock setup).
+    """
+    with respx.mock(
+        base_url=settings.LIFEDATA_AI_SUPERSET_INTERNAL_URL,
+        assert_all_called=False,
+    ) as router:
+        yield router
 
 
 # --- SSE helpers ---------------------------------------------------------
@@ -222,21 +236,45 @@ def post_chat(
 def test_chat_turn_runs_a_real_tool_and_persists_the_whole_turn(
     client_as_analyst: Client, anthropic_env: MockAnthropicServer
 ) -> None:
-    """One turn, one tool round trip, everything asserted end to end."""
-    answer = (
-        "rpt_lab_orders is the right dataset: one row per laboratory order, "
-        "so an order is not a result."
-    )
+    """One turn, one tool round trip, everything asserted end to end.
+
+    Used to exercise `recommend_dataset`, chosen because it read the semantics
+    registry directly and needed no Superset mock at all. That tool was
+    removed along with the registry; `list_datasets` is the replacement --
+    the simplest still-existing read tool, now exercised against a mocked
+    Superset `/api/v1/dataset/` instead of a local file, which is a more
+    realistic shape for this test to prove anyway (every other read tool
+    needs Superset network access too).
+    """
+    answer = "rpt_lab_orders is a real dataset Superset reports."
     anthropic_env.script(
         tool_use_turn(
-            "recommend_dataset",
-            {"analysis_goal": LAB_GOAL},
-            preamble="Let me check the governed registry.",
+            "list_datasets",
+            {"q": ""},
+            preamble="Let me check what datasets exist.",
         ),
         text_turn(answer),
     )
 
-    status, frames = post_chat(client_as_analyst, "Which dataset should I use for lab turnaround?")
+    with _superset() as router:
+        router.route(method="GET", path="/api/v1/dataset/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "result": [
+                        {
+                            "id": 3,
+                            "table_name": "rpt_lab_orders",
+                            "schema": "reporting",
+                            "kind": "virtual",
+                        }
+                    ]
+                },
+            )
+        )
+        status, frames = post_chat(
+            client_as_analyst, "Which datasets are available for lab turnaround?"
+        )
     assert status == 200
 
     names = event_names(frames)
@@ -250,18 +288,18 @@ def test_chat_turn_runs_a_real_tool_and_persists_the_whole_turn(
 
     # Text arrived on both sides of the tool call, in several deltas.
     assert names.count("text_delta") > 2
-    assert "Let me check the governed registry." in joined_text(frames)
+    assert "Let me check what datasets exist." in joined_text(frames)
     assert answer in joined_text(frames)
 
     tool_use = next(f for f in frames if f.event == "tool_use")
-    assert tool_use.data["name"] == "recommend_dataset"
+    assert tool_use.data["name"] == "list_datasets"
     assert tool_use.data["id"].startswith("toolu_")
-    assert tool_use.data["summary"] == "matching datasets to the goal"
+    assert tool_use.data["summary"] == "browsing datasets"
 
     tool_result = next(f for f in frames if f.event == "tool_result")
     assert tool_result.data == {
         "tool_use_id": tool_use.data["id"],
-        "name": "recommend_dataset",
+        "name": "list_datasets",
         "ok": True,
         "is_error": False,
     }
@@ -274,42 +312,40 @@ def test_chat_turn_runs_a_real_tool_and_persists_the_whole_turn(
     # --- persistence ---------------------------------------------------
     conversation = Conversation.objects.get(pk=conversation_id)
     assert conversation.superset_username == "analyst"
-    assert conversation.title.startswith("Which dataset")
+    assert conversation.title.startswith("Which datasets")
     assert conversation.page_scope["dashboard_id"] == 1
 
     rows = list(conversation.messages.all())
     assert [row.role for row in rows] == ["user", "assistant", "tool", "assistant"]
     assert rows[0].content == [
-        {"type": "text", "text": "Which dataset should I use for lab turnaround?"}
+        {"type": "text", "text": "Which datasets are available for lab turnaround?"}
     ]
     # Raw Anthropic blocks, stored verbatim so the turn can be replayed.
     assert [b["type"] for b in rows[1].content] == ["text", "tool_use"]
-    assert rows[1].content[1]["input"] == {"analysis_goal": LAB_GOAL}
+    assert rows[1].content[1]["input"] == {"q": ""}
     assert rows[1].anthropic_request_id.startswith("req_mock_")
     assert rows[3].content == [{"type": "text", "text": answer}]
 
-    # --- the tool returned REAL data ------------------------------------
+    # --- the tool returned REAL data -------------------------------------
     tool_block = rows[2].content[0]
     assert tool_block["type"] == "tool_result"
     assert tool_block["tool_use_id"] == tool_use.data["id"]
     assert "is_error" not in tool_block
     result = json.loads(tool_block["content"])
-    assert result["matched_on_subject_areas"] is True
+    assert result["count"] == 1
     top = result["datasets"][0]
-    assert top["name"] == "rpt_lab_orders", "the semantics registry was not actually read"
-    assert top["grain"] == "lab_order"
-    assert top["superset_dataset_id"] == 3
-    assert "never treat an order as a result" in " ".join(top["notes"].lower().split())
+    assert top["table_name"] == "rpt_lab_orders", "the mocked Superset response was not actually read"
+    assert top["id"] == 3
 
     # --- audit ----------------------------------------------------------
     logs = list(ToolCallLog.objects.filter(conversation=conversation))
     assert len(logs) == 1
-    assert logs[0].tool_name == "recommend_dataset"
+    assert logs[0].tool_name == "list_datasets"
     assert logs[0].superset_username == "analyst"
     assert logs[0].mode == "read"
     assert logs[0].ok is True
     assert logs[0].error == ""
-    assert logs[0].arguments == {"analysis_goal": LAB_GOAL}
+    assert logs[0].arguments == {"q": ""}
     assert logs[0].duration_ms is not None
 
 
@@ -317,12 +353,35 @@ def test_chat_turn_runs_a_real_tool_and_persists_the_whole_turn(
 def test_request_shape_matches_the_verified_contract(
     client_as_analyst: Client, anthropic_env: MockAnthropicServer
 ) -> None:
-    """Assert what the loop actually sent to the provider, both rounds."""
+    """Assert what the loop actually sent to the provider, both rounds.
+
+    Used to exercise `explain_indicator` (removed along with the semantics
+    registry); `get_dataset` against a mocked Superset is the replacement.
+    """
     anthropic_env.script(
-        tool_use_turn("explain_indicator", {"name": "lab_turnaround_hours"}),
-        text_turn("Hours from order to verification, for verified orders only."),
+        tool_use_turn("get_dataset", {"dataset_id": 3}),
+        text_turn("rpt_lab_orders has an ordered_at column and a count metric."),
     )
-    status, frames = post_chat(client_as_analyst, "Explain lab turnaround hours.")
+    with _superset() as router:
+        router.route(method="GET", path="/api/v1/dataset/3").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "result": {
+                        "id": 3,
+                        "table_name": "rpt_lab_orders",
+                        "schema": "reporting",
+                        "columns": [
+                            {"column_name": "ordered_at", "is_dttm": True, "type": "TIMESTAMP"}
+                        ],
+                        "metrics": [
+                            {"metric_name": "count", "expression": "COUNT(*)"}
+                        ],
+                    }
+                },
+            )
+        )
+        status, frames = post_chat(client_as_analyst, "Explain lab turnaround hours.")
     assert status == 200
     assert "error" not in event_names(frames)
 
@@ -362,9 +421,9 @@ def test_request_shape_matches_the_verified_contract(
     results = second.messages[2]["content"]
     assert [block["type"] for block in results] == ["tool_result"]
     payload = json.loads(results[0]["content"])
-    assert payload["indicator"]["name"] == "lab_turnaround_hours"
-    assert payload["indicator"]["dataset"] == "rpt_lab_orders"
-    assert payload["indicator"]["verbatim"] is True
+    assert payload["table_name"] == "rpt_lab_orders"
+    assert payload["columns"][0]["name"] == "ordered_at"
+    assert payload["metrics"][0]["name"] == "count"
 
     # The system prompt is governed context, not a bare instruction.
     system = system_text(first.body["system"])
@@ -485,12 +544,26 @@ def test_refusal_is_persisted_and_reported(
 def test_a_failing_tool_is_logged_and_returned_to_the_model(
     client_as_analyst: Client, anthropic_env: MockAnthropicServer
 ) -> None:
-    """The model's mistakes are conversational, not fatal — and still audited."""
+    """The model's mistakes are conversational, not fatal — and still audited.
+
+    Used to exercise `explain_indicator` on an unknown indicator name (removed
+    along with the semantics registry); `get_dataset` on a nonexistent dataset
+    id is the replacement failure path.
+    """
     anthropic_env.script(
-        tool_use_turn("explain_indicator", {"name": "made_up_indicator"}),
-        text_turn("There is no governed definition for that."),
+        tool_use_turn("get_dataset", {"dataset_id": 999}),
+        text_turn("There is no dataset with that id."),
     )
-    status, frames = post_chat(client_as_analyst, "Explain made_up_indicator")
+    with _superset() as router:
+        # 200 with an empty result, not a 404: GetDatasetTool's own "not_found"
+        # ToolError fires on a falsy payload (`client.get_dataset` already
+        # unwraps `{"result": ...}`); a real 404 would instead raise
+        # SupersetError before that check ever runs, which is a different
+        # (also real, but not what this test is about) failure path.
+        router.route(method="GET", path="/api/v1/dataset/999").mock(
+            return_value=httpx.Response(200, json={"result": {}})
+        )
+        status, frames = post_chat(client_as_analyst, "Explain dataset 999")
 
     assert status == 200
     assert "error" not in event_names(frames)
@@ -499,18 +572,16 @@ def test_a_failing_tool_is_logged_and_returned_to_the_model(
     assert result_frame.data["is_error"] is True
 
     log = ToolCallLog.objects.get()
-    assert log.tool_name == "explain_indicator"
+    assert log.tool_name == "get_dataset"
     assert log.ok is False
-    assert "made_up_indicator" in log.error
+    assert "999" in log.error
 
-    # The failure was handed back to the model as a correctable tool_result,
-    # complete with the list of keys it should have chosen from.
+    # The failure was handed back to the model as a correctable tool_result.
     tool_message = Conversation.objects.get().messages.all()[2]
     block = tool_message.content[0]
     assert block["is_error"] is True
     payload = json.loads(block["content"])
-    assert payload["error"] == "unknown_indicator"
-    assert "lab_turnaround_hours" in payload["details"]["known_indicators"]
+    assert payload["error"] == "not_found"
 
 
 # --- Live Superset -------------------------------------------------------
@@ -586,11 +657,9 @@ def test_live_turn_reads_real_datasets_from_real_superset(
     assert "rpt_encounters" in names
     assert payload["count"] == len(names) > 0
 
-    # The registry cross-reference is what ties live Superset ids to governed
-    # semantics; if the ids drift, this is where it shows.
-    lab = next(d for d in payload["datasets"] if d["table_name"] == "rpt_lab_orders")
-    assert lab["in_semantics_registry"] is True
-    assert lab["grain"] == "lab_order"
+    # Used to also cross-reference live Superset ids against the semantics
+    # registry's declared grain here; the registry (and this tool's
+    # "in_semantics_registry"/"grain" annotation) has been removed.
 
     log = ToolCallLog.objects.get()
     assert log.tool_name == "list_datasets"

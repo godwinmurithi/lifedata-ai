@@ -16,9 +16,10 @@ from lifedata_ai.validation.schemas.actions import (
     ACTION_SCHEMAS,
     ALLOWED_ACTION_TYPES,
     CHART_PARAMS_SCHEMA,
+    COLOR_SCHEMES,
     JSON_SCHEMA_DIALECT,
-    KNOWN_VIZ_TYPES,
     LAYOUT_PRESET_IDS,
+    VIZ_ALLOWLIST,
     UnknownActionTypeError,
     get_schema,
 )
@@ -27,9 +28,10 @@ __all__ = [
     "ACTION_SCHEMAS",
     "ALLOWED_ACTION_TYPES",
     "CHART_PARAMS_SCHEMA",
+    "COLOR_SCHEMES",
     "JSON_SCHEMA_DIALECT",
-    "KNOWN_VIZ_TYPES",
     "LAYOUT_PRESET_IDS",
+    "VIZ_ALLOWLIST",
     "UnknownActionTypeError",
     "get_schema",
 ]

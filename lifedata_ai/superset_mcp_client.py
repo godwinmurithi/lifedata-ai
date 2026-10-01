@@ -21,10 +21,12 @@ get_chart_data deliberately has NO client-side method here mirroring the REST
 client's `chart_data(query_context)` -- see tools/superset_read.py's
 GetChartDataTool, which now calls this module's `get_chart_data_by_id`
 directly. That tool used to gate reads through the semantics registry
-allowlist before running a chart's stored query; this MCP path does not, per
-the explicit 2026-09-25 instruction to defer that gate to a production pass
-(see AI_NATIVE_STATUS.md). Flagged here because it is the single highest-risk
-line in this file, not because it is hidden.
+allowlist before running a chart's stored query, same as the REST path did;
+the registry has since been removed entirely, so BOTH paths now run a chart's
+stored query ungated -- the asymmetry this comment used to flag between the
+two paths no longer exists, because neither has a gate any more. Flagged here
+because it is a real, known, un-mitigated privacy exposure on a deployment
+holding row-level data, not because it is hidden.
 """
 
 from __future__ import annotations
@@ -176,7 +178,7 @@ class SupersetMCPClient:
             return {}
         return _chart_to_rest(payload, full=True)
 
-    # -- chart data (see module docstring: no registry gate here) ------------
+    # -- chart data (see module docstring: no gate on either read path) ------
 
     def get_chart_data_by_id(self, chart_id: int, row_limit: int) -> dict:
         """MCP's get_chart_data: takes the chart id directly, not a query_context.

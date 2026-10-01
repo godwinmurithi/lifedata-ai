@@ -26,20 +26,13 @@ from typing import Any
 import httpx
 import pytest
 import respx
-import yaml
 from django.conf import settings
 from django.db import connection
 
 from lifedata_ai.middleware import SupersetIdentity
 from lifedata_ai.models import Conversation, ToolCallLog
-from lifedata_ai.semantics.loader import REGISTRY_PATH, load_registry
 from lifedata_ai.tools.base import Tool, ToolContext, ToolError, ToolMode
-from lifedata_ai.tools.lifedata import (
-    ExplainIndicatorTool,
-    GetFormSchemaTool,
-    ListFormsTool,
-    RecommendDatasetTool,
-)
+from lifedata_ai.tools.lifedata import GetFormSchemaTool, ListFormsTool
 from lifedata_ai.tools.registry import ToolRegistry, build_registry, execute
 from lifedata_ai.tools.superset_read import (
     GetChartDataTool,
@@ -65,8 +58,6 @@ EXPECTED_READ_TOOL_NAMES = [
     "get_dashboard",
     "get_chart_data",
     "get_page_context",
-    "explain_indicator",
-    "recommend_dataset",
     "review_dashboard_design",
     "ask_user",
     "list_forms",
@@ -101,8 +92,8 @@ DROPPED_TOOL_NAMES = ["refresh_chart", "apply_dashboard_theme"]
 
 EXPECTED_TOOL_NAMES = EXPECTED_READ_TOOL_NAMES + EXPECTED_WRITE_TOOL_NAMES
 
-#: rpt_lab_orders in semantics/registry.yaml — used wherever a test needs a
-#: dataset the semantics registry actually knows about.
+#: Arbitrary dataset id used wherever a test needs one — rpt_lab_orders, back
+#: when the semantics registry (since removed) declared datasets by name.
 LAB_ORDERS_DATASET_ID = 3
 
 
@@ -149,23 +140,6 @@ def _superset():
         assert_all_called=False,
     ) as router:
         yield router
-
-
-def _raw_registry() -> dict[str, Any]:
-    """registry.yaml parsed straight from disk, bypassing the loader.
-
-    Comparing tool output against this rather than against a copy pasted into
-    the test is what makes governed-definition drift a test failure.
-    """
-    return yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8"))
-
-
-def _raw_indicator(name: str) -> dict[str, Any]:
-    return next(i for i in _raw_registry()["indicators"] if i["name"] == name)
-
-
-def _raw_dataset(name: str) -> dict[str, Any]:
-    return next(d for d in _raw_registry()["datasets"] if d["name"] == name)
 
 
 # --- Dummy tools used to exercise execute()'s guard rails ----------------
@@ -521,7 +495,8 @@ def test_none_arguments_are_treated_as_empty():
 # =========================================================================
 
 
-def test_list_datasets_annotates_registry_membership():
+def test_list_datasets_returns_id_name_schema_and_kind():
+    """Used to also annotate semantics-registry membership/grain; registry removed."""
     with _superset() as router:
         router.route(method="GET", path="/api/v1/dataset/").mock(
             return_value=httpx.Response(
@@ -546,11 +521,11 @@ def test_list_datasets_annotates_registry_membership():
         )
         result = ListDatasetsTool().run(_context(), q="")
 
-    known, unknown = result["datasets"]
-    assert known["in_semantics_registry"] is True
-    assert known["grain"] == "lab_order"
-    assert unknown["in_semantics_registry"] is False
-    assert unknown["grain"] is None
+    first, second = result["datasets"]
+    assert first["id"] == LAB_ORDERS_DATASET_ID
+    assert first["table_name"] == "rpt_lab_orders"
+    assert second["id"] == 999
+    assert second["table_name"] == "scratch_table"
     assert result["count"] == 2
     assert result["truncated"] is False
 
@@ -567,7 +542,7 @@ def test_list_datasets_truncates_long_listings():
     assert result["truncated"] is True
 
 
-def test_get_dataset_summarises_columns_metrics_and_semantics():
+def test_get_dataset_summarises_columns_and_metrics():
     payload = {
         "result": {
             "id": LAB_ORDERS_DATASET_ID,
@@ -616,10 +591,9 @@ def test_get_dataset_summarises_columns_metrics_and_semantics():
     assert [c["name"] for c in result["columns"]] == ["facility_name", "ordered_at"]
     assert result["columns"][1]["is_temporal"] is True
     assert result["metrics"][0]["number_format"] == ",d"
-    # The governed notes travel with the metadata, so the model has the grain in
-    # front of it while it is choosing what to chart.
-    assert result["semantics"]["grain"] == "lab_order"
-    assert "Never treat an order as a result" in result["semantics"]["notes"]
+    # Used to also assert governed notes (grain, traps) travelled with this
+    # payload under a "semantics" key, sourced from the semantics registry.
+    # Removed along with the registry; get_dataset is now Superset metadata only.
 
 
 def test_get_dataset_reports_a_missing_dataset_as_a_tool_error():
@@ -1149,109 +1123,6 @@ def test_get_page_context_falls_back_to_where_the_conversation_started():
 
     assert result["source"] == "conversation_start"
     assert result["page"]["chart_id"] == 11
-
-
-# =========================================================================
-# LifeData tools: governed definitions
-# =========================================================================
-
-
-def test_explain_indicator_returns_the_registry_definition_verbatim():
-    raw = _raw_indicator("malaria_positivity")
-    result = ExplainIndicatorTool().run(_context(), name="malaria_positivity")
-    indicator = result["indicator"]
-
-    assert indicator["definition"] == raw["definition"].strip()
-    assert indicator["numerator"] == raw["numerator"]
-    assert indicator["denominator"] == raw["denominator"]
-    assert indicator["unit"] == raw["unit"] == "percent"
-    # The distinction the registry exists to protect: a test is not a patient.
-    assert indicator["counts"] == raw["counts"] == "tests"
-    assert indicator["caveats"] == raw["caveats"].strip()
-    assert "Counts tests, not patients" in indicator["caveats"]
-    assert indicator["verbatim"] is True
-    assert "do not paraphrase" in result["usage"]
-
-
-def test_explain_indicator_attaches_the_owning_dataset():
-    raw = _raw_dataset("rpt_lab_orders")
-    result = ExplainIndicatorTool().run(_context(), name="malaria_positivity")
-
-    assert result["dataset"]["name"] == "rpt_lab_orders"
-    assert result["dataset"]["superset_dataset_id"] == raw["superset_dataset_id"]
-    assert result["dataset"]["grain"] == raw["grain"]
-
-
-def test_every_registry_indicator_is_explainable():
-    registry = load_registry()
-    tool = ExplainIndicatorTool()
-
-    for name in registry.indicators:
-        payload = tool.run(_context(), name=name)["indicator"]
-        assert payload["definition"], f"{name} has no definition"
-        assert payload["counts"], f"{name} does not say what it counts"
-
-
-def test_explain_indicator_refuses_an_unknown_name_and_invents_nothing():
-    with pytest.raises(ToolError) as exc:
-        ExplainIndicatorTool().run(_context(), name="malaria_prevalence")
-
-    error = exc.value
-    assert error.code == "unknown_indicator"
-    assert "do not invent one" in error.message
-    assert error.details["known_indicators"] == sorted(load_registry().indicators)
-    # A near miss gets a suggestion rather than a fabricated definition.
-    assert "malaria_positivity" in error.details["did_you_mean"]
-
-
-def test_unknown_indicator_reaches_the_model_as_a_structured_error():
-    result = execute(
-        "explain_indicator",
-        {"name": "made_up_indicator"},
-        _context(),
-        registry=build_registry(),
-    )
-
-    assert result.ok is False
-    assert result.content["error"] == "unknown_indicator"
-    assert "known_indicators" in result.content["details"]
-
-
-def test_recommend_dataset_returns_real_ids_and_interpretation_notes():
-    raw = _raw_dataset("rpt_lab_orders")
-    result = RecommendDatasetTool().run(
-        _context(), analysis_goal="laboratory turnaround by facility"
-    )
-
-    assert result["matched_on_subject_areas"] is True
-    top = result["datasets"][0]
-    assert top["name"] == "rpt_lab_orders"
-    assert top["superset_dataset_id"] == raw["superset_dataset_id"]
-    assert top["rank"] == 1
-    assert top["grain"] == "lab_order"
-    # The notes carry the trap; dropping them is how the model starts calling an
-    # order a result.
-    assert "Never treat an order as a result" in top["notes"]
-    assert "turnaround" in top["why"]
-
-
-def test_recommend_dataset_lists_everything_when_nothing_matches():
-    registry = load_registry()
-    result = RecommendDatasetTool().run(_context(), analysis_goal="what happened up north")
-
-    assert result["matched_on_subject_areas"] is False
-    assert len(result["datasets"]) == len(registry.datasets)
-    assert all("no subject-area keyword matched" in ds["why"] for ds in result["datasets"])
-
-
-def test_recommend_dataset_states_the_patient_geography_policy():
-    result = RecommendDatasetTool().run(_context(), analysis_goal="patient catchment geography")
-
-    geography = next(
-        ds for ds in result["datasets"] if ds["name"] == "rpt_patient_geography"
-    )
-    assert "district is the finest permitted grouping" in geography["geography_policy"]
-    assert geography["small_cell_threshold"] == 5
 
 
 # =========================================================================
