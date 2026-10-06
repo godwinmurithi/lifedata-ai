@@ -10,6 +10,8 @@ def configuration_chart_ids(configuration):
     for key in ('source_chart_id', 'facility_chart_id', 'boundary_chart_id',
                 'network_chart_id', 'summary_chart_id'):
         add(configuration.get(key))
+    for source in configuration.get('administrative_boundaries', []):
+        add(source.get('chart_id'))
     workspace = configuration.get('workspace') or {}
     for key in ('summary_chart_ids', 'detail_chart_ids'):
         for identifier in workspace.get(key, []):
@@ -25,7 +27,13 @@ def publication_charts(client, publication):
     if publication.superset_dashboard_id is not None:
         if not client.get_dashboard(publication.superset_dashboard_id):
             raise SupersetError('Dashboard not found.', status_code=404)
-        return client.get_dashboard_charts(publication.superset_dashboard_id)
+        charts = client.get_dashboard_charts(publication.superset_dashboard_id)
+        members = {c['id'] for c in charts}
+        for source in publication.configuration.get('administrative_boundaries', []):
+            if source['chart_id'] not in members:
+                charts.append(client.get_chart(source['chart_id']))
+                members.add(source['chart_id'])
+        return charts
     # Never infer membership from a requested chart ID. Saved references are the
     # allow-list; every read still authorises sources using the viewer's cookie.
     ids = [item['chart_id'] for item in publication.layout]

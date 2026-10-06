@@ -7,6 +7,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from lifedata_ai.models import DashboardPublication
 from lifedata_ai.publication_sources import publication_charts
+from lifedata_ai.administrative import hierarchy, enrich_administrative, filter_geography
+from lifedata_ai.geography import workspace_geography, name_key
 from lifedata_ai.tools.base import ToolError
 from lifedata_ai.tools.superset_read import _parse_json_field, _prepare_query_context
 from lifedata_ai.superset_client import SupersetError
@@ -47,27 +49,45 @@ def data(request, pk):
         if len(prepared['queries']) != 1 or prepared['queries'][0].get('metrics') or prepared['queries'][0].get('post_processing'):
             raise ToolError('The workspace requires a raw record source chart.', code='invalid_source')
         settings = config['workspace']
-        fields = list(filter(None, dict.fromkeys([*settings['selectors'], settings['site_field'], settings['country_field'],
+        levels = hierarchy(config)
+        administrative_fields = [l['field'] for l in levels]
+        fields = list(filter(None, dict.fromkeys([*administrative_fields, *settings['selectors'], settings['site_field'], settings['country_field'],
             *settings['record_columns'], *[t['field'] for p in settings['panels'] for t in p['tabs']],
             *[step['field'] for step in settings['workflow']],
             *[t.get('measure') for p in settings['panels'] for t in p['tabs']]])))
         dataset = client.get_dataset(prepared['datasource']['id'])
         available = {c['column_name'] for c in dataset.get('columns', [])}
-        if not set(fields).issubset(available):
+        if not (set(fields) - set(administrative_fields)).issubset(available):
             raise ToolError('Workspace fields must exist in the current client dataset.', code='invalid_source')
-        query = copy.deepcopy(prepared['queries'][0]);query['columns'] = fields;query['metrics'] = [];query['row_limit'] = 10000
+        query = copy.deepcopy(prepared['queries'][0]);query['columns'] = [f for f in fields if f in available];query['metrics'] = [];query['row_limit'] = 10000
         prepared['queries'] = [query]
         payload = client.chart_data(prepared)
         result = (payload.get('result') or [{}])[0]
         if result.get('error'):
             raise ToolError('Superset could not run the workspace source.', code='query_failed')
         rows = result.get('data') or []
+        members = {int(c['id']) for c in charts}
+        geography = workspace_geography(client, config, members, rows, {}) if config.get('facility_chart_id') or config.get('boundary_chart_id') else None
+        geography, levels = enrich_administrative(client, config, members, rows, geography)
         body = json.loads(request.body or '{}') if request.method == 'POST' else {}
         criteria = body.get('criteria', {})
         if not isinstance(criteria, dict) or set(criteria) - set(fields) or any(not isinstance(v,list) or any(not isinstance(x,str) for x in v) for v in criteria.values()):
             raise ToolError('Invalid workspace selection.', code='invalid_criteria')
-        selected = [r for r in rows if all(set(values(r.get(f))) & set(v) for f,v in criteria.items() if v)]
+        def matches(record, field, chosen):
+            actual = values(record.get(field))
+            if field in administrative_fields:
+                return bool({name_key(v) for v in actual if v} & {name_key(v) for v in chosen})
+            return bool(set(actual) & set(chosen))
+        selected = [r for r in rows if all(matches(r, f, v) for f,v in criteria.items() if v)]
         options = {f: sorted({v for r in rows for v in values(r.get(f)) if v is not None}) for f in fields}
+        # Descendants list only values in the selected parent areas; ordinary
+        # selectors retain their original full-cohort option lists.
+        parents = []
+        for level in levels:
+            field = level['field']
+            parent_rows = [r for r in rows if all(not criteria.get(p) or matches(r, p, criteria[p]) for p in parents)]
+            options[field] = sorted({v for r in parent_rows for v in values(r.get(field)) if v is not None})
+            parents.append(field)
         breakdowns = {}
         for field in fields:
             counts = Counter(v for r in selected for v in values(r.get(field)))
@@ -96,9 +116,8 @@ def data(request, pk):
         for step in settings['workflow']:
             cohort = [r for r in cohort if step['value'] in values(r.get(step['field']))]
             stages.append({'label': step['label'], 'count': len(cohort)})
-        from lifedata_ai.geography import workspace_geography
-        geography = workspace_geography(client, config, {int(c['id']) for c in charts}, selected, criteria) if config.get('facility_chart_id') or config.get('boundary_chart_id') else None
-        return JsonResponse({'geography': geography, 'rows': selected, 'total': len(rows), 'matches': len(selected),
+        geography = filter_geography(geography, settings, selected, criteria, levels)
+        return JsonResponse({'admin_hierarchy': levels, 'geography': geography, 'rows': selected, 'total': len(rows), 'matches': len(selected),
             'sites': len({r.get(settings['site_field']) for r in selected if r.get(settings['site_field'])}),
             'countries': len({r.get(settings['country_field']) for r in selected if r.get(settings['country_field'])}),
             'options': options, 'breakdowns': breakdowns, 'series': series, 'stages': stages,

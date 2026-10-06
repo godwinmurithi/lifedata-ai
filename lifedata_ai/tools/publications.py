@@ -6,6 +6,7 @@ from typing import Any
 
 from lifedata_ai.dashboard_design import DESIGN_SCHEMA, validate_design
 from lifedata_ai.workspace import WORKSPACE_SCHEMA, validate_workspace
+from lifedata_ai.administrative import ADMINISTRATIVE_SCHEMA
 from lifedata_ai.models import DashboardPublication
 from lifedata_ai.tools.base import Tool, ToolContext, ToolError, ToolMode
 
@@ -122,6 +123,10 @@ class PublishDashboardTool(Tool):
         'Discover existing geographic datasets and create/reuse current-client raw reference charts; '
         'both references must be accessible and included in this publication. County outlines are dissolved from subcounty polygons. '
         'Facility colors and sizes reuse the established level-and-bed classification. '
+        'Use discover_administrative_boundaries to locate geographic sources even when the primary dataset has no admin fields. '
+        'Optional administrative_boundaries lists chart_id, geometry_field and levels ordered largest to smallest '
+        '(each field, source_field, label). GeoJSON polygons must use WGS84 longitude/latitude. '
+        'The UI spatially joins real facility coordinates, provides cascading filters, and fills chart space automatically. '
         'Optionally supply layout to match a screenshot: ordered chart_id, span (4/6/12) '
         'and height in pixels for EVERY source chart. Omit layout to preserve manual edits. '
         'For a facility executive dashboard with map and shared PCN, hub, ownership and '
@@ -149,6 +154,7 @@ class PublishDashboardTool(Tool):
                 'properties': {'preset': {'enum': ['facility-network', 'population-discovery', 'buikwe-workspace']},
                     'source_chart_id': {'type': 'integer', 'minimum': 1},
                     'workspace': WORKSPACE_SCHEMA,
+                    'administrative_boundaries': ADMINISTRATIVE_SCHEMA,
                     'network_chart_id': {'type': 'integer', 'minimum': 1},
                     'boundary_chart_id': {'type': 'integer', 'minimum': 1},
                     'facility_chart_id': {'type': 'integer', 'minimum': 1},
@@ -189,10 +195,19 @@ class PublishDashboardTool(Tool):
                 raise ToolError('Cannot change the publication source dashboard.', code='invalid_configuration')
             dashboard_id = existing.superset_dashboard_id
         if dashboard_id is not None:
+            if not existing:
+                existing = DashboardPublication.objects.filter(
+                    superset_dashboard_id=dashboard_id, owner_username=context.identity.username).first()
             dashboard = client.get_dashboard(dashboard_id)
             if not dashboard:
                 raise ToolError('No accessible source dashboard exists.', code='not_found')
             charts = client.get_dashboard_charts(dashboard_id)
+            effective_config = configuration if configuration is not None else (existing.configuration if existing else {})
+            members = {c['id'] for c in charts}
+            for source in effective_config.get('administrative_boundaries', []):
+                if source['chart_id'] not in members:
+                    charts.append(client.get_chart(source['chart_id']))
+                    members.add(source['chart_id'])
             missing = layout_chart_ids(dashboard) - {int(chart['id']) for chart in charts}
             if missing:
                 raise ToolError('The Superset layout references charts missing from its chart membership.',
@@ -231,7 +246,7 @@ class PublishDashboardTool(Tool):
             preset = configuration.get('preset')
             sources = ('source_chart_id',) if preset == 'buikwe-workspace' else ('source_chart_id', 'network_chart_id') if preset == 'facility-network' else (
                 'source_chart_id', 'boundary_chart_id', 'facility_chart_id')
-            optional = {'workspace', 'boundary_chart_id', 'facility_chart_id', 'region_label', 'map_bounds'} if preset == 'buikwe-workspace' else {'region_label', 'map_bounds'} if preset == 'facility-network' else {
+            optional = {'workspace', 'boundary_chart_id', 'facility_chart_id', 'administrative_boundaries', 'region_label', 'map_bounds'} if preset == 'buikwe-workspace' else {'region_label', 'map_bounds'} if preset == 'facility-network' else {
                 'region_label', 'map_bounds', 'default_facility', 'native_dashboard_ids', 'summary_chart_id'}
             if (preset not in {'facility-network', 'population-discovery', 'buikwe-workspace'}
                     or not {'preset', *sources}.issubset(configuration)
@@ -245,6 +260,18 @@ class PublishDashboardTool(Tool):
                     if key in configuration and (type(configuration[key]) is not int or configuration[key] not in source_order):
                         raise ToolError('Geographic sources must be charts in this dashboard.', code='invalid_configuration')
                 validate_workspace(configuration.get('workspace'), set(source_order))
+                if 'administrative_boundaries' in configuration:
+                    import jsonschema
+                    try:
+                        jsonschema.validate(configuration['administrative_boundaries'], ADMINISTRATIVE_SCHEMA)
+                    except jsonschema.ValidationError as exc:
+                        raise ToolError('Invalid administrative boundary mapping: ' + exc.message, code='invalid_configuration') from exc
+                    for source in configuration['administrative_boundaries']:
+                        if source['chart_id'] not in source_order:
+                            raise ToolError('Administrative references must be accessible publication sources.', code='invalid_configuration')
+                        fields = [l['field'] for l in source['levels']]
+                        if len(fields) != len(set(fields)):
+                            raise ToolError('Administrative hierarchy fields must be distinct and ordered largest to smallest.', code='invalid_configuration')
             if 'native_dashboard_ids' in configuration:
                 ids = configuration['native_dashboard_ids']
                 if not isinstance(ids, list) or len(ids) != 4 or any(type(i) is not int or i < 1 for i in ids):

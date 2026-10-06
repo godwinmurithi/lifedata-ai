@@ -405,6 +405,29 @@ panel, lower sequential flow and authorized detail table. Country polygons show
 country coverage when site coordinates are absent; never invent site locations.
 When requested, display one point per site at its country boundary centroid and
 explicitly label these as country-centroid placements, not actual site coordinates.
+Chart positions fill automatically for any number of workspace panels. Do not invent
+extra variables, duplicate cards or filler charts to occupy empty benchmark slots.
+Preserve chart identity and subject grouping; the renderer expands available cards
+and keeps the central map, metrics and detail table in the established design.
+
+For administrative filters, call discover_administrative_boundaries with the CURRENT
+country or region even if the primary dataset has no geographic name columns.
+Inspect geographic samples: an admin dataset may belong to a different country.
+Reuse an accessible raw reference chart or create one from the correct source. Native
+geometry must be transformed to WGS84 and exposed as geometry_geojson; preserve the
+reference's authorised scope and real parent-name columns. Provide publish_dashboard
+administrative_boundaries: each entry has chart_id, geometry_field, and levels ordered
+LARGEST TO SMALLEST, each with field, source_field and label. For example region ->
+district -> county -> subcounty -> parish/ward, using ONLY levels present in that
+country's actual reference. Ward and parish are not universally interchangeable.
+The adapter assigns names using actual facility coordinates (or unambiguous existing
+names), adds geographic filters even when fields are absent from the primary source,
+and restricts descendant options to chosen parent areas. Parent changes clear smaller
+area selections. Never invent missing counties/wards or substitute another country's
+boundaries. Report unmatched coordinates, ambiguous borders and incomplete reference
+coverage. Keep custom-only publishing: geographic references are data sources, not a
+reason to create a Superset dashboard.
+
 Workspace maps support facility_chart_id and boundary_chart_id as separate raw
 geographic references, plus region_label. Discover EXISTING current-client datasets
 with facility coordinates and administrative geometry; inspect actual column names

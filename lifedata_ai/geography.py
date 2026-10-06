@@ -6,8 +6,8 @@ from collections import defaultdict
 from lifedata_ai.tools.base import ToolError
 from lifedata_ai.tools.superset_read import _parse_json_field, _prepare_query_context
 
-FACILITY_COLUMNS = ('facility_name', 'name_facility', 'name', 'lat', 'latitude', 'lng', 'lon', 'longitude',
-                    'facility_level', 'hf_level', 'level', 'beds', 'no_beds', 'district', 'county', 'subcounty')
+FACILITY_COLUMNS = ('facility_name', 'name_facility', 'name_of_he', 'name', 'lat', 'latitude', 'lng', 'lon', 'longitude',
+                    'facility_level', 'hf_level', 'level_of_h', 'level', 'beds', 'no_beds', 'how_many_b', 'x', 'y', 'district', 'county', 'subcounty', 'ward', 'parish', 'village')
 BOUNDARY_COLUMNS = ('district', 'county', 'subcounty', 'geometry_geojson', 'geometry', 'geojson')
 
 
@@ -29,7 +29,7 @@ def number(value):
         return None
 
 
-def source_rows(client, chart_id, members, columns):
+def source_rows(client, chart_id, members, columns, require_all=False):
     if type(chart_id) is not int or chart_id not in members:
         raise ToolError('Geographic sources must belong to this dashboard.', code='forbidden')
     chart = client.get_chart(chart_id)
@@ -39,7 +39,9 @@ def source_rows(client, chart_id, members, columns):
         raise ToolError('Geographic reference charts must contain raw records.', code='invalid_source')
     dataset = client.get_dataset(prepared['datasource']['id'])
     available = {c['column_name'] for c in dataset.get('columns', [])}
-    projection = [c for c in columns if c in available]
+    if require_all and not set(columns).issubset(available):
+        raise ToolError('Administrative source fields must exist in its permitted dataset.', code='invalid_source')
+    projection = list(dict.fromkeys(c for c in columns if c in available))
     if not projection:
         raise ToolError('The geographic source has no usable map fields.', code='invalid_source')
     query = prepared['queries'][0]
@@ -62,9 +64,9 @@ def workspace_geography(client, config, members, selected_rows, criteria):
         truncated |= capped
         seen, invalid_points = set(), 0
         for row in raw:
-            name = first(row, 'facility_name', 'name_facility', 'name')
-            lat = number(first(row, 'lat', 'latitude'))
-            lng = number(first(row, 'lng', 'lon', 'longitude'))
+            name = first(row, 'facility_name', 'name_facility', 'name_of_he', 'name')
+            lat = number(first(row, 'lat', 'latitude', 'y'))
+            lng = number(first(row, 'lng', 'lon', 'longitude', 'x'))
             if not name or lat is None or lng is None or abs(lat) > 90 or abs(lng) > 180:
                 invalid_points += 1
                 continue
@@ -72,9 +74,9 @@ def workspace_geography(client, config, members, selected_rows, criteria):
             if key in seen:
                 continue
             seen.add(key)
-            beds = number(first(row, 'beds', 'no_beds'))
+            beds = number(first(row, 'beds', 'no_beds', 'how_many_b'))
             facilities.append({'facility_name': str(name), 'lat': lat, 'lng': lng,
-                'facility_level': first(row, 'facility_level', 'hf_level', 'level'),
+                'facility_level': first(row, 'facility_level', 'hf_level', 'level_of_h', 'level'),
                 'beds': beds if beds is not None and beds >= 0 else None,
                 **{k: row.get(k) for k in ('district', 'county', 'subcounty')}})
         if invalid_points:

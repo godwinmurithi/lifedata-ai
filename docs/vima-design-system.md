@@ -186,3 +186,12 @@ limits explicitly. Geographic reference queries preserve their saved filters.
 Vima publishes new dashboards directly to the custom UI. It does not create a Superset dashboard or a second native layout unless the user explicitly requests Superset or both destinations. Superset remains the permission-scoped data engine. Reuse existing raw record/geographic charts where suitable; otherwise create only the minimal reusable sources. The workspace derives all chart panels, metrics and tab groups from those sources rather than saving one native chart per variable.
 
 Call `publish_dashboard` with `title`, `theme` and workspace `configuration`, omitting `dashboard_id`. The returned `publication_id` addresses later updates and `edit_dashboard_chart_style` calls. Source chart permissions are rechecked for each viewer. `dashboard_id` remains supported for importing existing native dashboards. Existing publications are retained; this change does not delete previously created native dashboards.
+
+
+### Automatic layout and administrative hierarchy
+
+Workspace panels automatically fill the two sides of the central map. Fewer chart groups expand to occupy available space; an odd final group spans both side columns. All eleven groups preserve benchmark reading order. Cards are never fabricated to fill gaps, and field/chart styling identities stay stable. The same layout adapts to small screens.
+
+`discover_administrative_boundaries(region)` searches the caller's accessible datasets and returns administrative fields, geometry fields and geographic samples. Confirm country coverage before selecting a reference. Workspace configuration accepts `administrative_boundaries`, each with `chart_id`, `geometry_field`, and `levels` ordered largest to smallest. Each level defines `field` (the dashboard name), `source_field` (the actual reference column), and `label`. Geometries must be WGS84 GeoJSON polygons.
+
+The data adapter joins permitted polygons to actual facility coordinates, adding geographic fields without modifying the primary dataset. Cascading filters use the selected parent cohort; parent changes clear descendant selections. Source names are authoritative, ambiguous borders and missing coordinates stay unassigned, and placeholder area names are treated as missing. Map layers are independently switchable by hierarchy level, preserving level colours and bed-based facility marker sizes. Reference limits and unmatched locations are reported.
