@@ -398,7 +398,7 @@ class DashboardPublication(models.Model):
     """A custom dashboard page backed by live Superset charts."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    superset_dashboard_id = models.PositiveIntegerField(db_index=True)
+    superset_dashboard_id = models.PositiveIntegerField(db_index=True, null=True, blank=True)
     owner_username = models.CharField(max_length=255, db_index=True)
     title = models.CharField(max_length=255)
     theme = models.CharField(max_length=16, default='light')

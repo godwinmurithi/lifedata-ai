@@ -269,3 +269,69 @@ def test_numeric_workspace_tabs_have_independent_style_targets(monkeypatch):
     publication.refresh_from_db()
     assert publication.configuration['design']['chart_styles']['field:level:clinicians:sum'] == {'color': '#16a34a'}
     assert publication.configuration['design']['chart_styles']['field:level:lab_staff:sum'] == {'color': '#2563eb'}
+
+
+def standalone_context():
+    client = Mock()
+    client.get_chart.side_effect = lambda identifier: {'id': identifier, 'slice_name': f'Source {identifier}', 'viz_type': 'table',
+        'params': {'query_mode': 'raw'}, 'query_context': {'datasource': {'id': 210, 'type': 'table'},
+        'queries': [{'columns': ['site', 'country', 'ready'], 'metrics': [], 'row_limit': 10000}]}}
+    client.get_dataset.return_value = {'columns': [{'column_name': c} for c in ['site', 'country', 'ready']]}
+    client.chart_data.return_value = {'result': [{'data': [{'site': 'A', 'country': 'Uganda', 'ready': 'yes'}]}]}
+    context = ToolContext(superset_session_cookie='dummy', identity=SupersetIdentity(username='ana'))
+    context._client = client
+    config = {'preset': 'buikwe-workspace', 'source_chart_id': 12, 'workspace': {
+        'selectors': ['country'], 'site_field': 'site', 'country_field': 'country',
+        'record_columns': ['site', 'country'], 'panels': [{'slot': 'blood', 'title': 'Readiness',
+        'tabs': [{'field': 'ready', 'label': 'Ready'}]}], 'workflow': []}}
+    return context, client, config
+
+
+def test_custom_only_publisher_never_requires_or_creates_a_native_dashboard(monkeypatch):
+    from lifedata_ai.tools.publications import EditDashboardChartStyleTool
+    from lifedata_ai.views import workspace
+    context, client, config = standalone_context()
+    result = PublishDashboardTool().run(context, title='Custom only', theme='light', configuration=config)
+    publication = DashboardPublication.objects.get(pk=result['publication_id'])
+    assert publication.superset_dashboard_id is None
+    assert publication.layout == [{'chart_id': 12, 'span': 6, 'height': 320}]
+    monkeypatch.setattr(dashboards, '_client', lambda request: client)
+    monkeypatch.setattr(workspace, '_client', lambda request: client)
+    assert dashboards.detail(make_request(), publication.id).status_code == 200
+    assert json.loads(dashboards.library(make_request()).content)['items'][0]['dashboard_id'] is None
+    response = workspace.data(make_request(), publication.id)
+    assert json.loads(response.content)['matches'] == 1
+    assert dashboards.chart_data(make_request(), publication.id, 12).status_code == 200
+    assert dashboards.chart_data(make_request(), publication.id, 999).status_code == 404
+    EditDashboardChartStyleTool().run(context, publication_id=result['publication_id'], target='gauge', style={'color': '#16a34a'})
+    publication.refresh_from_db()
+    assert publication.configuration['design']['chart_styles']['gauge']['color'] == '#16a34a'
+    updated = PublishDashboardTool().run(context, publication_id=result['publication_id'], title='Renamed', theme='dark')
+    assert updated['publication_id'] == result['publication_id']
+    assert DashboardPublication.objects.count() == 1
+    publication.refresh_from_db()
+    assert publication.configuration['design']['chart_styles']['gauge']['color'] == '#16a34a'
+    client.get_dashboard.assert_not_called()
+    client.get_dashboard_charts.assert_not_called()
+    client._request.assert_not_called()
+
+
+def test_custom_only_publications_are_distinct_and_preserve_viewer_permissions(monkeypatch):
+    context, client, config = standalone_context()
+    first = PublishDashboardTool().run(context, title='First', theme='light', configuration=config)
+    second = PublishDashboardTool().run(context, title='Second', theme='light', configuration=config)
+    assert first['publication_id'] != second['publication_id']
+    assert DashboardPublication.objects.count() == 2
+    other = ToolContext(superset_session_cookie='dummy', identity=SupersetIdentity(username='someone_else'))
+    other._client = client
+    from lifedata_ai.tools.base import ToolError
+    with pytest.raises(ToolError):
+        PublishDashboardTool().run(other, publication_id=first['publication_id'], title='Hijack', theme='light')
+    client.get_chart.side_effect = SupersetError('Access denied', status_code=403)
+    monkeypatch.setattr(dashboards, '_client', lambda request: client)
+    assert dashboards.detail(make_request(), first['publication_id']).status_code == 403
+    assert dashboards.chart_data(make_request(), first['publication_id'], 12).status_code == 403
+    assert json.loads(dashboards.library(make_request()).content)['items'] == []
+    with pytest.raises(SupersetError):
+        PublishDashboardTool().run(context, title='Forbidden', theme='light', configuration=config)
+    assert DashboardPublication.objects.count() == 2

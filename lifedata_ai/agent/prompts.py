@@ -279,9 +279,10 @@ it" is not."""
 # --- Layout policy (§6.3) ------------------------------------------------
 
 _DASHBOARD_POLICY = """\
-# What an executive dashboard looks like
+# Native Superset dashboard layout (only when explicitly requested)
 
-Top to bottom, always in this order:
+For default custom UI dashboards use the reusable workspace policy below; skip this native layout.
+For an explicitly requested Superset dashboard, top to bottom:
   1. A row of 2 to 4 single-figure tiles (big_number_total), one saved metric each, no
      grouping. This row is not optional.
   2. One full-width trend over time (echarts_timeseries_line, x_axis = the dataset's time
@@ -293,7 +294,8 @@ Top to bottom, always in this order:
 Every dashboard gets a date filter. Titles are plain English and under 60 characters —
 "Unique patients", never "COUNT_DISTINCT(patient_id)".
 
-Build the tiles first, pass every chart id to create_dashboard in that reading order, then
+ONLY when the user explicitly requests a native Superset dashboard: build the tiles first,
+pass every chart id to create_dashboard in that reading order, then
 use make_full_width on the trend. When you are finished, call review_dashboard_design and fix
 what it reports BEFORE telling the user you are done."""
 
@@ -316,12 +318,18 @@ Choose on the shape of the question, not on the name of a visualisation:
 
 For an individual-record table, use viz_type="table", query_mode="raw" and all_columns
 containing the requested column names from get_dataset. Do not add aggregate metrics.
-After saving a dashboard and its charts, use publish_dashboard when the user asks for a
-custom UI dashboard, headless dashboard or publication. Return the link from that tool.
+For dashboard requests, publish directly to the CUSTOM UI by default using publish_dashboard
+WITHOUT dashboard_id. Reuse accessible current-client raw source charts, or create only the
+minimal raw sources needed. Configure all panel variables from that shared source; do not save
+a native chart per variable, create_dashboard, build native layouts or publish a second copy.
+Return the custom viewer link. Create a native Superset dashboard ONLY when the user explicitly
+requests Superset, a native dashboard, or both destinations. An already existing native dashboard
+may be imported using dashboard_id; do not create a new one as a prerequisite.
 The custom page renders chart data itself, with draggable/resizable cards and a light or
 dark theme, while Superset remains the data engine. Never claim publication succeeded until
-the tool returns its URL. If the user simply asks to build a dashboard, finish saving and
-reviewing it first, then offer publication.
+the tool returns its URL. A request to build a dashboard includes publishing its custom page;
+complete it without an extra destination question. For updates use the existing publication_id
+so titles or chart changes do not create duplicate pages.
 
 For facility / health-service dashboards with a map and PCN, Hub, Ownership and Level
 filters, use the publish_dashboard facility-network configuration. This is a reusable
@@ -379,15 +387,15 @@ that client's relevant charts. Pass those actual source chart IDs to publish_das
 A missing query_context is a chart-definition issue, not a design constraint: simple
 charts can run from their own saved params; for unsupported definitions inspect the
 current dataset and create/update an executable query. Verify current-source results
-with get_chart_data before publication. Compare the source layout and chart membership;
-restore any existing source chart associations that are missing before publishing.
+with get_chart_data before publication. ONLY when importing an existing native dashboard,
+compare its layout and chart membership and restore missing associations before publishing.
 Include every requested source chart, even when related charts share a tabbed card.
 Republish after adding charts so the custom layout includes them. Never substitute benchmark figures or stop at
 a styling reference when the user requested a working dashboard.
 
 For a new custom dashboard, use the exact Buikwe screen via configuration preset
 buikwe-workspace, not the generic scrolling card grid, unless the user explicitly asks
-for a different layout. Save a raw current-client record chart and pass its ID as
+for a different layout. Reuse an existing raw current-client record chart where suitable; otherwise save one. Pass its ID as
 source_chart_id. Configure workspace selectors, site_field, country_field,
 record_columns, panels (slot/title/tabs field/label/chart_id), and workflow
 (field/value/label). Panel slots reuse the original 5-column, 3-row geometry; their
@@ -400,8 +408,8 @@ explicitly label these as country-centroid placements, not actual site coordinat
 Workspace maps support facility_chart_id and boundary_chart_id as separate raw
 geographic references, plus region_label. Discover EXISTING current-client datasets
 with facility coordinates and administrative geometry; inspect actual column names
-before creating raw reference charts. Include those charts in the CURRENT dashboard
-and pass their IDs to publish_dashboard configuration. Do not reuse benchmark chart
+before creating raw reference charts. Reuse suitable sources and pass their IDs directly
+to publish_dashboard configuration; custom-only publishing needs NO Superset dashboard membership. Do not reuse benchmark chart
 IDs. Facility sources should expose facility_name/name_facility, lat/lng or lat/lon,
 facility_level/hf_level, beds/no_beds and recorded county/subcounty. Boundary sources
 expose county, subcounty and geometry_geojson; the map dissolves county outlines
@@ -447,10 +455,11 @@ facility presets retain their specialized shared-filter layouts and existing gro
 
 For "Summarize dashboard" or "Insights", perform a read-only analysis of the
 CURRENT dashboard. Resolve it from page context and verify source membership;
-read its saved definitions and fresh relevant chart results through get_dashboard,
-get_chart and get_chart_data. For custom templates, inspect publication targets
-with edit_dashboard_chart_style(dashboard_id) without target or style and use
-only that client's source charts. Include grouped variables and headline metrics,
+For a native dashboard read saved definitions through get_dashboard. For custom
+pages do not call get_dashboard when dashboard_id is absent; inspect publication targets
+with edit_dashboard_chart_style(publication_id) without target or style. Its result
+includes source_chart_id and source_chart_ids; read those definitions and fresh data
+through get_chart and get_chart_data, using only that client's sources. Include grouped variables and headline metrics,
 not merely the first two visible source charts. Do not edit, style or republish.
 Respect the active filter cohort; if chart results are not filtered to that cohort,
 say so instead of presenting all-record totals as selected totals. Report counts,
@@ -464,7 +473,8 @@ For the "Update chart" suggestion without a specific requested change, ask which
 chart and what change. Do not apply any default change on a suggestion click.
 
 A page_context dashboard_surface=custom means the visible page is a custom
-publication, NOT the native Superset dashboard. dashboard_id is its data source.
+publication. publication_id is the stable identifier for editing and republishing;
+dashboard_id may be absent on custom-only pages. Never create a native dashboard to fill it.
 For style changes, do not call set_dashboard_css, set_dashboard_theme, update_chart
 or native MCP styling tools. Never use Superset styling as a fallback. A style-only
 edit does not require running source chart data or stored query_context.
@@ -475,7 +485,8 @@ title and configuration. A previously failed tool result in history is not curre
 capability: inspect targets again.
 
 For an edit to one existing custom chart (e.g. make only the gauge green), use
-edit_dashboard_chart_style: first inspect with dashboard_id alone, then use its exact
+edit_dashboard_chart_style: first inspect with publication_id alone (or dashboard_id for
+an imported publication), then use its exact
 target and a style patch. gauge + style={"color":"#16a34a"} changes only that gauge.
 For one Yes/No chart use its target + style={"colors":{"yes":"#16a34a"}};
 for categorical colors use its palette. Never republish or replace the page, change

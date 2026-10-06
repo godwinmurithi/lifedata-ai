@@ -6,6 +6,7 @@ from collections import Counter
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from lifedata_ai.models import DashboardPublication
+from lifedata_ai.publication_sources import publication_charts
 from lifedata_ai.tools.base import ToolError
 from lifedata_ai.tools.superset_read import _parse_json_field, _prepare_query_context
 from lifedata_ai.superset_client import SupersetError
@@ -36,9 +37,7 @@ def data(request, pk):
         return JsonResponse({'error': 'not_found'}, status=404)
     try:
         client = _client(request)
-        if not client.get_dashboard(publication.superset_dashboard_id):
-            return JsonResponse({'error': 'not_found'}, status=404)
-        charts = client.get_dashboard_charts(publication.superset_dashboard_id)
+        charts = publication_charts(client, publication)
         config = publication.configuration
         if config['source_chart_id'] not in {c['id'] for c in charts}:
             return JsonResponse({'error': 'forbidden'}, status=403)

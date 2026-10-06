@@ -52,7 +52,7 @@ export type Publication = {
   title: string;
   theme: string;
   layout: Layout[];
-  dashboard_id: number;
+  dashboard_id: number | null;
   can_edit: boolean;
   url: string;
   charts: Chart[];

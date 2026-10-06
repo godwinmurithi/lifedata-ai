@@ -179,3 +179,10 @@ include those fields in selectors or detail columns for shared area filtering.
 Facility names connect source assessments to their permitted reference locations.
 The page reports unmatched names, invalid coordinates/polygons and saved source
 limits explicitly. Geographic reference queries preserve their saved filters.
+
+
+### Custom-only publishing is the default
+
+Vima publishes new dashboards directly to the custom UI. It does not create a Superset dashboard or a second native layout unless the user explicitly requests Superset or both destinations. Superset remains the permission-scoped data engine. Reuse existing raw record/geographic charts where suitable; otherwise create only the minimal reusable sources. The workspace derives all chart panels, metrics and tab groups from those sources rather than saving one native chart per variable.
+
+Call `publish_dashboard` with `title`, `theme` and workspace `configuration`, omitting `dashboard_id`. The returned `publication_id` addresses later updates and `edit_dashboard_chart_style` calls. Source chart permissions are rechecked for each viewer. `dashboard_id` remains supported for importing existing native dashboards. Existing publications are retained; this change does not delete previously created native dashboards.

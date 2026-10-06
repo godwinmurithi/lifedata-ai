@@ -427,7 +427,8 @@
   function describeContext(context) {
     switch (context.page_type) {
       case "dashboard":
-        return context.dashboard_id ? (context.dashboard_surface === "custom" ? "Custom dashboard " : "Dashboard ") + context.dashboard_id : "Dashboard";
+        if (context.dashboard_surface === "custom") return "Custom dashboard";
+        return context.dashboard_id ? "Dashboard " + context.dashboard_id : "Dashboard";
       case "explore":
         if (context.chart_id) {
           return "Chart " + context.chart_id;

@@ -208,3 +208,15 @@ def test_custom_publication_context_is_explicit_and_preserved():
     assert page.to_dict()['publication_id'] == '00362756-c0fe-4ba1-8dfa-f8872ae03580'
     assert 'dashboard_surface: custom' in page.to_prompt_block()
     assert 'edit_dashboard_chart_style supports ALL existing templates' in build_stable_prefix()
+
+
+def test_custom_only_is_the_default_and_uuid_context_needs_no_native_dashboard():
+    prompt = _flat(_prompt({'page_type': 'dashboard', 'dashboard_surface': 'custom',
+        'publication_id': '00362756-c0fe-4ba1-8dfa-f8872ae03580'}))
+    assert 'publish directly to the CUSTOM UI by default' in prompt
+    assert 'WITHOUT dashboard_id' in prompt
+    assert 'Create a native Superset dashboard ONLY when the user explicitly' in prompt
+    assert 'do not save a native chart per variable' in prompt
+    block = _page_context_block(prompt)
+    assert 'publication_id:' in block
+    assert 'dashboard_id:' not in block

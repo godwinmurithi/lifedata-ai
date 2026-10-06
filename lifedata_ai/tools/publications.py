@@ -97,12 +97,16 @@ class PublishDashboardTool(Tool):
     name = 'publish_dashboard'
     mode = ToolMode.READ
     description = (
-        'Publish an existing Superset dashboard as a custom LifeData dashboard page, '
-        'with its own UI and live chart data (no Superset dashboard iframe). Call after '
-        'the charts and dashboard have actually been saved, when the user asks to publish '
+        'Publish directly to the custom UI by default WITHOUT creating a Superset dashboard. '
+        'Omit dashboard_id for custom-only publishing; configuration references accessible saved raw source charts. '
+        'Reuse existing raw charts and render variables from them; do not create a native chart per panel. '
+        'For updates pass publication_id, not a new dashboard. New custom-only publications require the buikwe-workspace preset. '
+        'dashboard_id is optional for importing an ALREADY EXISTING Superset dashboard. '
+        'The custom page renders live data without a Superset iframe. Call after '
+        'the required data-source charts have been saved or reused, when the user asks to publish '
         'or share a custom UI dashboard. Returns the viewer link. Publishing updates '
         'your existing publication for this dashboard. Viewers still need a login and '
-        'Superset permission to its source dashboard and charts. Layout supports mouse, '
+        'Superset permission to its source charts/datasets (and source dashboard when imported). Layout supports mouse, '
         'touch and keyboard drag-and-drop in the custom page. Use theme light or dark. '
         'All publications use the Vima Buikwe v1 design baseline. Optional design sets '
         'colors (accent, yes, no, unknown), a categorical palette, and groups '
@@ -116,7 +120,7 @@ class PublishDashboardTool(Tool):
         'Workspace maps support optional facility_chart_id (raw facility coordinates, level and beds), '
         'boundary_chart_id (raw county/subcounty geometry_geojson), and region_label. '
         'Discover existing geographic datasets and create/reuse current-client raw reference charts; '
-        'both references must belong to this dashboard. County outlines are dissolved from subcounty polygons. '
+        'both references must be accessible and included in this publication. County outlines are dissolved from subcounty polygons. '
         'Facility colors and sizes reuse the established level-and-bed classification. '
         'Optionally supply layout to match a screenshot: ordered chart_id, span (4/6/12) '
         'and height in pixels for EVERY source chart. Omit layout to preserve manual edits. '
@@ -125,7 +129,7 @@ class PublishDashboardTool(Tool):
         '(raw full survey: name_facility, hf_level, facility_type, ownership, lat, lon, '
         'maternal_childhealth, hiv_tb, labaratory, radiology, specialised, dental, optical, '
         'surgery, theatre, ambulance, mortuary) and network_chart_id (raw name_facility, '
-        'pcn, hub). Both charts must belong to this dashboard. Use full source row limits. '
+        'pcn, hub). Both charts must be accessible publication sources. Use full source row limits. '
         'For generic population discovery use preset population-discovery with source_chart_id '
         '(raw person_id, facility_name, age, sex, blood_group, recorded screening and geography), '
         'boundary_chart_id (district, county, subcounty, geometry_geojson), facility_chart_id '
@@ -137,6 +141,7 @@ class PublishDashboardTool(Tool):
         'type': 'object',
         'properties': {
             'dashboard_id': {'type': 'integer', 'minimum': 1},
+            'publication_id': {'type': 'string', 'format': 'uuid'},
             'title': {'type': 'string', 'minLength': 1, 'maxLength': 255},
             'theme': {'enum': ['light', 'dark']},
             'design': DESIGN_SCHEMA,
@@ -163,27 +168,51 @@ class PublishDashboardTool(Tool):
                 'required': ['chart_id', 'span', 'height'],
             }},
         },
-        'required': ['dashboard_id', 'title', 'theme'],
+        'required': ['title', 'theme'],
         'additionalProperties': False,
     }
 
-    def run(self, context: ToolContext, dashboard_id: int, title: str, theme: str, layout: list[dict[str, int]] | None = None, configuration: dict[str, Any] | None = None, design: dict[str, Any] | None = None) -> dict[str, Any]:
+    def run(self, context: ToolContext, dashboard_id: int | None = None, title: str = '', theme: str = 'light', layout: list[dict[str, int]] | None = None, configuration: dict[str, Any] | None = None, design: dict[str, Any] | None = None, publication_id: str | None = None) -> dict[str, Any]:
         client = context.superset_client()
-        dashboard = client.get_dashboard(dashboard_id)
-        if not dashboard:
-            raise ToolError('No accessible source dashboard exists.', code='not_found')
-        charts = client.get_dashboard_charts(dashboard_id)
-        missing = layout_chart_ids(dashboard) - {int(chart['id']) for chart in charts}
-        if missing:
-            raise ToolError('The Superset layout references charts missing from its chart membership. '
-                            'Restore these source chart associations before publishing; do not omit them.',
-                            code='incomplete_dashboard_chart_membership',
-                            details={'missing_chart_ids': sorted(missing)})
+        from lifedata_ai.publication_sources import configuration_chart_ids
+        existing = None
+        if publication_id:
+            from django.core.exceptions import ValidationError
+            try:
+                existing = DashboardPublication.objects.filter(
+                    pk=publication_id, owner_username=context.identity.username).first()
+            except (ValueError, ValidationError):
+                raise ToolError('Invalid publication ID.', code='invalid_configuration')
+            if existing is None:
+                raise ToolError('No custom publication owned by you exists.', code='not_found')
+            if dashboard_id is not None and dashboard_id != existing.superset_dashboard_id:
+                raise ToolError('Cannot change the publication source dashboard.', code='invalid_configuration')
+            dashboard_id = existing.superset_dashboard_id
+        if dashboard_id is not None:
+            dashboard = client.get_dashboard(dashboard_id)
+            if not dashboard:
+                raise ToolError('No accessible source dashboard exists.', code='not_found')
+            charts = client.get_dashboard_charts(dashboard_id)
+            missing = layout_chart_ids(dashboard) - {int(chart['id']) for chart in charts}
+            if missing:
+                raise ToolError('The Superset layout references charts missing from its chart membership.',
+                                code='incomplete_dashboard_chart_membership',
+                                details={'missing_chart_ids': sorted(missing)})
+            if not existing:
+                existing = DashboardPublication.objects.filter(
+                    superset_dashboard_id=dashboard_id, owner_username=context.identity.username).first()
+        else:
+            effective_config = configuration if configuration is not None else (existing.configuration if existing else {})
+            if effective_config.get('preset') != 'buikwe-workspace':
+                raise ToolError('Custom-only publishing requires the reusable workspace configuration.',
+                                code='workspace_configuration_required')
+            ids = configuration_chart_ids(effective_config)
+            if not ids:
+                raise ToolError('Provide a current-client raw source chart.', code='empty_dashboard')
+            charts = [client.get_chart(identifier) for identifier in ids]
+            dashboard = {}
         if not charts:
-            raise ToolError('Save charts into this dashboard before publishing it.', code='empty_dashboard')
-        existing = DashboardPublication.objects.filter(
-            superset_dashboard_id=dashboard_id, owner_username=context.identity.username
-        ).first()
+            raise ToolError('Provide accessible source charts before publishing.', code='empty_dashboard')
         if not existing and configuration is None and layout is None:
             raise ToolError('New custom dashboards require the reusable buikwe-workspace template. '
                             'Inspect the current dataset, save a raw record chart, and provide workspace configuration. '
@@ -236,11 +265,20 @@ class PublishDashboardTool(Tool):
             layout = validate_layout(layout if layout is not None else default_layout, set(source_order))
         except ValueError as exc:
             raise ToolError(str(exc), code='invalid_layout') from exc
-        publication, _ = DashboardPublication.objects.update_or_create(
-            superset_dashboard_id=dashboard_id, owner_username=context.identity.username,
-            defaults={'title': title, 'theme': theme, 'layout': layout,
-                      'configuration': {**(configuration if configuration is not None else (existing.configuration if existing else {})), 'design': saved_design}},
-        )
+        values = {'title': title, 'theme': theme, 'layout': layout,
+                  'configuration': {**(configuration if configuration is not None else (existing.configuration if existing else {})), 'design': saved_design}}
+        if dashboard_id is None:
+            if existing:
+                for key, value in values.items():
+                    setattr(existing, key, value)
+                existing.save(update_fields=[*values, 'updated_at'])
+                publication = existing
+            else:
+                publication = DashboardPublication.objects.create(
+                    superset_dashboard_id=None, owner_username=context.identity.username, **values)
+        else:
+            publication, _ = DashboardPublication.objects.update_or_create(
+                superset_dashboard_id=dashboard_id, owner_username=context.identity.username, defaults=values)
         return {
             'type': 'published_dashboard', 'publication_id': str(publication.id),
             'title': publication.title, 'chart_count': len(layout),
@@ -255,7 +293,7 @@ class EditDashboardChartStyleTool(Tool):
     name = 'edit_dashboard_chart_style'
     mode = ToolMode.READ
     description = (
-        'Inspect or edit ONE chart in an existing custom dashboard. Call with dashboard_id only '
+        'Inspect or edit ONE chart in an existing custom dashboard. Call with publication_id (preferred) or dashboard_id only '
         'to list the publication and exact editable targets. Then set target and style to apply '
         'a persistent isolated style patch. Target gauge changes only the workspace gauge; '
         'chart:<id> targets that chart; field:<name> targets a workspace variable without a source '
@@ -266,22 +304,30 @@ class EditDashboardChartStyleTool(Tool):
         'Inspect targets first; never guess an ID or change a global palette for a one-chart request.'
     )
     input_schema = {'type': 'object', 'additionalProperties': False, 'properties': {
-        'dashboard_id': {'type': 'integer', 'minimum': 1}, 'target': {'type': 'string'},
+        'dashboard_id': {'type': 'integer', 'minimum': 1},
+        'publication_id': {'type': 'string', 'format': 'uuid'}, 'target': {'type': 'string'},
         'style': DESIGN_SCHEMA['properties']['chart_styles']['additionalProperties'],
-        'reset': {'type': 'boolean'}}, 'required': ['dashboard_id']}
+        'reset': {'type': 'boolean'}}, 'anyOf': [{'required': ['dashboard_id']}, {'required': ['publication_id']}]}
 
-    def run(self, context, dashboard_id, target=None, style=None, reset=False):
+    def run(self, context, dashboard_id=None, target=None, style=None, reset=False, publication_id=None):
         import copy
         from django.db import transaction
         client = context.superset_client()
-        if not client.get_dashboard(dashboard_id):
-            raise ToolError('No accessible source dashboard exists.', code='not_found')
-        chart_ids = {int(c['id']) for c in client.get_dashboard_charts(dashboard_id)}
+        from lifedata_ai.publication_sources import publication_charts
+        from django.core.exceptions import ValidationError
         with transaction.atomic():
-            publication = DashboardPublication.objects.select_for_update().filter(
-                superset_dashboard_id=dashboard_id, owner_username=context.identity.username).first()
+            lookup = {'pk': publication_id} if publication_id else {'superset_dashboard_id': dashboard_id}
+            try:
+                publication = DashboardPublication.objects.select_for_update().filter(
+                    owner_username=context.identity.username, **lookup).first()
+            except (ValueError, ValidationError):
+                raise ToolError('Invalid publication ID.', code='invalid_configuration')
             if publication is None:
                 raise ToolError('No custom dashboard owned by you exists for this source.', code='not_found')
+            if dashboard_id is not None and dashboard_id != publication.superset_dashboard_id:
+                raise ToolError('Publication and dashboard IDs do not match.', code='invalid_configuration')
+            charts = publication_charts(client, publication)
+            chart_ids = {int(c['id']) for c in charts}
             config = copy.deepcopy(publication.configuration or {})
             preset = config.get('preset')
             targets = []
@@ -311,7 +357,7 @@ class EditDashboardChartStyleTool(Tool):
                 targets += [{'target': 'field:' + f, 'title': f.replace('_', ' ').title()} for f in ['age', 'sex', 'district', 'distance_km']]
             elif not preset:
                 targets = [{'target': 'chart:' + str(c['id']), 'title': c.get('slice_name', str(c['id']))}
-                           for c in client.get_dashboard_charts(dashboard_id)]
+                           for c in charts]
             else:
                 raise ToolError('This publication template has no editable targets.', code='unsupported_template')
             if target is not None:
@@ -337,6 +383,8 @@ class EditDashboardChartStyleTool(Tool):
                 raise ToolError('Select a chart target first.', code='invalid_chart_target')
             return {'type': 'published_dashboard' if target else 'dashboard_style_targets',
                     'publication_id': str(publication.id), 'title': publication.title,
-                    'chart_count': len(chart_ids), 'url': f'/lifedata-ai/dashboards/{publication.id}/',
+                    'chart_count': len(chart_ids), 'source_chart_ids': sorted(chart_ids),
+                    'source_chart_id': config.get('source_chart_id'),
+                    'url': f'/lifedata-ai/dashboards/{publication.id}/',
                     'targets': targets, 'design': config.get('design', {}),
                     'updated_target': target, 'message': 'Updated only the selected chart style.' if target else 'Choose an exact chart target.'}

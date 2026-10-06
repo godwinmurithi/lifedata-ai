@@ -9,17 +9,21 @@ login, and each data request forwards their session to Superset.
 ## Build and publish with the chatbot
 
 Ask: **“Build a dashboard from this dataset, then publish it in the custom UI.”**
-The chatbot first saves charts and their source dashboard using its existing
-tools, then calls `publish_dashboard`. The result is a clickable dashboard link
+The chatbot reuses accessible raw data-source charts, or saves only the required
+raw sources, then calls `publish_dashboard` directly. It creates no Superset
+dashboard unless explicitly requested. The result is a clickable dashboard link
 in the transcript, also restored when reopening the conversation.
 
-`publish_dashboard` accepts a source `dashboard_id`, a `title`, a `theme`
-(`light` or `dark`), and an optional `layout`. Layout is an ordered list of
+`publish_dashboard` accepts a `title`, a `theme`, workspace `configuration`, an
+optional `publication_id` for updates, and an optional source `dashboard_id`
+for importing an existing native dashboard. The theme is
+`light` or `dark`; an optional `layout` is also supported. Layout is an ordered list of
 `{chart_id, span, height}` entries, one for each source chart. `span` is 4, 6 or
 12 columns and `height` is 200–800 pixels. This lets the chatbot reproduce a
 reference screenshot's card order and dimensions. Omitting layout preserves
-manual edits when republishing. A publisher has one publication per source
-dashboard; republishing updates that page's existing URL.
+manual edits when republishing. Custom-only pages are addressed by their
+publication UUID; republishing with `publication_id` updates the existing URL.
+Imported pages retain one publication per source dashboard and owner.
 
 On the page, use **Edit layout** to drag cards with a mouse or touch. For keyboard
 editing, focus a card's move handle, press Space, move with arrow keys, and press

@@ -362,7 +362,7 @@ def execute(
                 native_style = native_style or has_style(native_arguments)
         if scope.get("dashboard_surface") == "custom" and native_style:
             raise ToolError('You are editing a CUSTOM publication. Superset CSS/theme does not style this page. '
-                            'Use edit_dashboard_chart_style with the current dashboard_id and exact returned target. '
+                            'Use edit_dashboard_chart_style with the current publication_id and exact returned target. '
                             'Do not substitute page-wide colors for an individual chart request.', code='custom_dashboard_style_required')
         content = tool.run(context, **arguments)
     except ToolError as exc:

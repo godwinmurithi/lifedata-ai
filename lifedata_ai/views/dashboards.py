@@ -9,6 +9,7 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 
 from lifedata_ai.models import DashboardPublication
+from lifedata_ai.publication_sources import publication_charts
 from lifedata_ai.superset_client import SupersetClient, SupersetError
 from lifedata_ai.tools.base import ToolContext, ToolError
 from lifedata_ai.tools.publications import PublishDashboardTool, validate_layout
@@ -60,26 +61,20 @@ def page(request: HttpRequest, pk=None) -> HttpResponse:
 
 
 def library(request: HttpRequest) -> JsonResponse:
-    """List only publications whose source dashboards the caller can read."""
+    """List only publications whose saved data sources the caller can read."""
     if request.method != 'GET':
         return JsonResponse({'error': 'method_not_allowed'}, status=405)
     client = _client(request)
     items = []
     for publication in DashboardPublication.objects.all()[:100]:
         try:
-            if not client.get_dashboard(publication.superset_dashboard_id):
-                continue
+            accessible_charts = publication_charts(client, publication)
         except SupersetError as exc:
             if exc.status_code not in (401, 403, 404):
                 return _error(exc)
             continue
         payload = _payload(publication, request)
-        # Best-effort: a dashboard whose chart list can't be read still shows
-        # in the library with its saved layout count.
-        try:
-            payload['chart_count'] = len(client.get_dashboard_charts(publication.superset_dashboard_id))
-        except SupersetError:
-            payload['chart_count'] = len(publication.layout)
+        payload['chart_count'] = len(accessible_charts)
         items.append(payload)
     return JsonResponse({'items': items})
 
@@ -94,10 +89,7 @@ def detail(request: HttpRequest, pk) -> JsonResponse:
         return JsonResponse({'error': 'not_found'}, status=404)
     try:
         client = _client(request)
-        dashboard = client.get_dashboard(publication.superset_dashboard_id)
-        if not dashboard:
-            return JsonResponse({'error': 'not_found'}, status=404)
-        charts = client.get_dashboard_charts(publication.superset_dashboard_id)
+        charts = publication_charts(client, publication)
     except SupersetError as exc:
         return _error(exc)
     if request.method == 'PATCH':
@@ -126,9 +118,7 @@ def chart_data(request: HttpRequest, pk, chart_id: int) -> JsonResponse:
         return JsonResponse({'error': 'not_found'}, status=404)
     try:
         client = _client(request)
-        if not client.get_dashboard(publication.superset_dashboard_id):
-            return JsonResponse({"error": "not_found"}, status=404)
-        charts = client.get_dashboard_charts(publication.superset_dashboard_id)
+        charts = publication_charts(client, publication)
         if chart_id not in {int(chart['id']) for chart in charts}:
             return JsonResponse({'error': 'not_found'}, status=404)
         chart = client.get_chart(chart_id)
