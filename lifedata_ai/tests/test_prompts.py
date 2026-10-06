@@ -61,7 +61,8 @@ def test_clinical_hard_rules_are_present():
         "Missing data is not evidence of absence",
         "No diagnosis, no treatment, no clinical advice",
         "Screening results are not diagnoses",
-        "identity or location",
+        "synthetic dummy data",
+        "raw tables and point maps",
         "I used unique patients with confirmed hypertension diagnoses",
     ):
         assert fragment in prompt, f"missing hard rule fragment: {fragment}"
@@ -198,3 +199,12 @@ def test_an_unknown_page_type_degrades_rather_than_being_echoed():
 
     assert "some_future_superset_page" not in prompt
     assert "page_type: other" in prompt
+
+
+def test_custom_publication_context_is_explicit_and_preserved():
+    page = PageContext.from_payload({'page_type': 'dashboard', 'dashboard_id': 45,
+        'dashboard_surface': 'custom', 'publication_id': '00362756-c0fe-4ba1-8dfa-f8872ae03580'})
+    assert page.to_dict()['dashboard_surface'] == 'custom'
+    assert page.to_dict()['publication_id'] == '00362756-c0fe-4ba1-8dfa-f8872ae03580'
+    assert 'dashboard_surface: custom' in page.to_prompt_block()
+    assert 'edit_dashboard_chart_style supports ALL existing templates' in build_stable_prefix()

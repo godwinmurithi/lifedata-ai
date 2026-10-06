@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass, field
 
 from django.conf import settings
-from django.http import JsonResponse
+from django.http import HttpResponseRedirect, JsonResponse
 
 from lifedata_ai.superset_client import SupersetClient, SupersetError
 
@@ -113,7 +113,7 @@ class SupersetIdentityMiddleware:
 
         cookie = request.COOKIES.get("session")
         if not cookie:
-            return _unauthenticated("No Superset session cookie was sent.")
+            return _login_or_unauthenticated(request, "No Superset session cookie was sent.")
 
         identity = _cache.get(cookie)
         if identity is None:
@@ -121,7 +121,7 @@ class SupersetIdentityMiddleware:
                 identity = _verify_with_superset(cookie)
             except SupersetError as exc:
                 if exc.is_permission_denied:
-                    return _unauthenticated("Superset rejected this session.")
+                    return _login_or_unauthenticated(request, "Superset rejected this session.")
                 logger.warning("Identity verification failed: %s", exc)
                 return JsonResponse(
                     {
@@ -267,3 +267,16 @@ def _same_origin(stated: str, expected: str) -> bool:
 
 def _unauthenticated(message: str) -> JsonResponse:
     return JsonResponse({"error": "unauthenticated", "message": message}, status=401)
+
+
+def _login_or_unauthenticated(request, message):
+    """HTML entry points use shared login; API callers receive a JSON 401."""
+    path = request.path.rstrip("/")
+    is_page = path == "/lifedata-ai" or path == "/lifedata-ai/dashboards" or path.startswith("/lifedata-ai/dashboards/")
+    if request.method == "GET" and is_page:
+        from urllib.parse import urlencode
+        target = request.get_full_path()
+        if path in {"/lifedata-ai", "/lifedata-ai/dashboards"}:
+            target = "/lifedata-ai/dashboards/"
+        return HttpResponseRedirect("/login/?" + urlencode({"next": target}))
+    return _unauthenticated(message)

@@ -85,6 +85,11 @@ from django.conf import settings
 
 from lifedata_ai.agent.context import PageContext, clean_text
 from lifedata_ai.agent.events import PANEL_EVENTS
+from lifedata_ai.agent.openai_provider import (
+    OpenAIClient,
+    OpenAIConnectionError,
+    OpenAIStatusError,
+)
 from lifedata_ai.agent.prompts import build_system_blocks
 from lifedata_ai.middleware import SupersetIdentity
 from lifedata_ai.models import ActionRecord, Clarification, Conversation, Message
@@ -318,7 +323,22 @@ def _load_history(conversation: Conversation) -> list[dict[str, Any]]:
     while rows and (rows[0].role != Message.Role.USER or _is_tool_result(rows[0].content)):
         rows.pop(0)
 
-    return [{"role": _WIRE_ROLE[row.role], "content": row.content} for row in rows]
+    messages = [{"role": _WIRE_ROLE[row.role], "content": row.content} for row in rows]
+    # Keep recent visual inputs within the provider request-size budget. Stored
+    # conversation content is unchanged; omitted older files are explicitly marked.
+    remaining = 24 * 1024 * 1024
+    for message in reversed(messages):
+        content = []
+        for block in reversed(message["content"]):
+            source = block.get("source", {})
+            size = len(source.get("data", "")) if source.get("type") == "base64" else 0
+            if size > remaining:
+                content.append({"type": "text", "text": "[An earlier attachment was omitted to fit the request size. Ask the user to attach it again if needed.]"})
+            else:
+                remaining -= size
+                content.append(block)
+        message["content"] = list(reversed(content))
+    return messages
 
 
 def _pair_aware_start(rows: Sequence[Message], preferred_start: int) -> int:
@@ -769,6 +789,7 @@ def run_turn(
     superset_session_cookie: str,
     page_context: PageContext,
     user_message: str | None,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> Iterator[AgentEvent]:
     """Run one chat turn, yielding events as they happen.
 
@@ -798,8 +819,8 @@ def run_turn(
     # A clarification answer BECOMES the tool result; it is not also a user
     # message. Everything else the user types is an ordinary turn, appended
     # after whatever was resolved above.
-    if user_message is not None and not (resolved or {}).get("consumed"):
-        _record_user_message(conversation, user_message, page_context)
+    if user_message is not None and (attachments or not (resolved or {}).get("consumed")):
+        _record_user_message(conversation, user_message, page_context, attachments)
     else:
         # No user row this turn — but the page may well have changed while the
         # card sat there, and the conversation still needs a title if it somehow
@@ -810,15 +831,19 @@ def run_turn(
         conversation.page_scope = page_context.to_dict()
         conversation.save(update_fields=["title", "page_scope", "updated_at"])
 
-    if not settings.ANTHROPIC_API_KEY:
+    provider = settings.LIFEDATA_AI_PROVIDER
+    provider_label = "OpenAI" if provider == "openai" else "Anthropic"
+    key_name = "OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY"
+    api_key = getattr(settings, key_name)
+    if not api_key:
         # The rest of the stack stays usable without a key: read tools,
         # diagnostics and the panel all work, only the model call cannot.
         yield _event(
             "error",
-            code="anthropic_key_missing",
+            code=f"{provider}_key_missing",
             message=(
-                "The copilot has no Anthropic API key configured, so it cannot answer. "
-                "Set ANTHROPIC_API_KEY in the environment and restart the orchestrator."
+                f"The copilot has no {provider_label} API key configured, so it cannot answer. "
+                f"Set {key_name} in the environment and restart the orchestrator."
             ),
         )
         yield _event("message_stop", stop_reason="error", conversation_id=conversation_id)
@@ -844,7 +869,7 @@ def run_turn(
         page_context=page_context.to_dict(),
     )
 
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    client = OpenAIClient(api_key) if provider == "openai" else anthropic.Anthropic(api_key=api_key)
     deadline = time.monotonic() + settings.LIFEDATA_AI_TURN_TIMEOUT_SECONDS
     max_rounds = settings.LIFEDATA_AI_MAX_TOOL_ROUNDS
     stop_reason = "error"
@@ -899,8 +924,8 @@ def run_turn(
                 # from the accumulated message silently records an empty id and
                 # the §9 traceability requirement quietly stops holding.
                 request_id = stream.request_id or ""
-        except anthropic.APIStatusError as exc:
-            logger.warning("Anthropic returned %s: %s", exc.status_code, exc)
+        except (anthropic.APIStatusError, OpenAIStatusError) as exc:
+            logger.warning("%s returned %s: %s", provider_label, exc.status_code, exc)
             # Failing the whole turn on an "Overloaded" makes a multi-step build
             # unusable: a dashboard takes several model rounds and any one of
             # them can hit it. Retry with backoff, bounded so a sustained outage
@@ -913,6 +938,8 @@ def run_turn(
             # silently never retried, which is exactly the bug this comment
             # exists to stop someone reintroducing.
             retryable = exc.status_code in (429, 500, 502, 503, 529) or _is_transient(exc)
+            if provider == "openai" and _openai_quota_exhausted(exc):
+                retryable = False
             if retryable and provider_retries < _MAX_PROVIDER_RETRIES:
                 provider_retries += 1
                 backoff = min(2 ** provider_retries, 8)
@@ -940,16 +967,16 @@ def run_turn(
                 continue
             yield _event(
                 "error",
-                code="anthropic_error",
-                message=_provider_message(exc),
+                code=f"{provider}_error",
+                message=_provider_message(exc, provider),
             )
             break
-        except anthropic.APIConnectionError as exc:
-            logger.warning("Could not reach Anthropic: %s", exc)
+        except (anthropic.APIConnectionError, OpenAIConnectionError) as exc:
+            logger.warning("Could not reach %s: %s", provider_label, exc)
             yield _event(
                 "error",
-                code="anthropic_unreachable",
-                message="Could not reach the Anthropic API. Please try again.",
+                code=f"{provider}_unreachable",
+                message=f"Could not reach the {provider_label} API. Please try again.",
             )
             break
 
@@ -1059,6 +1086,9 @@ def run_turn(
                     ok=result.ok,
                     is_error=not result.ok,
                 )
+
+                if block.name in {"publish_dashboard", "edit_dashboard_chart_style"} and result.ok and isinstance(result.content, dict) and result.content.get("type") == "published_dashboard":
+                    yield _event("published_dashboard", **result.content)
 
                 if (
                     block.name == "author_canvas"
@@ -1204,7 +1234,8 @@ def run_turn(
 
 
 def _record_user_message(
-    conversation: Conversation, user_message: str, page_context: PageContext
+    conversation: Conversation, user_message: str, page_context: PageContext,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> None:
     """Persist the user's turn before any model call.
 
@@ -1214,7 +1245,7 @@ def _record_user_message(
     Message.objects.create(
         conversation=conversation,
         role=Message.Role.USER,
-        content=[{"type": "text", "text": user_message}],
+        content=[*(attachments or []), {"type": "text", "text": user_message}],
     )
     if not conversation.title:
         conversation.title = clean_text(user_message, TITLE_LENGTH)
@@ -1306,7 +1337,13 @@ def _cacheable_tool_specs(specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return marked
 
 
-def _provider_message(exc: Any) -> str:
+def _openai_quota_exhausted(exc: Any) -> bool:
+    body = getattr(exc, "body", {}) or {}
+    error = body.get("error", body)
+    return error.get("code") in {"insufficient_quota", "credit_balance_exhausted"}
+
+
+def _provider_message(exc: Any, provider: str = "anthropic") -> str:
     """Turn an Anthropic HTTP error into something worth showing a user.
 
     A 400 is relayed with the provider's own wording, because in practice it is
@@ -1316,13 +1353,17 @@ def _provider_message(exc: Any) -> str:
     Anthropic's own text, so there is nothing of ours to leak.
     """
     status_code = getattr(exc, "status_code", None)
+    label = "OpenAI" if provider == "openai" else "Anthropic"
+    key_name = "OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY"
+    if provider == "openai" and _openai_quota_exhausted(exc):
+        return "The OpenAI API account has no credits remaining. Add credits in the OpenAI billing dashboard."
     if status_code == 401:
-        return "The configured Anthropic API key was rejected. Check ANTHROPIC_API_KEY."
+        return f"The configured {label} API key was rejected. Check {key_name}."
     if status_code == 429:
         return "The copilot is rate limited right now. Please try again shortly."
     if status_code is not None and status_code >= 500:
-        return "The Anthropic API is temporarily unavailable. Please try again."
+        return f"The {label} API is temporarily unavailable. Please try again."
     if status_code == 400:
         detail = clean_text(getattr(exc, "message", "") or str(exc), 240)
-        return f"The Anthropic API rejected the request: {detail}"
+        return f"The {label} API rejected the request: {detail}"
     return "The copilot could not complete this turn because the model request failed."

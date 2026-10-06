@@ -259,6 +259,8 @@ CHART_PARAMS_SCHEMA: Final[dict[str, Any]] = {
         "viz_type": _IDENTIFIER,
         "datasource": _DATASOURCE,
         # -- the query --
+        "query_mode": {"enum": ["aggregate", "raw"]},
+        "all_columns": {"type": "array", "items": _IDENTIFIER, "minItems": 1},
         "metrics": _METRIC_LIST,
         "groupby": {
             "type": "array",

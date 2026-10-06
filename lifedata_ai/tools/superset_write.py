@@ -1085,7 +1085,8 @@ class UpdateChartTool(WriteTool):
         "Change an existing chart. Send only the keys you want to change — the chart's "
         "existing configuration is read and your keys are merged over it, so a request to "
         "make a chart horizontal keeps its filters, time range and metrics. Use this for "
-        "any follow-up on a chart the user is looking at."
+        "native Superset chart data/configuration changes. For individual CUSTOM publication "
+        "colors use edit_dashboard_chart_style; Superset params do not style custom cards."
     )
     input_schema: ClassVar[dict[str, Any]] = {}
 

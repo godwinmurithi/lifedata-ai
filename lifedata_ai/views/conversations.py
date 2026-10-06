@@ -22,7 +22,7 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from lifedata_ai.actions.envelopes import build_envelope, sign_envelope
-from lifedata_ai.models import ActionRecord, Clarification, Conversation
+from lifedata_ai.models import ActionRecord, Clarification, Conversation, Message
 
 #: The panel shows a short recent list, not an archive browser.
 LIST_LIMIT = 50
@@ -149,6 +149,7 @@ def conversation_detail(request: HttpRequest, pk: UUID) -> JsonResponse:
 
     payload = _summarise(conversation, conversation.messages.count())
     payload["truncated"] = truncated
+    payload["publications"] = _publication_receipts(messages)
     payload["messages"] = [
         {
             "id": message.id,
@@ -219,3 +220,21 @@ def _pending_action(conversation: Conversation) -> dict[str, Any] | None:
         "calls": calls,
         "created_at": row.created_at.isoformat(),
     }
+
+
+def _publication_receipts(messages) -> list[dict]:
+    """Rehydrate dashboard links without exposing multimodal file bytes."""
+    receipts = {}
+    for message in messages:
+        if message.role != Message.Role.TOOL:
+            continue
+        for block in message.content:
+            if block.get("type") != "tool_result" or not isinstance(block.get("content"), str):
+                continue
+            try:
+                result = json.loads(block["content"])
+            except ValueError:
+                continue
+            if isinstance(result, dict) and result.get("type") == "published_dashboard":
+                receipts[result.get("publication_id")] = result
+    return list(receipts.values())

@@ -471,7 +471,7 @@ def _rule_no_adhoc_sql(check: _Check) -> tuple[list[str], str]:
     for path, node in _iter_nodes(check.payload):
         if not isinstance(node, dict):
             continue
-        for key, value in node.items():
+        for key in node:
             lowered = key.lower()
             if lowered in _SQL_BEARING_KEYS:
                 errors.append(
@@ -480,13 +480,8 @@ def _rule_no_adhoc_sql(check: _Check) -> tuple[list[str], str]:
                     "{aggregate, column: {column_name}}, and filters as "
                     "{column, operator, value}."
                 )
-            elif lowered == "query_mode" and str(value).lower() != "aggregate":
-                errors.append(
-                    f"query_mode must be 'aggregate'; {value!r} was requested at {path}. "
-                    "Raw-records mode would return row-level data and is never permitted."
-                )
     if errors:
-        return errors, "fail — SQL-bearing key or non-aggregate query_mode present"
+        return errors, "fail — SQL-bearing key present"
 
     for path, node in _iter_nodes(check.payload):
         if not isinstance(node, str):

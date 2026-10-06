@@ -45,6 +45,7 @@ from lifedata_ai.agent.loop import (
     resolve_conversation,
     run_turn,
 )
+from lifedata_ai.attachments import AttachmentError, attachment_blocks
 from lifedata_ai.middleware import SupersetIdentity
 from lifedata_ai.models import Conversation
 
@@ -74,7 +75,7 @@ def chat(request: HttpRequest) -> HttpResponse:
         )
 
     try:
-        payload = json.loads(request.body or b"{}")
+        payload = json.loads(request.POST.get("payload", "{}")) if request.content_type == "multipart/form-data" else json.loads(request.body or b"{}")
     except (json.JSONDecodeError, UnicodeDecodeError):
         return JsonResponse(
             {"error": "invalid_json", "message": "The request body was not valid JSON."},
@@ -86,12 +87,21 @@ def chat(request: HttpRequest) -> HttpResponse:
             status=400,
         )
 
+    try:
+        attachments = attachment_blocks(request.FILES.getlist("files"))
+    except AttachmentError as exc:
+        return JsonResponse({"error": "invalid_attachment", "message": str(exc)}, status=400)
+
     is_resume = payload.get("resume") is True
     raw_message = payload.get("message")
     message = raw_message.strip() if isinstance(raw_message, str) else ""
 
     # The empty-message check moves AFTER the resume branch, and stays exactly as
     # strict for a real message. A resume carries no message by design.
+    if is_resume and attachments:
+        return JsonResponse({"error": "invalid_attachment", "message": "Send attachments with a new message."}, status=400)
+    if attachments and not message:
+        message = "Please inspect the attached files."
     if not is_resume and not message:
         return JsonResponse(
             {"error": "empty_message", "message": "A non-empty message is required."},
@@ -164,6 +174,7 @@ def chat(request: HttpRequest) -> HttpResponse:
         superset_session_cookie=request.superset_session_cookie,
         page_context=page_context,
         user_message=None if is_resume else message,
+        attachments=attachments,
     )
 
     response = StreamingHttpResponse(stream, content_type="text/event-stream")
@@ -181,6 +192,7 @@ def _safe_stream(
     superset_session_cookie: str,
     page_context: PageContext,
     user_message: str | None,
+    attachments: list[dict] | None = None,
 ) -> Iterator[str]:
     """Relay loop events, guaranteeing a terminating frame either way.
 
@@ -196,6 +208,7 @@ def _safe_stream(
             superset_session_cookie=superset_session_cookie,
             page_context=page_context,
             user_message=user_message,
+            **({"attachments": attachments} if attachments else {}),
         ):
             yield _frame(event)
     except NothingToResume:

@@ -581,3 +581,83 @@ def test_payload_values_cannot_forge_an_sse_frame(monkeypatch: pytest.MonkeyPatc
     # trip is lossless too, so the escaping is not silently mangling text.
     assert names(frames) == ["text_delta", "message_stop"]
     assert frames[0][1]["text"] == hostile
+
+
+@pytest.mark.django_db
+def test_screenshot_upload_is_persisted_and_forwarded_to_model(fake_anthropic: Any):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    from lifedata_ai.tests.test_attachments import PNG
+
+    fake_anthropic.queue_text("I'll reproduce this layout.")
+    response = signed_in("ana").post(CHAT_URL, {
+        "payload": json.dumps({"message": "Build a dashboard like this screenshot"}),
+        "files": SimpleUploadedFile("reference.png", PNG, content_type="image/png"),
+    })
+    assert response.status_code == 200
+    frames = read_sse(response)
+    conversation = Conversation.objects.get(pk=frames[0][1]["conversation_id"])
+    content = conversation.messages.get(role="user").content
+    assert content[1]["type"] == "image"
+    assert content[1]["source"]["media_type"] == "image/png"
+    assert content[-1]["text"] == "Build a dashboard like this screenshot"
+    assert fake_anthropic.requests[0].kwargs["messages"][0]["content"] == content
+
+
+def test_upload_error_is_returned_before_starting_a_turn():
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    response = signed_in("ana").post(CHAT_URL, {
+        "payload": json.dumps({"message": "Inspect this"}),
+        "files": SimpleUploadedFile("unknown.exe", b"binary"),
+    })
+    assert response.status_code == 400
+    assert response.json()["error"] == "invalid_attachment"
+
+
+@pytest.mark.django_db
+def test_chatbot_publishes_a_custom_page_with_a_rehydrated_link(fake_anthropic: Any, monkeypatch):
+    from unittest.mock import Mock
+
+    from lifedata_ai.tools.base import ToolContext
+
+    client = Mock()
+    client.get_dashboard.return_value = {"id": 4}
+    client.get_dashboard_charts.return_value = [{"id": 12, "slice_name": "Visits", "viz_type": "table"}]
+    monkeypatch.setattr(ToolContext, "superset_client", lambda self: client)
+    fake_anthropic.queue_tool_use([("publish-1", "publish_dashboard", {"dashboard_id": 4, "title": "Service dashboard", "theme": "light"})])
+    fake_anthropic.queue_text("Your custom dashboard is published.")
+    signed = signed_in("ana")
+    response = post(signed, {"message": "Publish dashboard 4 in the custom UI"})
+    frames = read_sse(response)
+    published = [data for name, data in frames if name == "published_dashboard"]
+    assert len(published) == 1
+    assert published[0]["url"].startswith("/lifedata-ai/dashboards/")
+    conversation_id = frames[0][1]["conversation_id"]
+    detail = signed.get(f"/lifedata-ai/api/conversations/{conversation_id}/").json()
+    assert detail["publications"][0]["url"] == published[0]["url"]
+
+
+@pytest.mark.django_db
+def test_chatbot_publishes_facility_dashboard_with_shared_service_charts(fake_anthropic: Any, monkeypatch):
+    from unittest.mock import Mock
+    from lifedata_ai.models import DashboardPublication
+    from lifedata_ai.tools.base import ToolContext
+
+    client = Mock()
+    client.get_dashboard.return_value = {"id": 45}
+    client.get_dashboard_charts.return_value = [{"id": 433, "viz_type": "table"}, {"id": 434, "viz_type": "table"}]
+    monkeypatch.setattr(ToolContext, "superset_client", lambda self: client)
+    configuration = {"preset": "facility-network", "source_chart_id": 433, "network_chart_id": 434,
+                     "region_label": "Trans Nzoia County", "map_bounds": [0.7, 34.4, 1.4, 35.4]}
+    fake_anthropic.queue_tool_use([("publish-facilities", "publish_dashboard", {
+        "dashboard_id": 45, "title": "Facility intelligence", "theme": "light", "configuration": configuration})])
+    fake_anthropic.queue_text("Your interactive facility dashboard is published.")
+    signed = signed_in("ana")
+    frames = read_sse(post(signed, {"message": "Publish dashboard 45 with a map, shared filters and a Yes/No pie for every service"}))
+    published = [data for name, data in frames if name == "published_dashboard"]
+    assert len(published) == 1
+    publication = DashboardPublication.objects.get(id=published[0]["publication_id"])
+    assert publication.configuration == configuration
+    assert publication.owner_username == "ana"
+    conversation_id = frames[0][1]["conversation_id"]
+    assert signed.get(f"/lifedata-ai/api/conversations/{conversation_id}/").json()["publications"][0]["url"] == published[0]["url"]

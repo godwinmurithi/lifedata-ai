@@ -392,3 +392,26 @@ class StreamEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type} at {self.created_at:%Y-%m-%d %H:%M:%S}"
+
+
+class DashboardPublication(models.Model):
+    """A custom dashboard page backed by live Superset charts."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    superset_dashboard_id = models.PositiveIntegerField(db_index=True)
+    owner_username = models.CharField(max_length=255, db_index=True)
+    title = models.CharField(max_length=255)
+    theme = models.CharField(max_length=16, default='light')
+    configuration = models.JSONField(default=dict, blank=True)
+    layout = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        constraints = [models.UniqueConstraint(
+            fields=['superset_dashboard_id', 'owner_username'], name='unique_dashboard_publisher'
+        )]
+
+    def __str__(self) -> str:
+        return self.title

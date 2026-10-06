@@ -1,0 +1,11 @@
+{% load static %}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LifeData Dashboards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="{% static 'dashboards/app.css' %}?v=20261006-workspace-clean-rebuild-v3">
+<script defer src="{% static 'dashboards/app.js' %}?v=20261006-workspace-clean-rebuild-v3"></script>
+<script defer src="{% static 'panel/panel.js' %}?v=20261006-dashboard-prompts"></script></head>
+<body><div id="lifedata-dashboard" data-publication="{{ publication_id }}"></div></body></html>

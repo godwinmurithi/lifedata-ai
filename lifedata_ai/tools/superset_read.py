@@ -1,4 +1,4 @@
-"""Read tools: live Superset metadata and aggregate results (spec §5).
+"""Read tools: live Superset metadata and chart results (spec §5).
 
 Every tool here runs server-side with the caller's forwarded `session` cookie,
 so results are permission-scoped to that user by Superset itself — there is no
@@ -8,9 +8,7 @@ honest "you lack permission" tool result.
 
 Three rules shape almost every design decision below.
 
-* **Nothing row-level reaches the model.** The reporting views are already
-  aggregate-safe, but `get_chart_data` additionally refuses a chart saved in raw
-  record mode, and truncates hard before returning.
+* **Development data may include individual records.** Results are capped for size.
 * **Nothing raw reaches the model either.** Superset hands back JSON *strings*
   for `params`, `query_context` and `position_json`; dumping those would burn
   tokens and invite the model to author layout JSON, which spec §6.7 reserves
@@ -370,9 +368,9 @@ class GetChartTool(Tool):
                 if isinstance(d, dict)
             ],
             "form_data": _summarise_form_data(params),
-            # get_chart_data can only run when a query context was stored; say so
-            # up front rather than letting the model discover it by failing.
+            # Stored context is optional for reconstructable simple chart definitions.
             "has_stored_query_context": bool(query_context),
+            "can_reconstruct_data_query": not bool(query_context) and _query_context_from_saved_definition(payload) is not None,
         }
         if params_note:
             result["warning"] = params_note
@@ -713,15 +711,16 @@ def _summarise_native_filters(metadata: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 class GetChartDataTool(Tool):
-    """Aggregate results for one saved chart, row- and column-capped."""
+    """Results for one saved chart, row- and column-capped."""
 
     name = "get_chart_data"
     description = (
-        "Run a saved chart's own stored query and return its aggregate results, "
+        "Run a saved chart's own query and return its results. Simple charts without "
+        "stored query_context are reconstructed from their own saved dataset and params, "
         "capped for size. Call this when the user asks what a chart shows, what the "
         "numbers are, or to compare values — never guess figures. Results are "
-        "aggregates only: this tool cannot and will not return individual patient "
-        "records. Always state that the figures are the top rows of a capped "
+        "allowed to include individual synthetic development records. Always state "
+        "that the figures are the top rows of a capped "
         "result when the response says it was truncated."
     )
     mode = ToolMode.READ
@@ -760,9 +759,15 @@ class GetChartDataTool(Tool):
         try:
             payload = mcp.get_chart_data_by_id(chart_id, row_limit=_cap_row_limit())
         except SupersetError as exc:
+            message = str(exc).lower()
+            if not exc.is_permission_denied and ('no stored query context' in message or 'no query context' in message):
+                return self._run_rest(context, chart_id)
             raise ToolError(
                 f"Could not run chart {chart_id}: {exc}", code="query_failed"
             ) from exc
+        diagnostic = str(payload.get('summary') or payload.get('raw') or payload.get('message') or '').lower()
+        if not payload.get('data') and ('no stored query context' in diagnostic or 'no query context' in diagnostic):
+            return self._run_rest(context, chart_id)
         return _summarise_mcp_chart_data(payload)
 
     def _run_rest(self, context: ToolContext, chart_id: int) -> dict[str, Any]:
@@ -814,28 +819,92 @@ class GetChartDataTool(Tool):
         return _summarise_chart_data(payload, chart, prepared)
 
 
+def _query_context_from_saved_definition(chart: dict[str, Any]) -> dict[str, Any] | None:
+    """Recover simple chart queries from their OWN params, never design references.
+
+    MCP-created categorical charts may omit query_context. Refuse reconstruction
+    for plugin-specific transformations or filters that our builder cannot retain.
+    """
+    from lifedata_ai.tools.compile_check import saved_query_context_for
+
+    params, note = _parse_json_field(chart.get("params"), "params")
+    dataset_id = chart.get("datasource_id")
+    if note or not isinstance(params, dict) or type(dataset_id) is not int or dataset_id < 1:
+        return None
+    if chart.get("datasource_type", "table") != "table":
+        return None
+    viz = params.get("viz_type") or chart.get("viz_type")
+    if viz not in {"echarts_timeseries_bar", "pie", "table", "big_number_total"}:
+        return None
+    # These features require the plugin's complete buildQuery; dropping any of
+    # them would silently change the chart's question.
+    if any(params.get(key) for key in ("granularity_sqla", "time_grain_sqla", "post_processing",
+                                       "contributionMode", "rolling_type", "resample_rule",
+                                       "time_compare", "timeseries_limit", "series_limit", "where", "having")):
+        return None
+    if str(params.get("time_range") or "").strip().lower() not in {"", "no filter", "no_filter"}:
+        return None
+    filters = params.get("adhoc_filters") or []
+    legacy_filters = params.get("filters") or []
+    if not isinstance(filters, list) or not isinstance(legacy_filters, list):
+        return None
+    if any(not isinstance(f, dict) or f.get("expressionType", "SIMPLE") != "SIMPLE"
+           or f.get("clause", "WHERE") != "WHERE" or not {"subject", "operator", "comparator"}.issubset(f)
+           for f in filters):
+        return None
+    if any(not isinstance(f, dict) or not {"col", "op", "val"}.issubset(f) for f in legacy_filters):
+        return None
+    form = copy.deepcopy(params)
+    if not form.get("metrics") and form.get("metric"):
+        form["metrics"] = [form["metric"]]
+    raw = form.get("query_mode") == "raw"
+    if raw:
+        if not isinstance(form.get("all_columns"), list) or not form["all_columns"]:
+            return None
+        form.pop("metrics", None)
+    elif not isinstance(form.get("metrics"), list) or not form["metrics"]:
+        return None
+    if form.get("groupby") is not None and not isinstance(form["groupby"], list):
+        return None
+    # Saved params without a limit must not inherit the compile-check's two-row
+    # probe limit. The caller applies the appropriate model/viewer cap below.
+    if type(form.get("row_limit")) is not int or form["row_limit"] <= 0:
+        form["row_limit"] = 10000
+    context = saved_query_context_for(form, dataset_id)
+    query = context["queries"][0]
+    if legacy_filters:
+        query.setdefault("filters", []).extend(copy.deepcopy(legacy_filters))
+    if form.get("order_by_cols"):
+        try:
+            orderby = [json.loads(value) if isinstance(value, str) else value for value in form["order_by_cols"]]
+        except (ValueError, TypeError):
+            return None
+        if any(not isinstance(value, list) or len(value) != 2 or type(value[1]) is not bool for value in orderby):
+            return None
+        query["orderby"] = orderby
+    return context
+
+
 def _prepare_query_context(
-    query_context: Any, chart: dict[str, Any], note: str | None
+    query_context: Any, chart: dict[str, Any], note: str | None, row_limit_cap: int | None = None
 ) -> dict[str, Any]:
     """Validate and cap the stored query context before it is sent to Superset.
 
-    Two jobs, in order of importance:
-
-    1. **Refuse row-level output.** A table chart saved in `raw` query mode
-       returns individual records. That must never reach the model, whatever the
-       dataset (spec §1 privacy boundary).
-    2. **Cap the row limit** at `LIFEDATA_AI_MAX_QUERY_ROW_LIMIT` on every query
-       in the context, so a chart saved with `row_limit: 50000` cannot pull a
-       large result through us.
+    Raw records and aggregate queries are both supported for dummy development data.
+    Cap the row limit at LIFEDATA_AI_MAX_QUERY_ROW_LIMIT on every query to keep
+    results within the model context budget.
 
     Validating first is not optional: an empty or malformed body comes back as a
     500 that reads like a Superset outage (verified finding §3).
     """
     chart_id = chart.get("id")
+    if query_context is None and note is None:
+        query_context = _query_context_from_saved_definition(chart)
     if not isinstance(query_context, dict):
         raise ToolError(
-            f"Chart {chart_id} has no stored query context, so its data cannot be run. "
-            "Use get_chart to describe how it is defined instead.",
+            f"Chart {chart_id} has no usable saved data query. "
+            "Inspect its own dataset and definition with get_dataset/get_chart, then "
+            "create or update an executable chart. Design references supply styling only.",
             code="no_query_context",
             details={"parse_note": note} if note else None,
         )
@@ -852,30 +921,12 @@ def _prepare_query_context(
             code="no_query_context",
         )
 
-    form_data = query_context.get("form_data")
-    form_data = form_data if isinstance(form_data, dict) else {}
-    if form_data.get("query_mode") == "raw":
-        raise ToolError(
-            "That chart is saved in raw record mode, so its results are individual "
-            "rows rather than aggregates. I cannot read row-level records. Describe "
-            "the chart from its definition instead.",
-            code="row_level_result_refused",
-        )
-
-    row_cap = _cap_row_limit()
+    row_cap = row_limit_cap if row_limit_cap is not None else _cap_row_limit()
     prepared = copy.deepcopy(query_context)
     capped_queries = []
     for query in prepared.get("queries") or []:
         if not isinstance(query, dict):
             continue
-        if not query.get("metrics") and not query.get("post_processing"):
-            # No metrics means the query projects columns directly — the same
-            # row-level shape as raw mode, arrived at by a different route.
-            raise ToolError(
-                "That chart's query returns individual rows rather than aggregates, "
-                "so I cannot read it.",
-                code="row_level_result_refused",
-            )
         existing = query.get("row_limit")
         query["row_limit"] = (
             min(int(existing), row_cap) if isinstance(existing, int) and existing > 0 else row_cap

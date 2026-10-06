@@ -139,7 +139,7 @@ def query_context_for(form_data: dict[str, Any], dataset_id: int) -> dict[str, A
 
     `saved_query_context_for` builds on this when the context is to be persisted.
     """
-    columns: list[Any] = []
+    columns: list[Any] = list(form_data.get("all_columns") or []) if form_data.get("query_mode") == "raw" else []
     x_axis = form_data.get("x_axis")
     if x_axis:
         columns.append(x_axis)
@@ -226,7 +226,7 @@ def verify(client: Any, form_data: dict[str, Any], dataset_id: int) -> CompileVe
     Never raises. Everything it cannot determine comes back `unknown`, because
     the caller's decision in that case is to carry on.
     """
-    if not form_data.get("metrics"):
+    if not form_data.get("metrics") and not (form_data.get("query_mode") == "raw" and form_data.get("all_columns")):
         # Nothing to run. Viz types that need no metric exist, and a chart with
         # no metric is the schema's business, not this function's.
         return UNKNOWN

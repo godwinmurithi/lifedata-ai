@@ -2130,3 +2130,28 @@ upstream Apache project.
 **How to resume/finish**: `cd ~/projects/superset-frontend-src/superset-frontend`, branch
 `feat/phase8-react-dnd-to-dndkit`. Add the two polyfills above to close the remaining skips;
 otherwise the migration itself is complete and verified.
+
+
+## Custom dashboard publishing and attachments (2026-10-01)
+
+- Finished the Superset frontend fork's final skipped tab-drop regression: pointer
+  events and actual registry hit-testing replace the legacy HTML5 drag events.
+  Tab/DashboardWrapper suite: 21 passed, zero skipped. Fork source remains local;
+  the running Superset image was not replaced.
+- Added a custom dashboard UI in the LifeData sandbox at `/lifedata-ai/dashboards/`,
+  rendered from live Superset chart queries with the viewer's own session, rather
+  than a Superset dashboard iframe. Common chart renderers, table fallback,
+  light/dark themes, dnd-kit pointer/keyboard sorting, width/height editing and
+  persisted layouts are present. Native dashboard filters/maps/plugin parity
+  remain future renderer work.
+- `publish_dashboard` publishes or updates a stable custom-page URL after source
+  charts are saved. Optional ordered card dimensions support reference layouts.
+  Publication links appear in the chat and survive conversation reloads.
+- Added screenshot paste, file selection, composer file drops and removable image
+  previews. Multimodal images/PDFs and extracted Office/text files persist in
+  message content and reach the model. Spreadsheet upload is analysis context,
+  not an automatic warehouse import.
+- Applied migration `0006_dashboardpublication` only in the LifeData staging
+  schema. Deployed bundle is served; dashboard pages redirect logged-out users
+  to the shared Superset login. See `docs/custom-dashboards-and-uploads.md` for
+  validation commands and technical limits.

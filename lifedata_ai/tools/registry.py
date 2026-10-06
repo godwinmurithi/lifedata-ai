@@ -139,6 +139,7 @@ _READ_TOOL_SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # Phase 7/10 prototype, admin-only (enforced inside the tool itself, not
     # by omission from non-admin registries -- see canvas.py's own gate).
     ("lifedata_ai.tools.canvas", ("AuthorCanvasTool",)),
+    ("lifedata_ai.tools.publications", ("PublishDashboardTool", "EditDashboardChartStyleTool")),
     # Phase 18. READ mode despite `propose_skill` writing a `Skill` row --
     # see skills.py's module docstring for why that is not a WRITE tool in
     # this codebase's sense (no Superset envelope/apply step exists for it).
@@ -341,6 +342,28 @@ def execute(
     mode = tool.mode.value
     try:
         tool.validate_arguments(arguments)
+        scope = context.page_context or {}
+        native_style = name in {"set_dashboard_css", "set_dashboard_theme"}
+        if name == "update_chart":
+            native_style = bool(set(arguments.get("params") or {}) & {"color_scheme", "label_colors", "custom_colors", "color", "colors", "css"})
+        if name == "call_mcp_tool":
+            native_style = arguments.get("tool_name") in {"set_dashboard_css", "set_dashboard_theme"}
+            if arguments.get("tool_name") in {"update_chart", "update_dashboard"}:
+                try:
+                    native_arguments = json.loads(arguments.get("arguments_json", "{}"))
+                except (TypeError, ValueError):
+                    native_arguments = {}
+                def has_style(value):
+                    if isinstance(value, dict):
+                        return bool(set(value) & {"css", "color_scheme", "label_colors", "custom_colors", "theme"}) or any(has_style(v) for v in value.values())
+                    if isinstance(value, list):
+                        return any(has_style(v) for v in value)
+                    return False
+                native_style = native_style or has_style(native_arguments)
+        if scope.get("dashboard_surface") == "custom" and native_style:
+            raise ToolError('You are editing a CUSTOM publication. Superset CSS/theme does not style this page. '
+                            'Use edit_dashboard_chart_style with the current dashboard_id and exact returned target. '
+                            'Do not substitute page-wide colors for an individual chart request.', code='custom_dashboard_style_required')
         content = tool.run(context, **arguments)
     except ToolError as exc:
         return finish(False, exc.to_payload(), error=exc.message, mode=mode)

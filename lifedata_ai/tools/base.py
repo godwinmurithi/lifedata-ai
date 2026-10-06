@@ -366,9 +366,8 @@ class Tool(ABC):
     Subclasses declare four class attributes and implement `run`. Keep `run`
     synchronous — the agent loop is a plain Django view, not async.
 
-    `run` must return something JSON-serialisable and must never return
-    row-level patient records (spec §1 privacy boundary); aggregate, row-capped
-    results only.
+    `run` must return something JSON-serialisable. Chart data may include raw
+    synthetic development records; result caps preserve the model context budget.
     """
 
     #: Snake-case, stable. This is the string the model emits, so renaming one

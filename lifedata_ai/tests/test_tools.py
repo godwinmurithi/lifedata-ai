@@ -949,43 +949,19 @@ def test_get_chart_data_truncates_columns_and_never_claims_completeness():
     assert "not the complete result" in result["note"]
 
 
-def test_get_chart_data_refuses_a_chart_saved_in_raw_query_mode():
-    query_context = _query_context()
-    query_context["form_data"] = {"viz_type": "table", "query_mode": "raw"}
-
-    with _chart_data_call(_chart(query_context=query_context), {}) as data_route:
-        with pytest.raises(ToolError) as exc:
-            GetChartDataTool().run(_context(), chart_id=11)
-
-    assert exc.value.code == "row_level_result_refused"
-    # Refused before the request, so no row-level data is ever fetched at all.
-    assert data_route.called is False
-
-
-def test_get_chart_data_refuses_a_query_with_no_metrics_and_no_post_processing():
-    query_context = _query_context()
-    query_context["queries"][0] = {"columns": ["patient_id", "facility_name"], "row_limit": 100}
-
-    with _chart_data_call(_chart(query_context=query_context), {}) as data_route:
-        with pytest.raises(ToolError) as exc:
-            GetChartDataTool().run(_context(), chart_id=11)
-
-    assert exc.value.code == "row_level_result_refused"
-    assert data_route.called is False
-
-
-def test_get_chart_data_refuses_a_raw_chart_even_when_form_data_omits_query_mode():
-    """The metrics check is the second line of defence behind the query_mode check."""
+@pytest.mark.parametrize("mode", ["raw", None])
+def test_get_chart_data_accepts_synthetic_individual_records(mode):
     query_context = _query_context()
     query_context["form_data"] = {"viz_type": "table"}
-    query_context["queries"][0] = {"columns": ["patient_id"], "row_limit": 100}
-
-    with _chart_data_call(_chart(query_context=query_context), {}) as data_route:
-        with pytest.raises(ToolError) as exc:
-            GetChartDataTool().run(_context(), chart_id=11)
-
-    assert exc.value.code == "row_level_result_refused"
-    assert data_route.called is False
+    if mode:
+        query_context["form_data"]["query_mode"] = mode
+    query_context["queries"][0] = {"columns": ["patient_id"], "row_limit": 10000}
+    rows = [{"patient_id": "dummy-001"}]
+    with _chart_data_call(_chart(query_context=query_context), _chart_data_response(rows)) as route:
+        result = GetChartDataTool().run(_context(), chart_id=11)
+    assert route.called
+    assert result["rows"][0]["patient_id"] == "dummy-001"
+    assert route.calls.last.request.read()
 
 
 def test_get_chart_data_accepts_post_processing_without_metrics():
@@ -1401,3 +1377,66 @@ def test_the_dropped_tools_stay_dropped():
     for name in DROPPED_TOOL_NAMES:
         assert name not in registry.names()
         assert registry.get(name) is None
+
+
+def test_get_chart_data_reconstructs_mcp_chart_from_its_own_dataset_and_filters():
+    params = {'viz_type': 'echarts_timeseries_bar', 'metrics': ['count'],
+              'x_axis': 'extract_capacity', 'row_limit': 10000,
+              'adhoc_filters': [{'expressionType': 'SIMPLE', 'clause': 'WHERE',
+                                 'subject': 'client_id', 'operator': '==', 'comparator': 'current-client'}]}
+    chart = _chart(chart_id=520, query_context=None, params=json.dumps(params))
+    chart['query_context'] = None
+    rows = [{'extract_capacity': 'Yes', 'count': 12}, {'extract_capacity': 'No', 'count': 3}]
+    with _chart_data_call(chart, _chart_data_response(rows)) as route:
+        result = GetChartDataTool().run(_context(), chart_id=520)
+    body = json.loads(route.calls.last.request.read())
+    assert body['datasource']['id'] == chart['datasource_id']
+    assert body['queries'][0]['columns'] == ['extract_capacity']
+    assert body['queries'][0]['metrics'] == ['count']
+    assert body['queries'][0]['filters'] == [{'col': 'client_id', 'op': '==', 'val': 'current-client'}]
+    assert result['rows'] == rows
+    assert body['queries'][0]['row_limit'] < 10000
+
+
+@pytest.mark.parametrize('overrides', [
+    {'adhoc_filters': [{'expressionType': 'SQL', 'clause': 'WHERE', 'sqlExpression': 'restricted = true'}]},
+    {'time_range': 'Last month', 'granularity_sqla': 'submitted_at'},
+    {'post_processing': [{'operation': 'pivot'}]},
+])
+def test_get_chart_data_never_reconstructs_by_dropping_query_logic(overrides):
+    chart = _chart(params=json.dumps({'viz_type': 'pie', 'metrics': ['count'], 'groupby': ['response'], **overrides}))
+    chart['query_context'] = None
+    with _chart_data_call(chart, {}) as route:
+        with pytest.raises(ToolError) as exc:
+            GetChartDataTool().run(_context(), chart_id=11)
+    assert exc.value.code == 'no_query_context'
+    assert not route.called
+
+
+@pytest.mark.parametrize('diagnostic', ['summary', 'exception'])
+def test_mcp_missing_query_context_uses_current_chart_rest_fallback(diagnostic):
+    from unittest.mock import Mock
+    from lifedata_ai.superset_client import SupersetError
+    ctx = _context()
+    ctx._mcp_client = Mock()
+    message = 'Chart 520 has no stored query context, so its data cannot be run. Use get_chart instead.'
+    if diagnostic == 'exception':
+        ctx._mcp_client.get_chart_data_by_id.side_effect = SupersetError(message)
+    else:
+        ctx._mcp_client.get_chart_data_by_id.return_value = {'chart_id': 520, 'summary': message, 'data': []}
+    tool = GetChartDataTool()
+    tool._run_rest = Mock(return_value={'rows': [{'yes': 5}], 'chart_id': 520})
+    result = tool._run_mcp(ctx, 520)
+    assert result['rows'] == [{'yes': 5}]
+    tool._run_rest.assert_called_once_with(ctx, 520)
+
+
+def test_mcp_permission_denial_does_not_fall_back_to_rest():
+    from unittest.mock import Mock
+    from lifedata_ai.superset_client import SupersetError
+    ctx = _context();ctx._mcp_client = Mock()
+    ctx._mcp_client.get_chart_data_by_id.side_effect = SupersetError('no stored query context', status_code=403)
+    tool = GetChartDataTool();tool._run_rest = Mock()
+    with pytest.raises(ToolError):
+        tool._run_mcp(ctx, 520)
+    tool._run_rest.assert_not_called()

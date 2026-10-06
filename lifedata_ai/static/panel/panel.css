@@ -1176,3 +1176,13 @@
   border-radius: 4px;
   background: #fff;
 }
+
+.ld-scope .ld-attach { border: 1px solid #ccd4dc; border-radius: 8px; background: transparent; font-size: 22px; width: 34px; flex-shrink: 0; cursor: pointer; }
+.ld-scope .ld-attachments { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 12px; }
+.ld-scope .ld-attachment { display: flex; gap: 6px; align-items: center; background: #edf2f7; color: #263442; border-radius: 8px; padding: 6px; max-width: 100%; margin-bottom: 6px; }
+.ld-scope .ld-attachment img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
+.ld-scope .ld-attachment span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 210px; font-size: 12px; }
+.ld-scope .ld-attachment button { border: 0; background: transparent; cursor: pointer; font-size: 18px; }
+
+.ld-scope .ld-publication { display: flex; flex-direction: column; gap: 10px; border: 1px solid #cadce9; border-radius: 10px; padding: 14px; margin: 10px 12px; }
+.ld-scope .ld-publication a { color: #1976d2; text-decoration: none; font-size: 13px; }

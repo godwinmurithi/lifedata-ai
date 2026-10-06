@@ -317,7 +317,7 @@ class TestNoAdhocSql:
         result = validate_action("create_chart", payload, context=ctx())
         assert not result.ok
 
-    @pytest.mark.parametrize("mode", ["raw", "RAW", "raw_records"])
+    @pytest.mark.parametrize("mode", ["RAW", "raw_records"])
     def test_rejects_non_aggregate_query_mode(self, mode: str) -> None:
         payload = chart()
         payload["params"]["query_mode"] = mode
@@ -348,11 +348,11 @@ class TestNoAdhocSql:
         assert errors
         assert verdict.startswith("fail")
 
-    def test_rule_rejects_query_mode_when_reached_directly(self) -> None:
+    def test_rule_accepts_raw_query_mode_when_reached_directly(self) -> None:
         errors, _ = _rule_no_adhoc_sql(
             check_for("create_chart", {"params": {"query_mode": "raw"}})
         )
-        assert errors
+        assert not errors
 
     def test_rule_accepts_aggregate_query_mode_when_reached_directly(self) -> None:
         errors, _ = _rule_no_adhoc_sql(

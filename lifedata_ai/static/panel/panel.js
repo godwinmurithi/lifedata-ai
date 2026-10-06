@@ -74,9 +74,9 @@
    */
   var SUGGESTIONS = {
     dashboard: [
-      "Add a row of headline numbers",
-      "Add a date filter",
-      "Review this dashboard's design",
+      { label: "Update chart", prompt: "Help me update a single chart on this dashboard. Ask which chart and what change I want before making an edit. For a custom dashboard, use its individual chart settings and preserve the other charts and layout." },
+      { label: "Summarize dashboard", prompt: "Summarize the dashboard I am currently viewing using its current source data. Give a concise overview, key numbers and main findings. Respect active filters and clearly identify missing data or capped results. Do not edit or republish anything." },
+      { label: "Insights", prompt: "Analyze the dashboard I am currently viewing and give the most useful insights, differences and data-quality gaps supported by its current source data. Respect active filters, distinguish findings from possible explanations, and suggest practical follow-up questions. Do not edit or republish anything." },
     ],
     explore: [
       "Explain this chart",
@@ -112,11 +112,7 @@
 
   /** Follow-ups offered after a turn, so there is always an obvious next step. */
   var FOLLOW_UPS = {
-    dashboard: [
-      "Review this dashboard's design",
-      "Add a date filter",
-      "Make the trend full width",
-    ],
+    dashboard: SUGGESTIONS.dashboard,
     other: ["Show that by district instead", "Make that monthly", "Put that on a dashboard"],
   };
 
@@ -359,6 +355,7 @@
 
   /** @returns {PageContext} */
   function readPageContext() {
+    if (window.__lifedataDashboardContext) return window.__lifedataDashboardContext;
     var path = window.location.pathname;
     var params = new URLSearchParams(window.location.search);
     /** @type {PageContext} */
@@ -430,7 +427,7 @@
   function describeContext(context) {
     switch (context.page_type) {
       case "dashboard":
-        return context.dashboard_id ? "Dashboard " + context.dashboard_id : "Dashboard";
+        return context.dashboard_id ? (context.dashboard_surface === "custom" ? "Custom dashboard " : "Dashboard ") + context.dashboard_id : "Dashboard";
       case "explore":
         if (context.chart_id) {
           return "Chart " + context.chart_id;
@@ -576,7 +573,7 @@
     if (!calls.length) {
       transcript.addError({
         title: "This change carried nothing to apply.",
-        detail: "The copilot proposed an action with no Superset calls in it.",
+        detail: "Vima proposed an action with no Superset calls in it.",
       });
       return Promise.resolve({ ok: false });
     }
@@ -932,18 +929,25 @@
         body.conversation_id = options.conversationId;
       }
 
+      var requestBody = JSON.stringify(body);
+      if (options.files && options.files.length) {
+        delete headers["Content-Type"];
+        requestBody = new FormData();
+        requestBody.append("payload", JSON.stringify(body));
+        options.files.forEach(function (file) { requestBody.append("files", file, file.name); });
+      }
       return fetch(CHAT_URL, {
         method: "POST",
         credentials: "same-origin",
         headers: headers,
-        body: JSON.stringify(body),
+        body: requestBody,
         signal: options.signal,
       })
         .catch(function (err) {
           if (err && err.name === "AbortError") {
             throw err;
           }
-          throw new PanelError("unreachable", "Could not reach the LifeData copilot.", String(err));
+          throw new PanelError("unreachable", "Could not reach Vima.", String(err));
         })
         .then(function (response) {
           if (!response.ok) {
@@ -957,7 +961,7 @@
               });
           }
           if (!response.body) {
-            throw new PanelError("server", "The copilot returned a response the browser cannot stream.");
+            throw new PanelError("server", "Vima returned a response the browser cannot stream.");
           }
           return pumpStream(response.body, options.onFrame);
         });
@@ -992,18 +996,18 @@
     if (status === 409) {
       return new PanelError(
         "busy",
-        "The copilot is still working on your previous message. Give it a moment.",
+        "Vima is still working on your previous message. Give it a moment.",
         detail
       );
     }
     if (status === 502 || status === 503 || status === 504) {
       return new PanelError(
         "unreachable",
-        "The copilot could not reach Superset (HTTP " + status + "). Try again shortly.",
+        "Vima could not reach Superset (HTTP " + status + "). Try again shortly.",
         detail
       );
     }
-    return new PanelError("server", "The copilot returned an error (HTTP " + status + ").", detail);
+    return new PanelError("server", "Vima returned an error (HTTP " + status + ").", detail);
   }
 
   /**
@@ -1081,7 +1085,7 @@
         type: "button",
         class: "ld-scope ld-toggle",
         id: "lifedata-ai-toggle",
-        "aria-label": "Open the LifeData AI copilot (Alt+L)",
+        "aria-label": "Open Vima (Alt+L)",
         "aria-expanded": "false",
         "aria-controls": "lifedata-ai-panel",
       },
@@ -1091,7 +1095,7 @@
           glyph.setAttribute("class", "ld-toggle__icon");
           return glyph;
         })(),
-        el("span", { class: "ld-toggle__label", text: "Ask LifeData" }),
+        el("span", { class: "ld-toggle__label", text: "Ask Vima" }),
       ]
     );
 
@@ -1113,7 +1117,7 @@
     var closeButton = el("button", {
       type: "button",
       class: "ld-iconbtn",
-      "aria-label": "Close the LifeData AI copilot",
+      "aria-label": "Close Vima",
       text: "×",
     });
 
@@ -1178,6 +1182,12 @@
         )
       : null;
 
+    var fileInput = el("input", { type: "file", multiple: "", class: "ld-visually-hidden",
+      accept: ".png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.xlsx,.csv,.tsv,.txt,.md,.json,.log,.yaml,.yml",
+      "aria-label": "Attach images or files" });
+    var attachButton = el("button", { type: "button", class: "ld-attach", text: "+",
+      title: "Attach images or files", "aria-label": "Attach images or files" });
+    var attachments = el("div", { class: "ld-attachments", "aria-live": "polite" });
     var composer = el(
       "form",
       { class: "ld-composer" },
@@ -1185,8 +1195,10 @@
         el("label", {
           class: "ld-visually-hidden",
           for: "lifedata-ai-input",
-          text: "Message the LifeData copilot",
+          text: "Message Vima",
         }),
+        fileInput,
+        attachButton,
         input,
         voiceButton,
         send,
@@ -1199,12 +1211,12 @@
         class: "ld-scope ld-panel",
         id: "lifedata-ai-panel",
         role: "complementary",
-        "aria-label": "LifeData AI copilot",
+        "aria-label": "Vima",
       },
       [
         el("header", { class: "ld-panel__header" }, [
           el("div", { class: "ld-brand" }, [
-            document.createTextNode("LifeData copilot"),
+            document.createTextNode("Vima"),
             el("span", { class: "ld-badge", text: "your session" }),
           ]),
           contextLabel,
@@ -1215,6 +1227,7 @@
         messages,
         actions,
         status,
+        attachments,
         composer,
         el("p", {
           class: "ld-footnote",
@@ -1238,6 +1251,9 @@
       actions: actions,
       status: status,
       composer: composer,
+      fileInput: fileInput,
+      attachButton: attachButton,
+      attachments: attachments,
       input: input,
       voiceButton: voiceButton,
       send: send,
@@ -1284,7 +1300,7 @@
       /** @param {"user"|"assistant"} role @param {string} [text] */
       addMessage: function (role, text) {
         var bubble = el("div", { class: "ld-msg ld-msg--" + role }, [
-          el("span", { class: "ld-msg__role", text: role === "user" ? "You" : "Copilot" }),
+          el("span", { class: "ld-msg__role", text: role === "user" ? "You" : "Vima" }),
         ]);
         var body = el("div", { class: "ld-msg__body" });
         bubble.appendChild(body);
@@ -1467,7 +1483,7 @@
         if (!questions.length) {
           return null;
         }
-        var card = el("div", { class: "ld-ask", role: "group", "aria-label": "The copilot needs to know" });
+        var card = el("div", { class: "ld-ask", role: "group", "aria-label": "Vima needs to know" });
         var chosen = new Array(questions.length);
         var groups = [];
 
@@ -1732,13 +1748,15 @@
           el(
             "div",
             { class: "ld-suggestions ld-followups" },
-            items.map(function (text) {
+            items.map(function (item) {
+              var text = typeof item === "string" ? item : item.label;
+              var prompt = typeof item === "string" ? item : item.prompt;
               return el("button", {
                 type: "button",
                 class: "ld-suggestion",
                 text: text,
                 onclick: function () {
-                  onPick(text);
+                  onPick(prompt);
                 },
               });
             })
@@ -1844,6 +1862,8 @@
     var refs = buildUi();
 
     var state = {
+      files: [],
+      previews: [],
       open: false,
       busy: false,
       /** @type {string|null} */
@@ -1930,7 +1950,9 @@
     }
 
     function suggestionButtons() {
-      return suggestionsFor(state.context.page_type).map(function (text) {
+      return suggestionsFor(state.context.page_type).map(function (item) {
+        var text = typeof item === "string" ? item : item.label;
+        var prompt = typeof item === "string" ? item : item.prompt;
         return el("button", {
           type: "button",
           class: "ld-suggestion",
@@ -1938,7 +1960,7 @@
           // Submit on click. Filling the box and making the user press Send
           // again turns a menu back into a blank page.
           onclick: function () {
-            send(text);
+            send(prompt);
           },
         });
       });
@@ -2133,6 +2155,8 @@
     }
 
     function newConversation() {
+      state.files = [];
+      renderAttachments();
       setConversation(null);
       state.pendingAction = null;
       state.pendingAsk = null;
@@ -2167,6 +2191,7 @@
             }
             transcript.addMessage(message.role === "assistant" ? "assistant" : "user", message.text);
           });
+          (payload.publications || []).forEach(mountPublication);
           if (payload.pending_clarification) {
             mountClarification(payload.pending_clarification);
           } else if (payload.pending_action) {
@@ -2309,6 +2334,55 @@
       return FOLLOW_UPS[state.context.page_type] || FOLLOW_UPS.other;
     }
 
+    function mountPublication(data) {
+      if (!/^\/lifedata-ai\/dashboards\/[0-9a-f-]{36}\/$/.test(data.url || "")) return;
+      var card = el("div", { class: "ld-publication" }, [
+        el("strong", { text: data.title || "Dashboard published" }),
+        el("a", { href: data.url, text: "Open custom dashboard →" }),
+      ]);
+      refs.messages.appendChild(card);
+    }
+
+    function renderAttachments() {
+      state.previews.forEach(function (url) { URL.revokeObjectURL(url); });
+      state.previews = [];
+      refs.attachments.replaceChildren();
+      state.files.forEach(function (file, index) {
+        var chip = el("div", { class: "ld-attachment" });
+        if (/^image\//.test(file.type)) {
+          var url = URL.createObjectURL(file);
+          state.previews.push(url);
+          chip.appendChild(el("img", { src: url, alt: file.name }));
+        }
+        chip.appendChild(el("span", { text: file.name }));
+        var remove = el("button", { type: "button", text: "×", "aria-label": "Remove " + file.name });
+        remove.addEventListener("click", function () { state.files.splice(index, 1); renderAttachments(); });
+        chip.appendChild(remove);
+        refs.attachments.appendChild(chip);
+      });
+    }
+    function addFiles(files) {
+      Array.from(files).forEach(function (file) {
+        if (state.files.length >= 4 || file.size > 5 * 1024 * 1024) {
+          transcript.addError({ title: "Attach up to 4 files, each no larger than 5 MB." });
+          return;
+        }
+        state.files.push(file);
+      });
+      renderAttachments();
+    }
+    refs.attachButton.addEventListener("click", function () { refs.fileInput.click(); });
+    refs.fileInput.addEventListener("change", function () { addFiles(refs.fileInput.files); refs.fileInput.value = ""; });
+    refs.composer.addEventListener("dragover", function (event) { event.preventDefault(); });
+    refs.composer.addEventListener("drop", function (event) {
+      event.preventDefault();
+      if (event.dataTransfer) addFiles(event.dataTransfer.files);
+    });
+    refs.input.addEventListener("paste", function (event) {
+      var files = event.clipboardData && event.clipboardData.files;
+      if (files && files.length) { event.preventDefault(); addFiles(files); }
+    });
+
     // --- Turn ------------------------------------------------------------
 
     function submit() {
@@ -2316,21 +2390,25 @@
         return;
       }
       var text = refs.input.value.trim();
-      if (!text) {
+      if (!text && !state.files.length) {
         return;
       }
+      text = text || "Please inspect the attached files.";
+      var files = state.files.slice();
+      state.files = [];
+      renderAttachments();
       refs.input.value = "";
       refs.input.placeholder = "Ask for a chart, or a dashboard…";
       autosize();
-      send(text);
+      send(text, files);
     }
 
-    function send(text) {
+    function send(text, files) {
       if (state.busy) {
         return;
       }
       transcript.clearIntro();
-      transcript.addMessage("user", text);
+      transcript.addMessage("user", text + (files && files.length ? "\nAttached: " + files.map(function (file) { return file.name; }).join(", ") : ""));
       // A typed message SUPERSEDES a pending proposal. The server does the same
       // thing authoritatively — it resolves the dangling tool_use as superseded
       // and cancels the record — so the card must not sit there looking live.
@@ -2342,7 +2420,7 @@
         state.pendingAsk.settle();
         state.pendingAsk = null;
       }
-      run({ message: text });
+      run({ message: text, files: files || [] });
     }
 
     /** @param {{message?: string, resume?: boolean}} options */
@@ -2438,6 +2516,10 @@
             mountClarification(data);
             break;
 
+          case "published_dashboard":
+            mountPublication(data);
+            break;
+
           case "canvas":
             // Phase 7/10 prototype, admin-only (enforced server-side in
             // canvas.py -- this branch never runs for a non-admin because
@@ -2456,7 +2538,7 @@
           case "error":
             sawError = true;
             transcript.addError({
-              title: data.message || "The copilot could not complete this turn.",
+              title: data.message || "Vima could not complete this turn.",
               detail: data.code ? "code: " + data.code : undefined,
               action: retryFor(data.code, options),
             });
@@ -2469,6 +2551,7 @@
 
       streamChat({
         message: options.message || null,
+        files: options.files || [],
         resume: Boolean(options.resume),
         pageContext: state.context,
         conversationId: state.conversationId,
@@ -2510,7 +2593,7 @@
           // than a failure — guarding this is what stops the clarification flow
           // ending on "The copilot returned no text for this turn."
           if (assistant && assistant.isEmpty() && !sawError && !stopped && !awaitingUser) {
-            transcript.addError({ title: "The copilot returned no text for this turn." });
+            transcript.addError({ title: "Vima returned no text for this turn." });
           }
           stopStatusClock();
           setStatus("");
@@ -2563,7 +2646,7 @@
       if (!navigator.onLine) {
         return true;
       }
-      return Boolean(err) && err.kind === "unreachable" && /reach the lifedata copilot/i.test(err.message || "");
+      return Boolean(err) && err.kind === "unreachable" && /reach Vima/i.test(err.message || "");
     }
 
     /**
@@ -2622,13 +2705,15 @@
         return;
       }
       transcript.addError({
-        title: (err && err.message) || "Something went wrong talking to the copilot.",
+        title: (err && err.message) || "Something went wrong talking to Vima.",
         detail: detail,
         action: kind === "busy" ? undefined : retryFor("stream_cut", options),
       });
     }
 
     // --- Route awareness -------------------------------------------------
+
+    window.addEventListener("lifedata:context", refreshContext);
 
     function refreshContext() {
       state.context = readPageContext();
@@ -2690,7 +2775,7 @@
       start();
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error("LifeData copilot failed to start; Superset is unaffected.", err);
+      console.error("Vima failed to start; Superset is unaffected.", err);
     }
   }
 

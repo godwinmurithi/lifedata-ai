@@ -1,0 +1,212 @@
+[
+  {
+    "id": "blood",
+    "title": "Blood Group",
+    "tabs": [
+      [
+        "blood_group",
+        "Bld grp"
+      ],
+      [
+        "sickle_cells_disease",
+        "Sickle cell"
+      ],
+      [
+        "sickle_cell_carrier",
+        "Carrier"
+      ]
+    ]
+  },
+  {
+    "id": "donor",
+    "title": "Blood Donor",
+    "tabs": [
+      [
+        "blood_donor",
+        "Bld"
+      ],
+      [
+        "organ_donor",
+        "Org"
+      ],
+      [
+        "clinical_trial",
+        "Clin tr"
+      ],
+      [
+        "malaria",
+        "Malaria"
+      ]
+    ]
+  },
+  {
+    "id": "liver",
+    "title": "Liver Abnormalities",
+    "tabs": [
+      [
+        "shbsab",
+        "HBsAb"
+      ],
+      [
+        "s_hbsag",
+        "HBsAg"
+      ],
+      [
+        "s_hcv",
+        "HCV"
+      ],
+      [
+        "s_total_cholesterol",
+        "Cho"
+      ]
+    ]
+  },
+  {
+    "id": "screening",
+    "title": "Visual issues",
+    "tabs": [
+      [
+        "visual_issue",
+        "Vis"
+      ],
+      [
+        "hearing_issues",
+        "Hear"
+      ],
+      [
+        "hiv_status",
+        "HIV"
+      ]
+    ]
+  },
+  {
+    "id": "pressure",
+    "title": "Blood Pressure",
+    "tabs": [
+      [
+        "bp_results",
+        "Press"
+      ],
+      [
+        "village",
+        "Villages"
+      ],
+      [
+        "mental_health",
+        "MHD"
+      ]
+    ]
+  },
+  {
+    "id": "vaccines",
+    "title": "Vaccines",
+    "tabs": [
+      [
+        "v_sinovac",
+        "Sin"
+      ],
+      [
+        "v_shingles",
+        "Shi"
+      ],
+      [
+        "v_covid_astrozenica_oxford",
+        "Ast Zen"
+      ]
+    ]
+  },
+  {
+    "id": "hematology",
+    "title": "Hematological disorders",
+    "tabs": [
+      [
+        "s_vitamin_d",
+        "Vit D"
+      ],
+      [
+        "s_baso_",
+        "BAS%"
+      ],
+      [
+        "s_baso",
+        "BAS"
+      ],
+      [
+        "s_eos",
+        "EOS"
+      ],
+      [
+        "s_hgb",
+        "HGB"
+      ]
+    ]
+  },
+  {
+    "id": "disability",
+    "title": "Disability | Thyroid",
+    "tabs": [
+      [
+        "disability",
+        "Dis"
+      ],
+      [
+        "s_tsh__thyroid",
+        "TSH"
+      ]
+    ]
+  },
+  {
+    "id": "sexual",
+    "title": "Sexual Abnormalities",
+    "tabs": [
+      [
+        "s_psa",
+        "PSA"
+      ],
+      [
+        "s_syphillis",
+        "Syp"
+      ],
+      [
+        "s_testorterone",
+        "Tes"
+      ]
+    ]
+  },
+  {
+    "id": "renal",
+    "title": "Renal | Liver",
+    "tabs": [
+      [
+        "s_creatinine",
+        "Ren"
+      ],
+      [
+        "s_alt",
+        "Liv"
+      ]
+    ]
+  },
+  {
+    "id": "systemic",
+    "title": "Systemic disorders",
+    "tabs": [
+      [
+        "s_fasting_glucose",
+        "Glucose"
+      ],
+      [
+        "s_hba1c",
+        "Diabetes"
+      ],
+      [
+        "s_ck",
+        "Car"
+      ],
+      [
+        "s_amylase",
+        "Pan"
+      ]
+    ]
+  }
+]

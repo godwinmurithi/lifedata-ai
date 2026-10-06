@@ -282,3 +282,7 @@ Read [docs/runbook.md](docs/runbook.md) before deploying or debugging. It covers
 the two things that will otherwise cost an afternoon: re-running
 `--sync-metadata` after Superset's "Sync columns from source" wipes the curated
 labels, and the gunicorn timeout that would kill every build turn.
+
+## Custom dashboard UI and attachments
+
+The development sandbox supports chatbot-published custom dashboards with dnd-kit layout editing, plus image/screenshot and file attachments. See [the usage and development guide](docs/custom-dashboards-and-uploads.md).

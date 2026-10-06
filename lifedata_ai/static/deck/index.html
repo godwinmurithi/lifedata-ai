@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LifeData AI Copilot — Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --forest:#0e241d; --pine:#16332a; --lime:#bbf451; --olive:#9aca55; --moss:#7fb832;
+    --ink:#eef7e2; --muted:#9fc39a; --line:rgba(255,255,255,.14);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;background:var(--forest);color:var(--ink);
+    font-family:Inter,system-ui,sans-serif;}
+  .display{font-family:"Plus Jakarta Sans",Inter,system-ui,sans-serif;}
+  .deck{position:relative;height:100vh;overflow:hidden;}
+  .slide{
+    position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+    padding:min(7vw,90px) min(9vw,110px);
+  }
+  .slide.active{display:flex;}
+  .slide .kicker{
+    font-size:clamp(13px,1.1vw,15px);color:var(--lime);font-weight:600;margin:0 0 14px;
+  }
+  .slide h1{
+    font-family:"Plus Jakarta Sans",Inter,system-ui,sans-serif;font-weight:800;
+    font-size:clamp(34px,5.4vw,64px);line-height:1.04;letter-spacing:-0.02em;margin:0 0 18px;color:#fff;
+  }
+  .slide h2{
+    font-family:"Plus Jakarta Sans",Inter,system-ui,sans-serif;font-weight:700;
+    font-size:clamp(26px,3.6vw,42px);line-height:1.1;letter-spacing:-0.015em;margin:0 0 28px;color:#fff;
+    max-width:18ch;
+  }
+  .slide .sub{font-size:clamp(16px,1.6vw,20px);color:var(--muted);max-width:60ch;margin:0;}
+  .bullets{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:20px;max-width:900px;}
+  .bullets li{
+    font-size:clamp(16px,1.7vw,20px);line-height:1.45;color:var(--ink);
+    padding-left:26px;position:relative;
+  }
+  .bullets li::before{
+    content:"";position:absolute;left:0;top:9px;width:9px;height:9px;border-radius:50%;background:var(--lime);
+  }
+  .bullets b{color:#fff;font-weight:650;}
+  .bullets span.detail{color:var(--muted);}
+  .title-slide{align-items:flex-start;}
+  .title-slide .tag{
+    display:inline-block;font-size:14px;font-weight:600;color:var(--forest);
+    background:var(--lime);padding:6px 14px;border-radius:999px;margin-bottom:28px;
+  }
+  .title-slide .meta{color:var(--muted);font-size:15px;margin-top:22px;}
+  .section-slide{background:linear-gradient(135deg,var(--pine),var(--forest));align-items:flex-start;}
+  .section-slide .num{
+    font-family:"Plus Jakarta Sans",Inter,system-ui,sans-serif;font-weight:800;
+    font-size:clamp(50px,7vw,100px);color:var(--moss);line-height:1;margin:0 0 10px;
+  }
+  .section-slide h1{font-size:clamp(32px,5vw,58px);}
+  .stat-row{display:flex;gap:clamp(24px,5vw,72px);flex-wrap:wrap;margin-top:8px;}
+  .stat{display:flex;flex-direction:column;gap:4px;}
+  .stat strong{font-family:"Plus Jakarta Sans",Inter,system-ui,sans-serif;font-weight:800;
+    font-size:clamp(40px,6vw,76px);color:var(--lime);line-height:1;}
+  .stat span{color:var(--muted);font-size:14px;}
+  .note{margin-top:34px;color:var(--muted);font-size:15px;max-width:70ch;}
+  .blank-slide h1{color:var(--muted);}
+  .blank-slide{border:2px dashed var(--line);margin:40px;border-radius:16px;}
+  .chrome{
+    position:fixed;left:0;right:0;bottom:0;display:flex;align-items:center;
+    justify-content:space-between;padding:14px min(5vw,60px);z-index:5;pointer-events:none;
+  }
+  .progress{position:fixed;top:0;left:0;height:3px;background:var(--lime);transition:width .25s ease;z-index:6;}
+  .count{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .brand{font-weight:700;color:var(--muted);font-size:13px;letter-spacing:.02em;}
+  table.mini{border-collapse:collapse;max-width:900px;}
+  table.mini td{padding:8px 0;color:var(--ink);font-size:17px;border-bottom:1px solid var(--line);}
+  table.mini td:first-child{color:var(--lime);font-weight:700;padding-right:18px;}
+  @media (max-width:700px){
+    .stat-row{gap:28px;}
+    .slide{padding:40px 24px;}
+  }
+</style>
+</head>
+<body>
+<div class="progress" id="progress" style="width:0"></div>
+<div class="deck" id="deck">
+
+  <section class="slide title-slide active">
+    <span class="tag">LifeData · AI-Native Initiative</span>
+    <h1 class="display">LifeData AI Copilot</h1>
+    <p class="sub">From a dashboard chatbot to an AI-native Superset platform</p>
+    <p class="meta">Oct 2, 2026</p>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Agenda</p>
+    <h2>What we'll cover</h2>
+    <ul class="bullets">
+      <li><b>Where we started</b> <span class="detail">— the copilot before this sprint</span></li>
+      <li><b>Where we are today</b> <span class="detail">— headline capabilities, in one view</span></li>
+      <li><b>Capabilities built in the last two weeks</b> <span class="detail">— one slide per capability</span></li>
+      <li><b>Open items &amp; decisions needed</b> <span class="detail">— what's not done, and what needs a call</span></li>
+      <li><b>Productization</b> <span class="detail">— open discussion</span></li>
+    </ul>
+  </section>
+
+  <section class="slide section-slide">
+    <div class="num">01</div>
+    <h1 class="display">Where We Started</h1>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Before this sprint</p>
+    <h2>A basic dashboard-editing chatbot</h2>
+    <ul class="bullets">
+      <li><b>Embedded copilot panel</b> <span class="detail">— injected directly into Superset pages, not a separate chat app</span></li>
+      <li><b>Its own hand-built tool loop</b> <span class="detail">— custom read/write/ask_user tools, not Superset's native AI protocol</span></li>
+      <li><b>Chart &amp; dashboard CRUD</b> <span class="detail">— create, edit and lay out charts and dashboards by request</span></li>
+      <li><b>Filters, beautification, themes</b> <span class="detail">— basic styling and dashboard-level controls</span></li>
+      <li><b>A hand-maintained privacy allowlist</b> <span class="detail">— blocked the copilot from ever touching 5 datasets with identifiable patient health data</span></li>
+    </ul>
+    <p class="note">Self-assessed as "Phase 4" of its own roadmap.</p>
+  </section>
+
+  <section class="slide section-slide">
+    <div class="num">02</div>
+    <h1 class="display">Where We Are Today</h1>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">The sprint, by the numbers</p>
+    <h2>Six days, eighteen phases</h2>
+    <div class="stat-row">
+      <div class="stat"><strong>18</strong><span>phases attempted</span></div>
+      <div class="stat"><strong>14</strong><span>fully completed</span></div>
+      <div class="stat"><strong>24</strong><span>commits, Sep 25–Oct 1</span></div>
+      <div class="stat"><strong>6</strong><span>new chart types shipped</span></div>
+    </div>
+    <p class="note">Everything above happened on the isolated staging environment — production dashboards were never touched.</p>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Headline capability shift</p>
+    <h2>From a form-filler to an AI-native platform</h2>
+    <ul class="bullets">
+      <li><b>Native Superset AI protocol (MCP)</b> <span class="detail">— replaced the hand-built tool loop with Superset's own first-party integration</span></li>
+      <li><b>Verified per-user permissions</b> <span class="detail">— row-level security confirmed with real accounts, not assumed</span></li>
+      <li><b>Self-building and self-healing</b> <span class="detail">— proposes reusable workflows and repairs its own broken dashboards</span></li>
+      <li><b>Multi-tenant by design</b> <span class="detail">— one dashboard can serve many districts securely, no per-tenant accounts</span></li>
+      <li><b>A real product surface</b> <span class="detail">— a published, branded dashboard homepage, not just a chat window</span></li>
+    </ul>
+  </section>
+
+  <section class="slide section-slide">
+    <div class="num">03</div>
+    <h1 class="display">Capabilities Built in the Last Two Weeks</h1>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Foundation</p>
+    <h2>Native AI protocol (MCP)</h2>
+    <ul class="bullets">
+      <li><b>Reads and writes wired to Superset's own MCP service</b> <span class="detail">— chart/dashboard creation, updates and queries go through Superset's first-party protocol</span></li>
+      <li><b>Fixed two real bugs in Superset's own MCP+JWT integration</b> <span class="detail">— without a fix, auth would've silently collapsed to one shared account</span></li>
+      <li><b>Full write-path authorization</b> <span class="detail">— writes execute in the user's own browser session, never a service account</span></li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Security &amp; identity</p>
+    <h2>Row-level security</h2>
+    <ul class="bullets">
+      <li><b>19 of 22 datasets found to be production-backed</b> <span class="detail">— scoped RLS enforcement to the one dataset that's actually staging data</span></li>
+      <li><b>Verified with real accounts, not assumed</b> <span class="detail">— Wakiso analyst sees only Wakiso rows (330); Iganga analyst sees only Iganga rows (1,148); admin sees all 49 districts</span></li>
+      <li><b>Caught and fixed a silent RLS break</b> <span class="detail">— a column rename had quietly broken row-level security for every non-admin user</span></li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Creative surface</p>
+    <h2>Open canvas &amp; skills system</h2>
+    <ul class="bullets">
+      <li><b>Custom-visualization "canvas" mode, open to all users</b> <span class="detail">— not just admins</span></li>
+      <li><b>"Skills": propose → review → approve → reuse</b> <span class="detail">— a human must approve a workflow before anyone else can use it</span></li>
+      <li><b>Verified per-user re-execution</b> <span class="detail">— a skill applied by a different RLS-scoped user returned that user's own data</span></li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Reliability</p>
+    <h2>Self-healing dashboards</h2>
+    <ul class="bullets">
+      <li><b>Detects charts broken by renamed or missing columns</b> <span class="detail">— empirical detection; every chart is actually run, not statically parsed</span></li>
+      <li><b>Found 3 real production-grade bugs while building it</b> <span class="detail">— including one hiding since an earlier session</span></li>
+      <li><b>Auto-repair gated to staging only</b> <span class="detail">— production-backed datasets are always report-only</span></li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Scale</p>
+    <h2>Embedded per-tenant dashboards</h2>
+    <ul class="bullets">
+      <li><b>One dashboard, many districts, zero extra accounts</b> <span class="detail">— per-tenant scoping travels inside a signed guest token</span></li>
+      <li><b>Verified end-to-end with an unauthenticated client</b> <span class="detail">— two guest tokens, two districts, correct row counts for each</span></li>
+      <li><b>A dedicated Guest role built</b> <span class="detail">— kept the existing locked-down Public role untouched</span></li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Portability</p>
+    <h2>Reproducible dashboard packages</h2>
+    <ul class="bullets">
+      <li><b>Export and re-import dashboards as a self-contained bundle</b> <span class="detail">— wraps Superset's own native export/import</span></li>
+      <li><b>Credentials always stripped</b> <span class="detail">— a portable export should never carry live database passwords</span></li>
+      <li><b>Verified with a real round trip</b> <span class="detail">— exported, re-imported, then pulled live chart data back from the result</span></li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Visualization</p>
+    <h2>New chart types &amp; styling</h2>
+    <ul class="bullets">
+      <li><b>6 new chart types added</b> <span class="detail">— box plot, funnel, histogram, treemap, waterfall, sunburst</span></li>
+      <li><b>Prompt-driven dashboard styling, fixed properly</b> <span class="detail">— root-caused to Superset's own rendering internals</span></li>
+      <li><b>Maps enabled</b> <span class="detail">— new geospatial datasets catalogued for facility and sub-county visualizations</span></li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Quality</p>
+    <h2>Automated evaluation harness</h2>
+    <ul class="bullets">
+      <li><b>A real test suite built and run against the copilot</b> <span class="detail">— 20+ scripted questions against live staging data</span></li>
+      <li><b>Found and fixed a genuine bug via the harness itself</b> <span class="detail">— a column-name mismatch silently returned the wrong counts</span></li>
+      <li><b>Honest scorekeeping</b> <span class="detail">— 60% pass rate before the fix; a full re-run after fixes is a tracked next step</span></li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Engineering health</p>
+    <h2>Frontend modernization</h2>
+    <ul class="bullets">
+      <li><b>Migrated Superset's drag-and-drop engine off a deprecated library</b> <span class="detail">— react-dnd → @dnd-kit, across the dashboard editor and chart builder</span></li>
+      <li><b>185 tests passing, 18 test files</b> <span class="detail">— verified beyond "the build compiles"</span></li>
+      <li><b>A real, severe bug caught before it shipped</b> <span class="detail">— a crash in the "Group By"/"Metrics" pill used on every Explore page</span></li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Product surface</p>
+    <h2>Custom dashboard homepage &amp; publishing</h2>
+    <ul class="bullets">
+      <li><b>Dashboards now publish to a stable, shareable homepage</b> <span class="detail">— not a raw Superset iframe</span></li>
+      <li><b>Redesigned this week</b> <span class="detail">— LifeData's own brand, a dashboard creator, personalized home</span></li>
+      <li><b>Drag-and-drop layout editing, light/dark themes</b> <span class="detail">— owners can resize and reorder their own published dashboards</span></li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Chat experience</p>
+    <h2>Multimodal copilot upgrades</h2>
+    <ul class="bullets">
+      <li><b>Screenshot paste, file uploads, voice input</b> <span class="detail">— images, PDFs and office files now reach the model as real context</span></li>
+      <li><b>Calmer, clearer UI</b> <span class="detail">— plain-language status messages instead of raw tool names; softer error styling</span></li>
+      <li><b>Publication links persist across reloads</b> <span class="detail">— a published dashboard's link survives a refresh or new conversation</span></li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <p class="kicker">Open items &amp; decisions needed</p>
+    <h2>What's not done, and what needs a call</h2>
+    <ul class="bullets">
+      <li><b>Privacy gate on 5 PHI-bearing datasets was removed</b> <span class="detail">— deliberately, to be rebuilt "later, in production"; needs an owner and a timeline</span></li>
+      <li><b>Full evaluation suite needs a complete re-run</b> <span class="detail">— only a spot-check has happened since the last round of fixes</span></li>
+      <li><b>A second, older AI dashboard chat project is still running</b> <span class="detail">— needs a decision: retire it, or clarify what it's for</span></li>
+      <li><b>Frontend drag-and-drop migration is done but not merged</b> <span class="detail">— completed and tested locally, not yet in the live Superset image</span></li>
+      <li><b>One admin password was reset during testing</b> <span class="detail">— disclosed immediately, still needs rotating</span></li>
+    </ul>
+  </section>
+
+  <section class="slide blank-slide">
+    <h1 class="display">Productization</h1>
+  </section>
+
+  <section class="slide blank-slide">
+    <h1 class="display">Productization</h1>
+  </section>
+
+</div>
+<div class="chrome">
+  <span class="brand">LifeData</span>
+  <span class="count" id="count">1 / 19</span>
+</div>
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  let i = 0;
+  const countEl = document.getElementById('count');
+  const progressEl = document.getElementById('progress');
+  function show(n) {
+    slides[i].classList.remove('active');
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides[i].classList.add('active');
+    countEl.textContent = (i + 1) + ' / ' + slides.length;
+    progressEl.style.width = (((i + 1) / slides.length) * 100) + '%';
+  }
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); show(i + 1); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); show(i - 1); }
+    else if (e.key === 'Home') show(0);
+    else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key === 'f' || e.key === 'F') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+  document.getElementById('deck').addEventListener('click', (e) => {
+    const rect = document.getElementById('deck').getBoundingClientRect();
+    show(e.clientX - rect.left > rect.width / 2 ? i + 1 : i - 1);
+  });
+  show(0);
+</script>
+</body>
+</html>

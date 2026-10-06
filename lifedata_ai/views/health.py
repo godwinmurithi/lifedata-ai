@@ -40,6 +40,13 @@ def health(request: HttpRequest) -> JsonResponse:
         "postgis": _postgis_version() if database_ok else None,
         "superset_url": settings.LIFEDATA_AI_SUPERSET_INTERNAL_URL,
         "model": settings.LIFEDATA_AI_MODEL,
+        "provider": settings.LIFEDATA_AI_PROVIDER,
+        "model_key_configured": bool(
+            settings.OPENAI_API_KEY
+            if settings.LIFEDATA_AI_PROVIDER == "openai"
+            else settings.ANTHROPIC_API_KEY
+        ),
+        "openai_key_configured": bool(settings.OPENAI_API_KEY),
         "anthropic_key_configured": bool(settings.ANTHROPIC_API_KEY),
     }
     return JsonResponse(payload, status=200 if database_ok else 503)

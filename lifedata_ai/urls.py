@@ -1,22 +1,37 @@
 """URLs for the orchestrator, all mounted under /lifedata-ai/ by nginx."""
 
 from django.urls import path
+from django.views.generic import RedirectView
 
 from lifedata_ai.views import (
     action_result,
     chat,
     conversations,
+    dashboards,
     execute_mcp_action,
     health,
+    population,
+    workspace,
     undo,
 )
 
 app_name = "lifedata_ai"
 
 urlpatterns = [
+    path("", RedirectView.as_view(url="/lifedata-ai/dashboards/", permanent=False), name="home"),
+    path("dashboards", RedirectView.as_view(url="/lifedata-ai/dashboards/", permanent=False), name="dashboard-library-canonical"),
     # Public (see PUBLIC_PATH_PREFIXES in middleware.py).
     path("api/health/", health.health, name="health"),
     # Session-required.
+    path("dashboards/", dashboards.page, name="dashboard-library-page"),
+    path("dashboards/<uuid:pk>/", dashboards.page, name="dashboard-page"),
+    path("api/publications/", dashboards.library, name="publication-library"),
+    path("api/publications/creatable/", dashboards.creatable, name="publication-creatable"),
+    path("api/publications/create/", dashboards.create, name="publication-create"),
+    path("api/publications/<uuid:pk>/", dashboards.detail, name="publication-detail"),
+    path("api/publications/<uuid:pk>/charts/<int:chart_id>/", dashboards.chart_data, name="publication-chart-data"),
+    path("api/publications/<uuid:pk>/population/", population.discovery, name="population-discovery"),
+    path("api/publications/<uuid:pk>/workspace/", workspace.data, name="workspace-data"),
     path("api/whoami/", health.whoami, name="whoami"),
     path("api/diagnostics/superset/", health.superset_diagnostics, name="superset-diagnostics"),
     path("api/chat/", chat.chat, name="chat"),
