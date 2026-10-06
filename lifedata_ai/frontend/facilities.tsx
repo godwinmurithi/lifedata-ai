@@ -26,7 +26,7 @@ export type FacilityConfiguration = {
   design?: DashboardDesign;
   preset: string;
   source_chart_id: number;
-  network_chart_id: number;
+  network_chart_id?: number;
   region_label?: string;
   map_bounds?: [number, number, number, number];
 };
@@ -414,12 +414,14 @@ export default function Facilities({
     setError("");
     Promise.all([
       load(id, config.source_chart_id),
-      load(id, config.network_chart_id),
+      config.network_chart_id && config.network_chart_id !== config.source_chart_id
+        ? load(id, config.network_chart_id) : Promise.resolve([] as Row[]),
     ])
       .then(([survey, network]) => {
         if (!active) return;
         setRows(
           survey.map((row) => {
+            if (!config.network_chart_id || config.network_chart_id === config.source_chart_id) return row;
             const matches = network.filter(
               (n) => nameKey(n.name_facility) === nameKey(row.name_facility),
             );
@@ -516,7 +518,7 @@ export default function Facilities({
           </div>
         </header>
         <section className="hf-filters">
-          {fields.map((field, i) => (
+          {fields.map((field, i) => (!(["pcn", "hub"].includes(field)) || rows.some(row => text(row[field]) !== "Not recorded")) && (
             <label key={field}>
               {labels[i]}
               <select
@@ -571,8 +573,8 @@ export default function Facilities({
               names,
               "Repeated submissions counted once by name",
             ],
-            ["Primary care networks", count("pcn"), "Recorded PCN assignments"],
-            ["Linked hubs", count("hub"), "Recorded hub assignments"],
+            ...(rows.some(row => text(row.pcn) !== "Not recorded") ? [["Primary care networks", count("pcn"), "Recorded PCN assignments"]] : []),
+            ...(rows.some(row => text(row.hub) !== "Not recorded") ? [["Linked hubs", count("hub"), "Recorded hub assignments"]] : []),
           ].map(([label, value, note], i) => (
             <div className="hf-card hf-kpi" key={String(label)}>
               <span>{label}</span>

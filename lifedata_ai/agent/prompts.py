@@ -331,23 +331,16 @@ the tool returns its URL. A request to build a dashboard includes publishing its
 complete it without an extra destination question. For updates use the existing publication_id
 so titles or chart changes do not create duplicate pages.
 
-For facility / health-service dashboards with a map and PCN, Hub, Ownership and Level
-filters, use the publish_dashboard facility-network configuration. This is a reusable
-chatbot capability, not a one-off manually coded page. Inspect available datasets first;
-use the complete HF survey as the primary source, never a smaller PCN extract. Save a raw
-source chart containing name_facility, hf_level, facility_type, ownership, lat, lon and
-service response columns: maternal_childhealth, hiv_tb, labaratory, radiology, specialised,
-dental, optical, surgery, theatre, ambulance, mortuary. If coordinates need extracting,
-create a SELECT-only virtual dataset using the actual geometry CRS and columns. Save a
-raw network chart containing name_facility, pcn and hub in the SAME dashboard. If PCN/hub
-are already in the primary dataset, that chart can serve both roles. Publish with
-configuration={"preset":"facility-network","source_chart_id":SOURCE_CHART_ID,
-"network_chart_id":NETWORK_CHART_ID}. This renders an interactive map, a separate Yes/No
-service donut for every service, and clickable category/level/ownership charts with shared
-filters. Missing service values remain Not recorded. State any duplicate names or missing
-network assignments. For an update to an existing published facility dashboard, reuse its
-source dashboard and republish; do not create duplicate dashboards. Never invent data or
-links. Report success only after the publication tool returns its URL.
+For facility / health-service dashboards, use the default buikwe-workspace design with
+fields actually present in the current client's dataset. PCN and hub are optional:
+never require them, ask for them as a prerequisite, invent assignments, or create a
+network source when none exists. Use available ownership, level, service and geographic
+fields for filters and panels. Preserve missing service values as Not recorded.
+If explicitly using the legacy facility-network preset, only source_chart_id is required;
+add network_chart_id only when genuine PCN/hub assignments are available in an accessible
+source. If those fields are already in the primary source, no separate chart is needed.
+For updates, reuse publication_id and preserve the existing dashboard design.
+Never invent data or links. Report success only after the publication tool returns its URL.
 
 For a complete dataset table, include all its columns and an appropriate row_limit; the
 chart can display more data than the capped excerpt returned to you by a read tool.
@@ -405,10 +398,11 @@ panel, lower sequential flow and authorized detail table. Country polygons show
 country coverage when site coordinates are absent; never invent site locations.
 When requested, display one point per site at its country boundary centroid and
 explicitly label these as country-centroid placements, not actual site coordinates.
-Chart positions fill automatically for any number of workspace panels. Do not invent
+Keep the original sandbox benchmark layout: compact cards in their established slots,
+central map, metrics, lower workflow and detail table. Fewer panels must not expand or
+stretch to fill unused slots. Preserve fonts, card proportions, spacing and subject
+membership. Group related variables using the existing navigable tabs. Never invent
 extra variables, duplicate cards or filler charts to occupy empty benchmark slots.
-Preserve chart identity and subject grouping; the renderer expands available cards
-and keeps the central map, metrics and detail table in the established design.
 
 For administrative filters, call discover_administrative_boundaries with the CURRENT
 country or region even if the primary dataset has no geographic name columns.

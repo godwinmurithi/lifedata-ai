@@ -188,10 +188,12 @@ Vima publishes new dashboards directly to the custom UI. It does not create a Su
 Call `publish_dashboard` with `title`, `theme` and workspace `configuration`, omitting `dashboard_id`. The returned `publication_id` addresses later updates and `edit_dashboard_chart_style` calls. Source chart permissions are rechecked for each viewer. `dashboard_id` remains supported for importing existing native dashboards. Existing publications are retained; this change does not delete previously created native dashboards.
 
 
-### Automatic layout and administrative hierarchy
+### Original sandbox layout and administrative hierarchy
 
-Workspace panels automatically fill the two sides of the central map. Fewer chart groups expand to occupy available space; an odd final group spans both side columns. All eleven groups preserve benchmark reading order. Cards are never fabricated to fill gaps, and field/chart styling identities stay stable. The same layout adapts to small screens.
+Workspace panels retain the original sandbox benchmark positions, compact sizes, fonts and spacing. Fewer chart groups do not expand to fill unused slots. Group related variables using navigable tabs; never fabricate cards or duplicate charts. Administrative mapping must not change the established dashboard layout.
 
 `discover_administrative_boundaries(region)` searches the caller's accessible datasets and returns administrative fields, geometry fields and geographic samples. Confirm country coverage before selecting a reference. Workspace configuration accepts `administrative_boundaries`, each with `chart_id`, `geometry_field`, and `levels` ordered largest to smallest. Each level defines `field` (the dashboard name), `source_field` (the actual reference column), and `label`. Geometries must be WGS84 GeoJSON polygons.
 
 The data adapter joins permitted polygons to actual facility coordinates, adding geographic fields without modifying the primary dataset. Cascading filters use the selected parent cohort; parent changes clear descendant selections. Source names are authoritative, ambiguous borders and missing coordinates stay unassigned, and placeholder area names are treated as missing. Map layers are independently switchable by hierarchy level, preserving level colours and bed-based facility marker sizes. Reference limits and unmatched locations are reported.
+
+PCN and hub are optional dataset dimensions. Never require network assignments to create a dashboard. Include their filters only when genuine recorded values are available; the legacy facility-network preset also works with its primary source alone.

@@ -126,15 +126,13 @@ class PublishDashboardTool(Tool):
         'Use discover_administrative_boundaries to locate geographic sources even when the primary dataset has no admin fields. '
         'Optional administrative_boundaries lists chart_id, geometry_field and levels ordered largest to smallest '
         '(each field, source_field, label). GeoJSON polygons must use WGS84 longitude/latitude. '
-        'The UI spatially joins real facility coordinates, provides cascading filters, and fills chart space automatically. '
+        'The UI spatially joins real facility coordinates, provides cascading filters, and preserves the original compact sandbox chart layout. '
         'Optionally supply layout to match a screenshot: ordered chart_id, span (4/6/12) '
         'and height in pixels for EVERY source chart. Omit layout to preserve manual edits. '
-        'For a facility executive dashboard with map and shared PCN, hub, ownership and '
-        'level filters, use configuration preset facility-network with source_chart_id '
-        '(raw full survey: name_facility, hf_level, facility_type, ownership, lat, lon, '
-        'maternal_childhealth, hiv_tb, labaratory, radiology, specialised, dental, optical, '
-        'surgery, theatre, ambulance, mortuary) and network_chart_id (raw name_facility, '
-        'pcn, hub). Both charts must be accessible publication sources. Use full source row limits. '
+        'PCN and hub are optional for every dashboard; never require missing network fields. '
+        'The legacy facility-network preset requires only source_chart_id (raw full survey). '
+        'Optional network_chart_id supplies genuine facility-name PCN/hub assignments; '
+        'omit it when unavailable or when the primary source already contains those fields. '
         'For generic population discovery use preset population-discovery with source_chart_id '
         '(raw person_id, facility_name, age, sex, blood_group, recorded screening and geography), '
         'boundary_chart_id (district, county, subcounty, geometry_geojson), facility_chart_id '
@@ -244,9 +242,9 @@ class PublishDashboardTool(Tool):
         saved_design = validate_design(design if design is not None else ((existing.configuration or {}).get('design', {}) if existing else {}), set(source_order))
         if configuration is not None:
             preset = configuration.get('preset')
-            sources = ('source_chart_id',) if preset == 'buikwe-workspace' else ('source_chart_id', 'network_chart_id') if preset == 'facility-network' else (
+            sources = ('source_chart_id',) if preset == 'buikwe-workspace' else ('source_chart_id',) if preset == 'facility-network' else (
                 'source_chart_id', 'boundary_chart_id', 'facility_chart_id')
-            optional = {'workspace', 'boundary_chart_id', 'facility_chart_id', 'administrative_boundaries', 'region_label', 'map_bounds'} if preset == 'buikwe-workspace' else {'region_label', 'map_bounds'} if preset == 'facility-network' else {
+            optional = {'workspace', 'boundary_chart_id', 'facility_chart_id', 'administrative_boundaries', 'region_label', 'map_bounds'} if preset == 'buikwe-workspace' else {'network_chart_id', 'region_label', 'map_bounds'} if preset == 'facility-network' else {
                 'region_label', 'map_bounds', 'default_facility', 'native_dashboard_ids', 'summary_chart_id'}
             if (preset not in {'facility-network', 'population-discovery', 'buikwe-workspace'}
                     or not {'preset', *sources}.issubset(configuration)
@@ -255,6 +253,9 @@ class PublishDashboardTool(Tool):
                            for key in sources)):
                 label = 'Facility' if preset == 'facility-network' else 'Population'
                 raise ToolError(f'{label} sources must be charts in this dashboard.', code='invalid_configuration')
+            if preset == 'facility-network' and 'network_chart_id' in configuration:
+                if type(configuration['network_chart_id']) is not int or configuration['network_chart_id'] not in source_order:
+                    raise ToolError('Facility sources must be charts in this dashboard.', code='invalid_configuration')
             if preset == 'buikwe-workspace':
                 for key in ('boundary_chart_id', 'facility_chart_id'):
                     if key in configuration and (type(configuration[key]) is not int or configuration[key] not in source_order):

@@ -335,3 +335,12 @@ def test_custom_only_publications_are_distinct_and_preserve_viewer_permissions(m
     with pytest.raises(SupersetError):
         PublishDashboardTool().run(context, title='Forbidden', theme='light', configuration=config)
     assert DashboardPublication.objects.count() == 2
+
+
+def test_facility_preset_allows_source_without_network(monkeypatch):
+    context, _, publication = setup_publication(monkeypatch)
+    configuration = {'preset': 'facility-network', 'source_chart_id': 12}
+    PublishDashboardTool().run(context, 4, 'Facilities without PCN', 'light', configuration=configuration)
+    publication.refresh_from_db()
+    assert publication.configuration['source_chart_id'] == 12
+    assert 'network_chart_id' not in publication.configuration
