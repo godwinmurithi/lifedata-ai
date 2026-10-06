@@ -85,6 +85,7 @@ from django.conf import settings
 
 from lifedata_ai.agent.context import PageContext, clean_text
 from lifedata_ai.agent.events import PANEL_EVENTS
+from lifedata_ai.agent.deepseek_provider import DeepSeekClient
 from lifedata_ai.agent.openai_provider import (
     OpenAIClient,
     OpenAIConnectionError,
@@ -832,8 +833,8 @@ def run_turn(
         conversation.save(update_fields=["title", "page_scope", "updated_at"])
 
     provider = settings.LIFEDATA_AI_PROVIDER
-    provider_label = "OpenAI" if provider == "openai" else "Anthropic"
-    key_name = "OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY"
+    provider_label = {"openai": "OpenAI", "deepseek": "DeepSeek", "anthropic": "Anthropic"}[provider]
+    key_name = {"openai": "OPENAI_API_KEY", "deepseek": "DEEPSEEK_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}[provider]
     api_key = getattr(settings, key_name)
     if not api_key:
         # The rest of the stack stays usable without a key: read tools,
@@ -869,7 +870,12 @@ def run_turn(
         page_context=page_context.to_dict(),
     )
 
-    client = OpenAIClient(api_key) if provider == "openai" else anthropic.Anthropic(api_key=api_key)
+    if provider == "openai":
+        client = OpenAIClient(api_key)
+    elif provider == "deepseek":
+        client = DeepSeekClient(api_key, base_url=settings.LIFEDATA_AI_DEEPSEEK_BASE_URL)
+    else:
+        client = anthropic.Anthropic(api_key=api_key)
     deadline = time.monotonic() + settings.LIFEDATA_AI_TURN_TIMEOUT_SECONDS
     max_rounds = settings.LIFEDATA_AI_MAX_TOOL_ROUNDS
     stop_reason = "error"
@@ -1353,10 +1359,12 @@ def _provider_message(exc: Any, provider: str = "anthropic") -> str:
     Anthropic's own text, so there is nothing of ours to leak.
     """
     status_code = getattr(exc, "status_code", None)
-    label = "OpenAI" if provider == "openai" else "Anthropic"
-    key_name = "OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY"
+    label = {"openai": "OpenAI", "deepseek": "DeepSeek", "anthropic": "Anthropic"}[provider]
+    key_name = {"openai": "OPENAI_API_KEY", "deepseek": "DEEPSEEK_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}[provider]
     if provider == "openai" and _openai_quota_exhausted(exc):
         return "The OpenAI API account has no credits remaining. Add credits in the OpenAI billing dashboard."
+    if provider == "deepseek" and status_code == 402:
+        return "The DeepSeek API account has insufficient balance. Add credits in the DeepSeek billing dashboard."
     if status_code == 401:
         return f"The configured {label} API key was rejected. Check {key_name}."
     if status_code == 429:

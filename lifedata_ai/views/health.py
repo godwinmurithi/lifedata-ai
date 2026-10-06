@@ -44,8 +44,10 @@ def health(request: HttpRequest) -> JsonResponse:
         "model_key_configured": bool(
             settings.OPENAI_API_KEY
             if settings.LIFEDATA_AI_PROVIDER == "openai"
+            else settings.DEEPSEEK_API_KEY if settings.LIFEDATA_AI_PROVIDER == "deepseek"
             else settings.ANTHROPIC_API_KEY
         ),
+        "deepseek_key_configured": bool(settings.DEEPSEEK_API_KEY),
         "openai_key_configured": bool(settings.OPENAI_API_KEY),
         "anthropic_key_configured": bool(settings.ANTHROPIC_API_KEY),
     }

@@ -258,15 +258,17 @@ LIFEDATA_AI_DEV_MODE = _env_bool("LIFEDATA_AI_DEV_MODE", False) and not _looks_l
 #: Secrets come from the environment only, never from code (spec §9).
 ANTHROPIC_API_KEY = _env("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = _env("OPENAI_API_KEY")
+DEEPSEEK_API_KEY = _env("DEEPSEEK_API_KEY")
+LIFEDATA_AI_DEEPSEEK_BASE_URL = _env("LIFEDATA_AI_DEEPSEEK_BASE_URL", "https://api.deepseek.com/anthropic")
 LIFEDATA_AI_PROVIDER = _env("LIFEDATA_AI_PROVIDER", "anthropic").lower()
-if LIFEDATA_AI_PROVIDER not in {"anthropic", "openai"}:
-    raise ValueError("LIFEDATA_AI_PROVIDER must be anthropic or openai")
+if LIFEDATA_AI_PROVIDER not in {"anthropic", "openai", "deepseek"}:
+    raise ValueError("LIFEDATA_AI_PROVIDER must be anthropic, openai or deepseek")
 
 #: Model catalogue verified rather than assumed — the spec's suggested
 #: `claude-sonnet-4-6` predates the current line-up.
 LIFEDATA_AI_MODEL = _env(
     "LIFEDATA_AI_MODEL",
-    "gpt-5.3-codex" if LIFEDATA_AI_PROVIDER == "openai" else "claude-opus-5",
+    {"openai": "gpt-5.3-codex", "deepseek": "deepseek-flash", "anthropic": "claude-opus-5"}[LIFEDATA_AI_PROVIDER],
 )
 
 #: Reasoning depth: low | medium | high | xhigh | max.
