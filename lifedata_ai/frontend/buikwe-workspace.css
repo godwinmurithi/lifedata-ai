@@ -1,2 +1,9 @@
 /* All geometry, typography and panel styling comes from the actual Buikwe CSS. */
 .workspace-chart{display:flex;flex:1;min-height:0;overflow:hidden}.workspace-chart>.sb-pie-body,.workspace-chart>.vima-donut{flex:1}.workspace-shell .sb-title{overflow:hidden;text-overflow:ellipsis}.workspace-shell .sb-tabs button[aria-selected=true]{box-shadow:inset 0 -2px #a43b5d}.workspace-shell .pd-records .sb-tabs{flex-shrink:0}
+
+/* Applied only after the explicit Resize to fit action. */
+.workspace-layout-side{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(var(--workspace-rows),minmax(0,1fr));gap:8px;min-height:0;min-width:0}
+.workspace-layout-left{grid-template-columns:minmax(0,19.5fr) minmax(0,18.3fr);grid-column:1/span 2;grid-row:1/span 3}.workspace-layout-right{grid-column:4/span 2;grid-row:1/span 3}
+.workspace-layout-side>.sb-panel{grid-column:auto;grid-row:auto}.workspace-layout-side>.sb-panel:last-child:nth-child(odd){grid-column:1/-1}
+
+@media(max-width:799px){.workspace-layout-side{grid-column:1/-1;grid-row:span var(--workspace-rows);grid-template-rows:repeat(var(--workspace-rows),minmax(0,1fr));gap:5px}}

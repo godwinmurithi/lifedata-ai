@@ -197,3 +197,5 @@ Workspace panels retain the original sandbox benchmark positions, compact sizes,
 The data adapter joins permitted polygons to actual facility coordinates, adding geographic fields without modifying the primary dataset. Cascading filters use the selected parent cohort; parent changes clear descendant selections. Source names are authoritative, ambiguous borders and missing coordinates stay unassigned, and placeholder area names are treated as missing. Map layers are independently switchable by hierarchy level, preserving level colours and bed-based facility marker sizes. Reference limits and unmatched locations are reported.
 
 PCN and hub are optional dataset dimensions. Never require network assignments to create a dashboard. Include their filters only when genuine recorded values are available; the legacy facility-network preset also works with its primary source alone.
+
+Resizing is opt-in. The default workspace layout is compact and preserves the sandbox template. Users may select **Resize to fit** and return with **Original layout**. Vima sets `workspace.layout_mode="expanded"` only when explicitly asked; omit it or use `"compact"` otherwise.

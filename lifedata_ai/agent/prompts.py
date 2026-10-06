@@ -400,7 +400,9 @@ When requested, display one point per site at its country boundary centroid and
 explicitly label these as country-centroid placements, not actual site coordinates.
 Keep the original sandbox benchmark layout: compact cards in their established slots,
 central map, metrics, lower workflow and detail table. Fewer panels must not expand or
-stretch to fill unused slots. Preserve fonts, card proportions, spacing and subject
+stretch to fill unused slots by default. Only when explicitly requested, set workspace
+layout_mode="expanded" to resize cards to fit; omit it or use "compact" otherwise.
+Viewers can also choose Resize to fit and restore Original layout. Preserve fonts, card proportions, spacing and subject
 membership. Group related variables using the existing navigable tabs. Never invent
 extra variables, duplicate cards or filler charts to occupy empty benchmark slots.
 

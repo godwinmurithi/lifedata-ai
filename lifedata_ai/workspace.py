@@ -4,6 +4,7 @@ SLOTS = ['blood', 'donor', 'liver', 'screening', 'pressure', 'vaccines',
 WORKSPACE_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
     'properties': {
+        'layout_mode': {'enum': ['compact', 'expanded']},
         'display_title': {'type': 'string', 'maxLength': 80},
         'record_label': {'type': 'string', 'minLength': 1, 'maxLength': 40},
         'entity_label': {'type': 'string', 'minLength': 1, 'maxLength': 40},

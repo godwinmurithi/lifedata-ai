@@ -117,7 +117,7 @@ class PublishDashboardTool(Tool):
         'source_chart_id (a raw current-client record chart), and workspace: selectors, '
         'site_field, country_field, record_columns, panels (slot, title, tabs field/label/chart_id), '
         'and workflow (field/value/label). This reuses the original gauge, five-column grid, '
-        'compact side charts, map, sequential flow and record table. '
+        'compact side charts, map, sequential flow and record table. Optional workspace layout_mode=expanded resizes cards only when explicitly requested; default compact preserves the original template. '
         'Workspace maps support optional facility_chart_id (raw facility coordinates, level and beds), '
         'boundary_chart_id (raw county/subcounty geometry_geojson), and region_label. '
         'Discover existing geographic datasets and create/reuse current-client raw reference charts; '
