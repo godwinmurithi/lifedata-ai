@@ -140,6 +140,8 @@ _READ_TOOL_SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # by omission from non-admin registries -- see canvas.py's own gate).
     ("lifedata_ai.tools.canvas", ("AuthorCanvasTool",)),
     ("lifedata_ai.tools.publications", ("PublishDashboardTool", "EditDashboardChartStyleTool")),
+    # hdss-site template: Vima fills a spec from the scoped HDSS bindings; it never writes layout.
+    ("lifedata_ai.tools.hdss", ("CreateHdssDashboardTool", "PublishHdssDashboardTool")),
     ("lifedata_ai.tools.geography", ("DiscoverAdministrativeBoundariesTool",)),
     # Phase 18. READ mode despite `propose_skill` writing a `Skill` row --
     # see skills.py's module docstring for why that is not a WRITE tool in

@@ -9,6 +9,7 @@ from lifedata_ai.views import (
     conversations,
     dashboards,
     execute_mcp_action,
+    hdss,
     health,
     population,
     workspace,
@@ -25,6 +26,13 @@ urlpatterns = [
     # Session-required.
     path("dashboards/", dashboards.page, name="dashboard-library-page"),
     path("dashboards/<uuid:pk>/", dashboards.page, name="dashboard-page"),
+    # hdss-site template: per-card aggregates for a filter state (never rows), plus template management.
+    path("dashboards/<uuid:pk>/query", hdss.query, name="hdss-query"),
+    path("dashboards/<uuid:pk>/query/", hdss.query),
+    path("api/hdss/templates/", hdss.templates, name="hdss-templates"),
+    path("api/hdss/dashboards/", hdss.create, name="hdss-create"),
+    path("api/hdss/dashboards/<uuid:pk>/spec/", hdss.spec, name="hdss-spec"),
+    path("api/hdss/dashboards/<uuid:pk>/status/", hdss.status, name="hdss-status"),
     path("api/publications/", dashboards.library, name="publication-library"),
     path("api/publications/creatable/", dashboards.creatable, name="publication-creatable"),
     path("api/publications/create/", dashboards.create, name="publication-create"),

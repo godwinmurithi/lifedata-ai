@@ -24,6 +24,11 @@ def configuration_chart_ids(configuration):
 
 
 def publication_charts(client, publication):
+    if (publication.configuration or {}).get('preset') == 'hdss-site':
+        # Template pages bind a registered dataset, not charts: authorise the dataset with the viewer's session.
+        from lifedata_ai.hdss.service import authorise
+        authorise(client, publication)
+        return []
     if publication.superset_dashboard_id is not None:
         if not client.get_dashboard(publication.superset_dashboard_id):
             raise SupersetError('Dashboard not found.', status_code=404)

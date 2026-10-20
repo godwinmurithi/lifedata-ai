@@ -31,6 +31,7 @@ import Facilities, { FacilityConfiguration } from "./facilities";
 import { DashboardDesign, DesignContext, designTokens, responseColor, ResponseDonut, ChartTabs, DesignLibrary } from "./design-system";
 import BuikweWorkspace, {WorkspaceConfiguration} from "./buikwe-workspace";
 import Population, { PopulationConfiguration } from "./population";
+import HdssTemplate, { HdssCreator } from "./hdss-template";
 
 echarts.use([
   BarChart,
@@ -544,6 +545,8 @@ function Viewer() {
       setPreferredTheme(next);
       try { localStorage.setItem(`lifedata:dashboard-theme:${publicationId}`, next); } catch {}
     }}>{theme === "dark" ? "☀ Light mode" : "☾ Dark mode"}</button>;
+  if ((publication?.configuration as { preset?: string } | undefined)?.preset === "hdss-site")
+    return <HdssTemplate publicationId={publication!.id} title={publication!.title} canEdit={publication!.can_edit} />;
   if (publication?.configuration?.preset === "buikwe-workspace")
     return <BuikweWorkspace publication={publication} theme={theme} themeControl={themeControl}/>;
   if (publication?.configuration?.preset === "population-discovery")
@@ -838,6 +841,7 @@ function Home() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"updated" | "name">("updated");
   const [creatorOpen, setCreatorOpen] = useState(false);
+  const [hdssOpen, setHdssOpen] = useState(false);
   function reload() {
     request<{ items: Publication[] }>(api)
       .then((value) => setLibrary(value.items))
@@ -895,9 +899,14 @@ function Home() {
             </h1>
             <p>{heroLine}</p>
           </div>
-          <button className="home-cta" onClick={() => setCreatorOpen(true)}>
-            + New dashboard
-          </button>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button className="home-cta" onClick={() => setCreatorOpen(true)}>
+              + New dashboard
+            </button>
+            <button className="home-cta" onClick={() => setHdssOpen(true)}>
+              + New HDSS dashboard
+            </button>
+          </div>
         </div>
         {!!library?.length && (
           <div className="home-stats">
@@ -1017,6 +1026,7 @@ function Home() {
           )
         )}
       </section>
+      {hdssOpen && <HdssCreator onClose={() => setHdssOpen(false)} />}
       {creatorOpen && (
         <Creator
           onClose={() => setCreatorOpen(false)}

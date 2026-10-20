@@ -1,0 +1,112 @@
+{
+  "template": "hdss-site",
+  "version": 1,
+  "title": "HDSS template",
+  "status": "draft",
+  "site": {
+    "column": "hdss_site",
+    "value": "<site name, e.g. Dodowa HDSS>"
+  },
+  "entities": {
+    "persons": {
+      "dataset": "<registered dataset id>",
+      "grain": "person",
+      "roles": {
+        "id": "individual_id",
+        "household_id": "household_id",
+        "sex": "sex",
+        "age_band": "age_group (mapped to 0-4, 5-14, 15-24, 25-44, 45-64, 65+)",
+        "education": "<column + value map>",
+        "occupation": "<column + value map>",
+        "marital": "marital_status_code (+ value map)",
+        "migration": "derived from entry_type / exit_type / migration_type",
+        "event": "derived: Birth, Death, In-migration, Out-migration",
+        "bednet": "<column + value map>",
+        "record_date": "<defined date: see prompt>"
+      }
+    }
+  },
+  "household_attributes": {
+    "from": "persons rows, one value per household_id",
+    "cooking_fuel": "<column + value map>",
+    "water_source": "<column + value map>",
+    "roof": "<column + value map>",
+    "floor": "<column + value map>",
+    "toilet": "<column + value map>",
+    "assets": {
+      "Radio": "<col>",
+      "TV": "<col>",
+      "Phone": "<col>",
+      "Fridge": "<col>",
+      "Vehicles": "<col>"
+    }
+  },
+  "geography": {
+    "district": "district",
+    "county": null,
+    "subcounty": null,
+    "parish": null,
+    "village": "community",
+    "lat": "latitude",
+    "lon": "longitude"
+  },
+  "slots": [
+    "header.count",
+    "kpi.births",
+    "kpi.deaths",
+    "kpi.in_migration",
+    "kpi.out_migration",
+    "kpi.under_five",
+    "card.persons_households",
+    "card.age_gender",
+    "card.coordinates",
+    "card.cooking_fuel",
+    "card.water_source",
+    "card.education",
+    "card.occupation",
+    "card.roof_floor",
+    "card.bednet_toilet",
+    "card.migration_water",
+    "card.marital",
+    "card.lifeconnect",
+    "card.population_households",
+    "card.assets",
+    "footer.counts"
+  ],
+  "filters": [
+    "district",
+    "county",
+    "subcounty",
+    "parish",
+    "village",
+    "time_period",
+    "time_range",
+    "age_band",
+    "sex",
+    "event",
+    "fuel",
+    "water",
+    "education",
+    "occupation",
+    "marital",
+    "migration",
+    "bednet",
+    "roof",
+    "floor",
+    "toilet",
+    "asset"
+  ],
+  "deep_dive": {
+    "Births": null,
+    "Deaths": null,
+    "In-migration": null,
+    "Out-migration": null,
+    "Under five": null,
+    "_note": "dashboard address per first-row card; the current filters are appended as a query string; null = link not set yet"
+  },
+  "privacy": {
+    "person_level_rows_to_browser": false,
+    "min_cell_size": 0,
+    "synthetic": true
+  }
+}

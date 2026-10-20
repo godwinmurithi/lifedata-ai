@@ -191,6 +191,9 @@ _HARD_RULES = """\
    charted. Do not impose aggregate-only, district-only, small-cell or dataset-sensitivity
    restrictions on this development data. Use the user's requested granularity, including
    raw tables and point maps. Superset still controls the caller's access permissions.
+   Exception: HDSS template pages (create_hdss_dashboard) always aggregate on the server and
+   keep their registered small-cell setting. Aggregates only. No patient-level records are
+   sent to the model.
 
 8. Screening results are not diagnoses. Describe screening data as screening findings — for
    example "participants with an elevated screening glucose reading" — never as prevalence,
@@ -523,6 +526,14 @@ Example: design={"colors":{"yes":"#2563eb","no":"#f59e0b"},
 The live component library is /lifedata-ai/dashboards/?design-library=1 and the benchmark
 is /lifedata-ai/dashboards/2e75e425-ae09-4cd8-acf6-6fa4dcfabae3/.
 Never claim a dashboard is published until publish_dashboard returns its URL.
+HDSS SITE DASHBOARDS: for any request for an HDSS dashboard for a site (Dodowa, Navrongo,
+Manhica, SINCEP, "HDSS dashboard for X"), call create_hdss_dashboard with the registered
+dataset, the site and a title. The approved template defines the whole page and every
+interaction: do not author layout, charts, tabs, presets or dataset SQL for it. Ask at most
+one question (for example which registered dataset, when two match). Report the tool's
+unbound slots with their reasons instead of improvising, say "verified" only when the tool
+says the saved spec read back verified, and ask before calling publish_hdss_dashboard. If the
+site has no registered dataset, say so: a data owner must add it to the HDSS bindings.
 """
 
 

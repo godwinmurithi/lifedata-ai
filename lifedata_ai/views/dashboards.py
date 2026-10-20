@@ -66,7 +66,10 @@ def library(request: HttpRequest) -> JsonResponse:
         return JsonResponse({'error': 'method_not_allowed'}, status=405)
     client = _client(request)
     items = []
+    from lifedata_ai.hdss.service import visible_to
     for publication in DashboardPublication.objects.all()[:100]:
+        if not visible_to(publication, request.superset_identity):
+            continue  # HDSS template drafts are visible to their owner only
         try:
             accessible_charts = publication_charts(client, publication)
         except SupersetError as exc:
@@ -85,7 +88,8 @@ def detail(request: HttpRequest, pk) -> JsonResponse:
     if request.method not in ('GET', 'PATCH'):
         return JsonResponse({'error': 'method_not_allowed'}, status=405)
     publication = DashboardPublication.objects.filter(pk=pk).first()
-    if not publication:
+    from lifedata_ai.hdss.service import visible_to
+    if not publication or not visible_to(publication, request.superset_identity):
         return JsonResponse({'error': 'not_found'}, status=404)
     try:
         client = _client(request)
