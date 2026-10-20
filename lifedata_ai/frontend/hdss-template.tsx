@@ -324,7 +324,7 @@ function VillageMap({ pins, count }: { pins: any[]; count: string }) {
   </div>;
 }
 
-function StatusBar({ publicationId, status, canEdit, onChange }: { publicationId: string; status: string; canEdit: boolean; onChange: (s: string) => void }) {
+export function StatusBar({ publicationId, status, canEdit, onChange }: { publicationId: string; status: string; canEdit: boolean; onChange: (s: string) => void }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const change = (next: string) => {
     setBusy(true); setError("");
@@ -341,7 +341,7 @@ function StatusBar({ publicationId, status, canEdit, onChange }: { publicationId
   </div>;
 }
 
-type TemplateDataset = { key: string; label: string; site: string; synthetic: boolean; bound_slots: number; slots: number };
+type TemplateDataset = { key: string; label: string; site?: string; synthetic: boolean; bound_slots: number; slots: number; tabs?: string[]; template: string; templateTitle: string };
 /** "New HDSS dashboard" on the /dashboards/ index: registered datasets only, saved as a draft. */
 export function HdssCreator({ onClose }: { onClose: () => void }) {
   const [datasets, setDatasets] = useState<TemplateDataset[]>();
@@ -352,13 +352,13 @@ export function HdssCreator({ onClose }: { onClose: () => void }) {
   const [result, setResult] = useState<{ url: string; unbound: string[] }>();
   useEffect(() => {
     fetch("/lifedata-ai/api/hdss/templates/", { credentials: "same-origin" })
-      .then(async (r) => { const b = await r.json(); if (!r.ok) throw new Error(b.error || "Request failed"); setDatasets(b.templates[0].datasets); })
+      .then(async (r) => { const b = await r.json(); if (!r.ok) throw new Error(b.error || "Request failed"); setDatasets(b.templates.flatMap((t: any) => t.datasets.map((d: any) => ({ ...d, template: t.id, templateTitle: t.title })))); })
       .catch((e) => setError(e.message));
   }, []);
   const create = () => {
     if (!selected || !title.trim() || busy) return;
     setBusy(true); setError("");
-    fetch("/lifedata-ai/api/hdss/dashboards/", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dataset: selected.key, title: title.trim() }) })
+    fetch("/lifedata-ai/api/hdss/dashboards/", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template: selected.template, dataset: selected.key, title: title.trim() }) })
       .then(async (r) => { const b = await r.json(); if (!r.ok) throw new Error(b.error || "Not created"); setResult({ url: b.url, unbound: b.unbound }); })
       .catch((e) => setError(e.message)).finally(() => setBusy(false));
   };
@@ -370,11 +370,11 @@ export function HdssCreator({ onClose }: { onClose: () => void }) {
         {result.unbound.length ? <><p className="creator-note">These parts have no registered source and stay hidden:</p><ul className="creator-note">{result.unbound.map((u) => <li key={u}>{u}</li>)}</ul></> : null}
         <a className="home-cta" href={result.url}>Open the draft</a>
       </div> : !selected ? <>
-        <p className="creator-lead">The approved HDSS page, built from a registered site dataset. Every card is also a filter; parts without a registered source are hidden, never invented.</p>
+        <p className="creator-lead">The approved HDSS templates, built from registered datasets. Every chart element is also a filter; parts without a registered source are hidden, never invented.</p>
         <div className="creator-list">
           {datasets === undefined ? <div className="empty">{error || "Loading registered datasets…"}</div> : datasets.length ? datasets.map((d) =>
-            <button key={d.key} className="creator-row" onClick={() => { setSelected(d); setTitle(d.site + " dashboard"); }}>
-              <span>{d.label}</span><span className="creator-tag">{d.bound_slots}/{d.slots} parts bound{d.synthetic ? " · illustrative" : ""}</span>
+            <button key={d.template + d.key} className="creator-row" onClick={() => { setSelected(d); setTitle(d.template === "hdss-master" ? "Master Dashboard" : d.site + " dashboard"); }}>
+              <span><strong>{d.templateTitle}</strong> · {d.label}</span><span className="creator-tag">{d.tabs ? d.tabs.join(", ") + " · " : ""}{d.bound_slots}/{d.slots} parts bound{d.synthetic ? " · illustrative" : ""}</span>
             </button>) : <div className="empty">No registered HDSS dataset you can read.</div>}
         </div>
       </> : <div className="creator-form">

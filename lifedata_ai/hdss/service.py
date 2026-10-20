@@ -1,4 +1,4 @@
-"""Saving, reading back and authorising hdss-site dashboards (shared by the views and Vima's tool)."""
+"""Saving, reading back and authorising template dashboards: hdss-site and hdss-master (views and Vima's tools)."""
 from __future__ import annotations
 
 import uuid
@@ -15,8 +15,17 @@ def _uuid(value: str) -> str:
         raise SpecError('That is not a dashboard id.') from exc
 
 
+MASTER_PRESET = 'hdss-master'
+
+
 def is_hdss(publication) -> bool:
-    return (publication.configuration or {}).get('preset') == PRESET
+    """A template page (hdss-site or hdss-master)."""
+    return (publication.configuration or {}).get('preset') in (PRESET, MASTER_PRESET)
+
+
+def is_master(spec_or_publication) -> bool:
+    spec = spec_or_publication if isinstance(spec_or_publication, dict) else (spec_or_publication.configuration or {}).get('spec') or {}
+    return spec.get('template') == MASTER_PRESET
 
 
 def visible_to(publication, identity) -> bool:
@@ -30,18 +39,26 @@ def visible_to(publication, identity) -> bool:
 def authorise(client, publication) -> None:
     """The viewer must be able to read the bound dataset in Superset (raises SupersetError otherwise)."""
     spec = publication.configuration.get('spec') or {}
-    dataset_id = (spec.get('dataset') or {}).get('superset_dataset_id')
-    if type(dataset_id) is not int:
+    ids = (spec.get('source') or {}).get('datasets') if is_master(spec) else [(spec.get('dataset') or {}).get('superset_dataset_id')]
+    if not ids or any(type(i) is not int for i in ids):
         raise SupersetError('Publication has no sources.', status_code=404)
-    if not client.get_dataset(dataset_id):
-        raise SupersetError('Dataset not found.', status_code=404)
+    for dataset_id in ids:  # a Master page needs every registered dataset of its source
+        if not client.get_dataset(dataset_id):
+            raise SupersetError('Dataset not found.', status_code=404)
 
 
 def save(client, username: str, spec: dict[str, Any], publication_id: str | None = None) -> dict[str, Any]:
     """Validate, save as given (draft unless already published by its owner), re-read and re-validate."""
     from lifedata_ai.models import DashboardPublication
-    binding, report = validate_spec(spec, client)
-    configuration = {'preset': PRESET, 'spec': spec}
+    if is_master(spec):
+        from lifedata_ai.hdss import master
+        src, cov = master.validate_master_spec(spec, client)
+        label, synthetic, report, unbound, preset = src['label'], src['synthetic'], cov, master.unbound_summary(cov), MASTER_PRESET
+        revalidate = master.validate_master_spec
+    else:
+        binding, report = validate_spec(spec, client)
+        label, synthetic, unbound, preset, revalidate = binding.label, binding.synthetic, unbound_summary(report), PRESET, validate_spec
+    configuration = {'preset': preset, 'spec': spec}
     if publication_id:
         publication = DashboardPublication.objects.filter(pk=_uuid(publication_id), owner_username=username).first()
         if publication is None or not is_hdss(publication):
@@ -55,11 +72,10 @@ def save(client, username: str, spec: dict[str, Any], publication_id: str | None
     stored = DashboardPublication.objects.get(pk=publication.pk)
     verified = stored.configuration.get('spec') == spec
     if verified:
-        validate_spec(stored.configuration['spec'])
+        revalidate(stored.configuration['spec'])
     return {'publication_id': str(stored.pk), 'url': f'/lifedata-ai/dashboards/{stored.pk}/',
-            'status': spec['status'], 'verified': verified, 'dataset': binding.label,
-            'synthetic': binding.synthetic, 'coverage': report,
-            'unbound': unbound_summary(report)}
+            'status': spec['status'], 'verified': verified, 'dataset': label,
+            'synthetic': synthetic, 'coverage': report, 'unbound': unbound}
 
 
 def create(client, username: str, dataset_key: str, title: str, deep_dive: dict | None = None,
@@ -71,6 +87,12 @@ def create(client, username: str, dataset_key: str, title: str, deep_dive: dict 
     return save(client, username, build_spec(binding, title, deep_dive, slots, filters, population_reference))
 
 
+def create_master(client, username: str, source_key: str, title: str, publication_id: str | None = None) -> dict[str, Any]:
+    """A new Master draft, or (publication_id) a rebuild of one the user owns, e.g. after a registry change."""
+    from lifedata_ai.hdss import master
+    return save(client, username, master.build_master_spec(source_key, title), publication_id)
+
+
 def set_status(username: str, publication_id: str, status: str) -> dict[str, Any]:
     from lifedata_ai.models import DashboardPublication
     if status not in ('draft', 'published'):
@@ -79,7 +101,11 @@ def set_status(username: str, publication_id: str, status: str) -> dict[str, Any
     if publication is None or not is_hdss(publication):
         raise SpecError('No HDSS dashboard with that id is owned by you.')
     spec = dict(publication.configuration['spec'], status=status)
-    validate_spec(spec)
+    if is_master(spec):
+        from lifedata_ai.hdss import master
+        master.validate_master_spec(spec)
+    else:
+        validate_spec(spec)
     publication.configuration = {**publication.configuration, 'spec': spec}
     publication.save(update_fields=['configuration', 'updated_at'])
     stored = DashboardPublication.objects.get(pk=publication.pk)
@@ -91,6 +117,9 @@ def page_spec(publication) -> dict[str, Any]:
     """What the browser receives: the effective spec (unbound slots dropped, reasons listed)."""
     from lifedata_ai.hdss.registry import binding_for_dataset
     spec = publication.configuration['spec']
+    if is_master(spec):
+        from lifedata_ai.hdss import master
+        return master.page_spec(spec)
     binding = binding_for_dataset(spec['dataset']['superset_dataset_id'])
     if binding is None:
         raise SpecError('This dashboard\'s dataset is no longer registered for the HDSS template.')

@@ -1,0 +1,170 @@
+{
+  "template": "hdss-master",
+  "version": 1,
+  "title": "Master dashboard",
+  "status": "draft",
+  "entities": {
+    "persons": {
+      "dataset": "<registered dataset id(s), one per site, unioned>",
+      "grain": "person",
+      "roles": {
+        "id": "individual_id",
+        "household_id": "household_id",
+        "site": "hdss_site",
+        "village": "community",
+        "sex": "sex",
+        "age_band": "age_group",
+        "entry_type": "entry_type",
+        "entry_date": "entry_date",
+        "exit_type": "exit_type",
+        "exit_date": "exit_date"
+      }
+    },
+    "households": {
+      "dataset": "derived from persons (one row per household_id)",
+      "grain": "household",
+      "roles": {
+        "village": "community",
+        "housing": "<needs definition>",
+        "water": "<needs code list>",
+        "bednet": "<needs code list>"
+      }
+    },
+    "villages": {
+      "dataset": "derived: distinct (site, district, community) with mean latitude/longitude",
+      "grain": "village",
+      "roles": {
+        "country": "<site -> country map in the registry>",
+        "district": "district",
+        "county": null,
+        "subcounty": null,
+        "parish": null,
+        "village": "community",
+        "lat": "latitude",
+        "lon": "longitude",
+        "vulnerability_score": "<SINCEP only>",
+        "population": "<SINCEP only>"
+      }
+    },
+    "events": {
+      "dataset": "derived from persons entry/exit columns",
+      "grain": "event",
+      "roles": {
+        "village": "community",
+        "month": "entry_date/exit_date",
+        "type": "Births | Deaths | In-migration | Out-migration | Pregnancies"
+      }
+    },
+    "sites": {
+      "dataset": null,
+      "grain": "site",
+      "note": "no registered source today"
+    },
+    "site_weeks": {
+      "dataset": "<Manhica OPD file: visit date x symptoms, once registered>",
+      "grain": "site-week",
+      "roles": {
+        "syndrome": "<derived>",
+        "count": "<measure>"
+      }
+    },
+    "signals": {
+      "dataset": null,
+      "grain": "signal",
+      "note": "needs a definition (observed/expected) and a job; no source today"
+    },
+    "clusters": {
+      "dataset": null,
+      "grain": "cluster",
+      "note": "needs a scan-statistic job (cases, radius, p-value); no source today"
+    }
+  },
+  "tabs": [
+    {
+      "id": "overview",
+      "label": "Overview",
+      "slots": [
+        "kpi.residents",
+        "kpi.households",
+        "kpi.under_five",
+        "kpi.births",
+        "kpi.deaths",
+        "kpi.net_migration",
+        "chart.vital_events_by_month",
+        "chart.event_mix",
+        "map.events",
+        "stat.ever_registered",
+        "stat.currently_pregnant",
+        "stat.under_five_ever",
+        "stat.outpatient_visits",
+        "chart.age_gender",
+        "chart.housing",
+        "chart.water_sanitation",
+        "chart.bednet"
+      ]
+    },
+    {
+      "id": "sentinel",
+      "label": "LifeHealth Sentinel",
+      "slots": [
+        "kpi.sites",
+        "kpi.reports",
+        "kpi.signals",
+        "kpi.rrt",
+        "kpi.lab",
+        "kpi.lag",
+        "chart.syndrome_weekly",
+        "map.sites",
+        "chart.pathogen",
+        "table.signals"
+      ]
+    },
+    {
+      "id": "geo",
+      "label": "Geospatial Cluster",
+      "slots": [
+        "kpi.clusters",
+        "kpi.high_risk",
+        "kpi.pop_at_risk",
+        "kpi.mean_vulnerability",
+        "kpi.radius",
+        "kpi.p_value",
+        "map.clusters",
+        "chart.tier_distribution",
+        "chart.cluster_scatter",
+        "table.hotspots"
+      ]
+    }
+  ],
+  "filters": {
+    "geography": [
+      "country",
+      "district",
+      "county",
+      "subcounty",
+      "parish",
+      "village"
+    ],
+    "extra": [
+      "tier",
+      "period",
+      "time_point",
+      "event_type",
+      "age_band",
+      "sex",
+      "housing",
+      "water",
+      "bednet",
+      "syndrome",
+      "pathogen",
+      "site_status",
+      "signal_severity"
+    ]
+  },
+  "privacy": {
+    "person_level_rows_to_browser": false,
+    "min_cell_size": 0,
+    "synthetic": true,
+    "note": "set min_cell_size per dataset in the registry for real data; show 'Illustrative data' when synthetic"
+  }
+}

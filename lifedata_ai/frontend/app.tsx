@@ -32,6 +32,7 @@ import { DashboardDesign, DesignContext, designTokens, responseColor, ResponseDo
 import BuikweWorkspace, {WorkspaceConfiguration} from "./buikwe-workspace";
 import Population, { PopulationConfiguration } from "./population";
 import HdssTemplate, { HdssCreator } from "./hdss-template";
+import MasterTemplate from "./master-template";
 
 echarts.use([
   BarChart,
@@ -545,6 +546,8 @@ function Viewer() {
       setPreferredTheme(next);
       try { localStorage.setItem(`lifedata:dashboard-theme:${publicationId}`, next); } catch {}
     }}>{theme === "dark" ? "☀ Light mode" : "☾ Dark mode"}</button>;
+  if ((publication?.configuration as { preset?: string } | undefined)?.preset === "hdss-master")
+    return <MasterTemplate publicationId={publication!.id} title={publication!.title} canEdit={publication!.can_edit} />;
   if ((publication?.configuration as { preset?: string } | undefined)?.preset === "hdss-site")
     return <HdssTemplate publicationId={publication!.id} title={publication!.title} canEdit={publication!.can_edit} />;
   if (publication?.configuration?.preset === "buikwe-workspace")

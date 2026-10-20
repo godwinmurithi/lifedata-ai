@@ -1,4 +1,4 @@
-"""HTTP endpoints of the hdss-site template.
+"""HTTP endpoints of the template dashboards (hdss-site and the three-tab hdss-master).
 
 POST /lifedata-ai/dashboards/<uuid>/query      filter state -> per-card aggregates (never rows)
 GET  /lifedata-ai/api/hdss/templates/           the template and the registered datasets you can read
@@ -9,6 +9,7 @@ Every request runs as the viewer: Superset checks the dataset permission on each
 """
 from __future__ import annotations
 
+import hashlib
 import json
 
 from django.core.cache import cache
@@ -17,7 +18,9 @@ from django.views.decorators.csrf import csrf_exempt
 
 from lifedata_ai.hdss import engine
 from lifedata_ai.hdss.registry import BindingsError, load_bindings
-from lifedata_ai.hdss.service import authorise, create as create_dashboard, is_hdss, page_spec, set_status, visible_to
+from lifedata_ai.hdss import master
+from lifedata_ai.hdss.service import (authorise, create as create_dashboard, create_master, is_hdss, is_master,
+                                      page_spec, set_status, visible_to)
 from lifedata_ai.hdss.spec import DEEP_DIVE_CARDS, SLOTS, FILTERS, SpecError, coverage, build_spec, validate_spec
 from lifedata_ai.models import DashboardPublication
 from lifedata_ai.superset_client import SupersetError
@@ -51,6 +54,8 @@ def query(request, pk):
     if not isinstance(body, dict):
         return JsonResponse({'error': 'The request body must be a JSON object.'}, status=400)
     client = _client(request)
+    if is_master(publication):
+        return _master_query(request, publication, client, body)
     try:
         authorise(client, publication)  # every request, before any cached answer is served
         spec = page_spec(publication)
@@ -85,6 +90,39 @@ def query(request, pk):
     except RuntimeError as exc:
         return JsonResponse({'error': str(exc)}, status=502)
     return JsonResponse({'state': state.canonical(), 'data': data, 'illustrative': binding.synthetic})
+
+
+def _master_query(request, publication, client, body):
+    """Master pages: every entity loaded once per dashboard as grouped counts (server-side cache), then each
+    filter state is answered by the design's filter model in memory. Only per-card aggregates are returned."""
+    try:
+        authorise(client, publication)  # every request, before any cached answer is served
+        spec_ = publication.configuration['spec']
+        src, _ = master.validate_master_spec(spec_)
+        reg = master.load_master()
+    except SupersetError as exc:
+        return _error(exc)
+    except (SpecError, BindingsError) as exc:
+        return JsonResponse({'error': str(exc)}, status=409)
+    stamp = f'{publication.pk}:{publication.updated_at.isoformat()}'
+    try:
+        data = cache.get(f'hdss:mdata:{stamp}')
+        if data is None:
+            data = master.load(src, reg, engine.superset_executor(client))
+            cache.set(f'hdss:mdata:{stamp}', data, CACHE_SECONDS)
+        state = master.parse_state(body.get('state'), src, reg, data)
+        key = f'hdss:mq:{stamp}:' + hashlib.sha256(json.dumps(state, sort_keys=True).encode()).hexdigest()
+        out = cache.get(key)
+        if out is None:
+            out = master.compute(src, reg, data, state)
+            cache.set(key, out, CACHE_SECONDS)
+    except engine.StateError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    except SupersetError as exc:
+        return _error(exc)
+    except RuntimeError as exc:
+        return JsonResponse({'error': str(exc)}, status=502)
+    return JsonResponse({'state': state, 'data': out, 'illustrative': src['synthetic']})
 
 
 def spec(request, pk):
@@ -123,11 +161,29 @@ def templates(request):
                          'site': binding.site_value, 'synthetic': binding.synthetic,
                          'bound_slots': sum(1 for v in report['slots'].values() if v == 'bound'),
                          'slots': len(SLOTS)})
+    sources = []
+    for src in master.load_master()['sources'].values():
+        try:
+            if not all(client.get_dataset(i) for i in master.dataset_ids(src)):
+                continue
+        except SupersetError as exc:
+            if exc.status_code in (401, 403, 404):
+                continue
+            return _error(exc)
+        cov = master.coverage(src)
+        sources.append({'key': src['key'], 'label': src['label'], 'synthetic': src['synthetic'],
+                        'tabs': [label for t, label in master.TABS if cov['tabs'][t]],
+                        'bound_slots': sum(1 for t in cov['slots'].values() for v in t.values() if v == 'bound'),
+                        'slots': sum(len(s) for s in master.TAB_SLOTS.values())})
+    master_template = {'id': 'hdss-master', 'title': 'Master dashboard',
+                       'description': 'Three tabs (Overview, LifeHealth Sentinel, Geospatial Cluster) with one shared filter state: '
+                                      'every chart element filters all three tabs. Tabs without a registered source are hidden.',
+                       'datasets': sources}
     return JsonResponse({'templates': [{
         'id': 'hdss-site', 'title': 'HDSS dashboard',
         'description': 'The approved HDSS site page: KPI cards with deep dives, cascading geography, and every card a filter. '
                        'Built from a registered dataset; unbound cards are hidden, never invented.',
-        'slots': list(SLOTS), 'filters': list(FILTERS), 'deep_dive_cards': list(DEEP_DIVE_CARDS), 'datasets': datasets}]})
+        'slots': list(SLOTS), 'filters': list(FILTERS), 'deep_dive_cards': list(DEEP_DIVE_CARDS), 'datasets': datasets}, master_template]})
 
 
 @csrf_exempt
@@ -138,6 +194,10 @@ def create(request):
     if not isinstance(body, dict) or not isinstance(body.get('dataset'), str) or not isinstance(body.get('title'), str):
         return JsonResponse({'error': 'Send {dataset, title}.'}, status=400)
     try:
+        if body.get('template') == 'hdss-master':
+            update = body.get('publication_id') if isinstance(body.get('publication_id'), str) else None
+            return JsonResponse(create_master(_client(request), request.superset_identity.username, body['dataset'],
+                                              body['title'].strip(), update), status=200 if update else 201)
         result = create_dashboard(_client(request), request.superset_identity.username, body['dataset'],
                                   body['title'].strip(), body.get('deep_dive'),
                                   population_reference=body.get('population_reference'))

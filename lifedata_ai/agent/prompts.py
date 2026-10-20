@@ -534,6 +534,12 @@ one question (for example which registered dataset, when two match). Report the 
 unbound slots with their reasons instead of improvising, say "verified" only when the tool
 says the saved spec read back verified, and ask before calling publish_hdss_dashboard. If the
 site has no registered dataset, say so: a data owner must add it to the HDSS bindings.
+MASTER DASHBOARD: for a Master / multi-site HDSS dashboard (tabs Overview, LifeHealth Sentinel,
+Geospatial Cluster), call create_master_dashboard with a registered Master source and a title. The
+template defines the tabs, layout and the shared filter model; tabs without a registered source are
+hidden. Same rules: at most one question, report unbound slots with their reasons, never write
+layout, say "verified" only when the tool says so, and use publish_hdss_dashboard only after the
+user agrees. Aggregates only. No patient-level records are sent to the model.
 """
 
 

@@ -63,6 +63,41 @@ class CreateHdssDashboardTool(Tool):
         return result
 
 
+class CreateMasterDashboardTool(Tool):
+    name = 'create_master_dashboard'
+    mode = ToolMode.READ  # saves a LifeData draft page; no Superset write
+    description = (
+        'Create (or update) a Master dashboard from the approved three-tab Master template (Overview, LifeHealth '
+        'Sentinel, Geospatial Cluster) with one shared filter state. Pass a registered Master source key (its datasets '
+        'are the registered HDSS site data, or the synthetic demo) and a title. The template defines the tabs, layout and '
+        'every interaction: never author layout, charts or tabs for it. The spec is filled from the Master registry and '
+        'validated before saving; tabs whose slots have no registered source are hidden, and the reasons are returned. '
+        'Saved as a DRAFT and read back: say "verified" only if the result says so, list the unbound slots, and ask before '
+        'publishing (publish_hdss_dashboard). Ask at most one question.')
+    input_schema = {
+        'type': 'object', 'additionalProperties': False, 'required': ['datasets', 'title', 'spec'],
+        'properties': {
+            'datasets': {'type': 'string', 'description': 'Registered Master source key, e.g. master-hdss-sites or master-demo.'},
+            'title': {'type': 'string', 'description': 'Page title. Treated as plain text.'},
+            'spec': {'type': 'object', 'additionalProperties': False, 'required': ['publication_id'],
+                     'properties': {'publication_id': {'type': 'string', 'description': 'Existing Master draft to update, or "".'}}},
+        },
+    }
+
+    def run(self, context: ToolContext, datasets: str, title: str, spec: dict[str, Any]) -> dict[str, Any]:
+        from lifedata_ai.hdss import master
+        try:
+            full = master.build_master_spec(datasets.strip(), title.strip()[:120])
+            result = service.save(context.superset_client(), context.username, full, spec.get('publication_id') or None)
+        except SpecError as exc:
+            raise ToolError(f'Refused: {exc}', code='invalid_spec') from exc
+        except SupersetError as exc:
+            raise ToolError(f'Superset refused: {exc}', code='superset_error') from exc
+        result['message'] = ('Saved as a DRAFT and read back: ' + ('verified.' if result['verified'] else 'NOT verified.')
+                             + ' Tell the user which tabs/slots are unbound (listed) and ask before publishing.')
+        return result
+
+
 class PublishHdssDashboardTool(Tool):
     name = 'publish_hdss_dashboard'
     mode = ToolMode.READ

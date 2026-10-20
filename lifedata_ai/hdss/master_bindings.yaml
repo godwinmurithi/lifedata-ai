@@ -1,0 +1,179 @@
+# Master dashboard (hdss-master) bindings: the scoped registry for the three-tab Master template ONLY.
+#
+# Same rules as bindings.yaml (the hdss-site registry): a source that is not listed cannot back a Master
+# dashboard; every entity names its Superset dataset and the columns the template may touch; value lists
+# come from the data owner; anything without a registered source is UNBOUND and its card is hidden with
+# "No data source registered" / "Needs definition". Re-read when the file's mtime changes (no restart).
+#
+# Entities (linked by village): villages, households, persons, events, sites, site_weeks, site_lab, signals,
+# clusters. `village:` lists the columns that identify an entity's village; villages declare the same key.
+# Category lists: {Label: [raw values]} or a plain list when label == raw value.
+
+version: 1
+
+# Site -> country (the HDSS files carry no country column).
+countries:
+  SINCEP Iganga-Mayuge HDSS: Uganda
+  Buikwe: Uganda
+  Navrongo HDSS: Ghana
+  Dodowa HDSS: Ghana
+  Manhica: Mozambique
+
+# Update cycles: six-monthly rounds on the SINCEP calendar (Oct-Mar / Apr-Sep), as named in sincep_hdss.update_cycle.
+cycles:
+  - {label: 'UC01 (Oct 2021 – Mar 2022)', from: '2021-10-01', to: '2022-03-31'}
+  - {label: 'UC02 (Apr – Sep 2022)', from: '2022-04-01', to: '2022-09-30'}
+  - {label: 'UC03 (Oct 2022 – Mar 2023)', from: '2022-10-01', to: '2023-03-31'}
+  - {label: 'UC04 (Apr – Sep 2023)', from: '2023-04-01', to: '2023-09-30'}
+  - {label: 'UC05 (Oct 2023 – Mar 2024)', from: '2023-10-01', to: '2024-03-31'}
+  - {label: 'UC06 (Apr – Sep 2024)', from: '2024-04-01', to: '2024-09-30'}
+  - {label: 'UC07 (Oct 2024 – Mar 2025)', from: '2024-10-01', to: '2025-03-31'}
+  - {label: 'UC08 (Apr – Sep 2025)', from: '2025-04-01', to: '2025-09-30'}
+  - {label: 'UC09 (Oct 2025 – Mar 2026)', from: '2025-10-01', to: '2026-03-31'}
+  - {label: 'UC10 (Apr – Sep 2026)', from: '2026-04-01', to: '2026-09-30'}
+  - {label: 'UC11 (Oct 2026 – Mar 2027)', from: '2026-10-01', to: '2027-03-31'}
+
+sources:
+
+  master-demo:
+    label: Master dashboard demo (synthetic)
+    synthetic: true
+    sensitivity: aggregate_only
+    min_cell_size: 0
+    # The design's seven months are April-October 2026; its weekly syndrome series is aligned to those months.
+    reference_date: '2026-10-20'
+    # Filter bar: Country, District, Site (user request, 2026-10-20). Village is set by clicking a chart (pins,
+    # hotspot rows, scatter points), so it is a drill level with a chip but no dropdown.
+    geography: [country, district, site]
+    drill: [village]
+    villages:
+      dataset: 253
+      key: [village_key]
+      columns: {village_key: key, country: geography, district: geography, county: geography, subcounty: geography,
+                parish: geography, village: geography, latitude: coordinate, longitude: coordinate, risk_tier: dimension,
+                vulnerability: measure, cases: measure, population: measure, ever_registered: measure,
+                under_five_ever: measure, outpatient_visits: measure}
+      levels: {country: country, district: district, county: county, subcounty: subcounty, parish: parish, village: village,
+               # The demo villages carry no site column: each district is assigned to the HDSS site registered for it
+               # above (SINCEP covers Iganga and Mayuge). Synthetic data; confirm or replace.
+               site: {from: district, map: {Iganga: SINCEP Iganga-Mayuge HDSS, Mayuge: SINCEP Iganga-Mayuge HDSS, Buikwe: Buikwe}}}
+      roles: {latitude: latitude, longitude: longitude, tier: risk_tier, vulnerability: vulnerability, cases: cases,
+              population: population, ever_registered: ever_registered, under_five_ever: under_five_ever,
+              outpatient_visits: outpatient_visits}
+      tiers: [High, Moderate, Low]
+    households:
+      dataset: 254
+      key: household_key
+      village: [village_key]
+      columns: {household_key: household_key, village_key: key, housing: dimension, water_sanitation: dimension, bednet: dimension}
+      dimensions:
+        housing: {column: housing, categories: [Good, Moderate, Poor, Dilapidated]}
+        water: {column: water_sanitation, categories: [Safe water, Improved toilet, Open defecation]}
+        bednet: {column: bednet, categories: [With bednet, Without bednet]}
+    persons:
+      dataset: 255
+      household: household_key
+      village: [village_key]
+      columns: {person_key: key, village_key: key, household_key: household_key, age_band: dimension, sex: dimension}
+      dimensions:
+        age_band: {column: age_band, categories: ['65+', '55-64', '45-54', '35-44', '25-34', '15-24', '5-14', '0-4']}
+        sex: {column: sex, categories: [Male, Female]}
+    events:
+      dataset: 256
+      village: [village_key]
+      date: event_date
+      columns: {event_key: key, village_key: key, event_type: dimension, event_date: temporal}
+      types:
+        column: event_type
+        categories: [Births, Deaths, In-migration, Out-migration, Pregnancies]
+    sites:
+      dataset: 257
+      key: site_key
+      village: [village_key]
+      columns: {site_key: key, facility: label, village_key: key, site_status: dimension, reports: measure,
+                rrt_deployments: measure, reporting_lag_days: measure}
+      roles: {name: facility, reports: reports, rrt: rrt_deployments, lag: reporting_lag_days}
+      status: {column: site_status, categories: [alert, watch, normal]}
+    site_weeks:
+      dataset: 258
+      site: site_key
+      date: period_date
+      week_label: week_label
+      count: cases
+      columns: {site_key: key, week_label: label, period_date: temporal, syndrome: dimension, cases: measure}
+      syndromes: {column: syndrome, categories: [Fever, Respiratory, Diarrhea, Rash]}
+    site_lab:
+      dataset: 259
+      site: site_key
+      count: confirmed
+      columns: {site_key: key, pathogen: dimension, confirmed: measure}
+      pathogens: {column: pathogen, categories: [Malaria, Respiratory, Diarrheal, Measles]}
+    signals:
+      dataset: 260
+      key: signal_key
+      site: site_key
+      columns: {signal_key: key, site_key: key, signal_label: label, syndrome: dimension, severity: dimension, detected: label}
+      roles: {label: signal_label, syndrome: syndrome, detected: detected}
+      severity: {column: severity, categories: [High, Moderate, Low]}
+    clusters:
+      dataset: 261
+      village: [village_key]
+      columns: {village_key: key, cases: measure, vulnerability: measure, radius_km: measure, p_value: measure}
+      roles: {cases: cases, vulnerability: vulnerability, radius: radius_km, p_value: p_value}
+
+  master-hdss-sites:
+    label: HDSS sites (SINCEP + Navrongo)
+    # Navrongo's demographics are partly dummy (its own demographics_source column), so the page says
+    # "Illustrative data"; SINCEP rows are real, so small counts are suppressed.
+    synthetic: true
+    sensitivity: aggregate_only
+    min_cell_size: 5
+    geography: [country, district, site]
+    villages:
+      dataset: 264
+      key: [site, village]
+      columns: {site: site, district: geography, village: geography}
+      levels: {country: {site_map: site}, district: district, site: site}
+      roles:
+        latitude: {needs_definition: 'SINCEP records share one coordinate point and Navrongo''s are mostly the site point; village locations need a defined source.'}
+        longitude: {needs_definition: 'SINCEP records share one coordinate point and Navrongo''s are mostly the site point; village locations need a defined source.'}
+        tier: {needs_definition: 'A village risk tier rule is not defined (SINCEP has household vulnerability scores only).'}
+        vulnerability: {needs_definition: 'Village vulnerability is not defined (SINCEP has household scores only).'}
+        population: {needs_definition: 'Village population is not defined (SINCEP only).'}
+        under_five_ever: {needs_definition: '"Under-five ever registered" is not defined.'}
+        outpatient_visits: {no_source: 'Outpatient visits need the Manhica OPD file registered with a geography join.'}
+        cases: {no_source: 'Cluster cases need a scan-statistic job.'}
+    households:
+      dataset: 262
+      key: household_key
+      village: [site, village]
+      derived_from_persons: true
+      columns: {site: site, village: geography, household_key: household_key}
+      dimensions:
+        housing: {needs_definition: 'Housing code list (SINCEP labelled materials, Navrongo empty) is not defined.'}
+        water: {needs_definition: 'Water and sanitation code list is not defined.'}
+        bednet: {needs_definition: 'Bednet use (person slept under net vs household owns nets) is not defined.'}
+    persons:
+      dataset: 262
+      household: household_key
+      village: [site, village]
+      resident: {column: resident, value: 'Yes'}
+      columns: {site: site, village: geography, district: geography, household_key: household_key, age_band: dimension,
+                sex: dimension, resident: dimension}
+      dimensions:
+        age_band: {column: age_band, categories: ['65+', '45-64', '25-44', '15-24', '5-14', '0-4']}
+        sex: {column: sex, categories: [Male, Female]}
+    events:
+      dataset: 263
+      village: [site, village]
+      date: event_date
+      columns: {site: site, village: geography, event_type: dimension, event_date: temporal}
+      types:
+        column: event_type
+        categories: [Births, Deaths, In-migration, Out-migration]
+        unbound: {Pregnancies: '"Currently pregnant" is not defined.'}
+    sites: {no_source: 'No sentinel sites are registered.'}
+    site_weeks: {no_source: 'Weekly syndromes need the Manhica OPD file registered, syndromes defined and a geography join.'}
+    site_lab: {no_source: 'No laboratory results are registered.'}
+    signals: {no_source: 'Signals need a definition (observed vs expected) and a job.'}
+    clusters: {no_source: 'Clusters need a scan-statistic job (cases, radius, p-value).'}
