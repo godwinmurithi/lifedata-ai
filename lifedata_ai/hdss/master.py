@@ -38,6 +38,9 @@ LOAD_LIMIT = 50000
 #: Filters of the shared state, with the design's names in comments.
 DIM_FILTERS = ('tier', 'event_type', 'age_band', 'sex', 'housing', 'water', 'bednet', 'syndrome', 'pathogen',
                'site_status', 'signal_severity')
+#: Tabs a source may borrow, unchanged, from its registered `fallback:` source (the template's defaults) when it has
+#: no data for them, with the filters that belong to each tab.
+FALLBACK_TABS = {'sentinel': ('syndrome', 'pathogen', 'site_status', 'signal_severity'), 'geo': ('tier',)}
 
 
 class MasterBindingsError(BindingsError):
@@ -142,7 +145,14 @@ def parse_master(text: str) -> dict[str, Any]:
             raise MasterBindingsError(f'{where}: villages.levels has no {missing}.')
         out['sources'][key] = {'key': key, 'label': src['label'], 'synthetic': bool(src['synthetic']),
                                'min_cell_size': int(src['min_cell_size']), 'reference_date': src.get('reference_date'),
-                               'geography': geo, 'drill': drill, **ents}
+                               'geography': geo, 'drill': drill, 'map': src.get('map'),
+                               'fallback': src.get('fallback'), 'timeline': src.get('timeline'), **ents}
+    for key, s in out['sources'].items():
+        fb = s.get('fallback')
+        if fb is not None:
+            if fb == key or fb not in out['sources'] or out['sources'][fb].get('fallback'):
+                raise MasterBindingsError(f'sources.{key}.fallback: {fb!r} must be another registered source without a fallback.')
+            s['_fb'] = out['sources'][fb]
     return out
 
 
@@ -302,9 +312,12 @@ def load(src: dict[str, Any], master: dict[str, Any], execute: Executor) -> dict
             clusters.append({'v': _vkey(row, C['village']), 'cases': float(row.get(r['cases']) or 0), 'vuln': float(row.get(r['vulnerability']) or 0),
                              'rad': float(row.get(r['radius']) or 0), 'p': float(row.get(r['p_value']) or 0)})
     dates = [e['date'] for e in events if e['date']] + list(week_labels)
-    return {'villages': villages, 'persons': persons, 'households': households, 'events': events, 'sites': sites,
-            'signals': signals, 'clusters': clusters, 'week_labels': {d.isoformat(): l for d, l in week_labels.items()},
-            'date_min': min(dates).isoformat() if dates else None}
+    loaded = {'villages': villages, 'persons': persons, 'households': households, 'events': events, 'sites': sites,
+              'signals': signals, 'clusters': clusters, 'week_labels': {d.isoformat(): l for d, l in week_labels.items()},
+              'date_min': min(dates).isoformat() if dates else None}
+    if fallback_tabs(src):
+        loaded['fallback'] = load(src['_fb'], master, execute)
+    return loaded
 
 
 # ============================================================================ filter state
@@ -312,6 +325,16 @@ MON = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'No
 
 
 def allowed_values(src: dict[str, Any], master: dict[str, Any]) -> dict[str, list[str]]:
+    """Every value the browser may send for each filter, including the filters of tabs borrowed from the fallback."""
+    values = _own_allowed(src)
+    if src.get('_fb'):
+        theirs = _own_allowed(src['_fb'])
+        for tab in fallback_tabs(src):
+            values.update({f: theirs[f] for f in FALLBACK_TABS[tab] if f in theirs})
+    return values
+
+
+def _own_allowed(src: dict[str, Any]) -> dict[str, list[str]]:
     """Every value the browser may send for each filter (labels come from the registry)."""
     def cats(entity: str, attr: str | None, sub: str | None = None) -> list[str] | None:
         e = src[entity]
@@ -382,7 +405,8 @@ def reference(src: dict[str, Any]) -> date:
     return date.fromisoformat(src['reference_date']) if src.get('reference_date') else datetime.now(timezone.utc).date()
 
 
-def time_points(src: dict[str, Any], master: dict[str, Any], data: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
+def time_points(src: dict[str, Any], master: dict[str, Any], data: dict[str, Any], state: dict[str, Any],
+                ids: set[str] | None = None) -> dict[str, Any]:
     """The displayed timeline: Update cycle AND Time period, from the first record to the reference date, in
     calendar months (years when the span is more than three years)."""
     ref = reference(src)
@@ -391,9 +415,16 @@ def time_points(src: dict[str, Any], master: dict[str, Any], data: dict[str, Any
         c = next(c for c in master['cycles'] if c['label'] == state['cycle'])
         lo = max([x for x in (lo, c['from']) if x])
         hi = min([x for x in (hi, c['to']) if x])
-    dmin = date.fromisoformat(data['date_min']) if data.get('date_min') else ref
+    span = None
+    if src.get('timeline') == 'data' and ids is not None:
+        # `timeline: data`: first to last dated event of the selected geography (villages `ids`), not the whole source
+        dated = [e['date'] for e in data['events'] if e['v'] in ids and e['date']]
+        if not dated:
+            return {'points': [], 'window': (lo, hi), 'unit': 'month'}
+        span = (min(dated), min(max(dated), ref))
+    dmin = span[0] if span else date.fromisoformat(data['date_min']) if data.get('date_min') else ref
     first = max([x for x in (lo, dmin) if x])
-    last = min([x for x in (hi, ref) if x])
+    last = min([x for x in (hi, span[1] if span else ref) if x])
     window = (lo, hi)
     if first > last:
         return {'points': [], 'window': window, 'unit': 'month'}
@@ -418,6 +449,32 @@ def time_points(src: dict[str, Any], master: dict[str, Any], data: dict[str, Any
 
 # ============================================================================ the design's filter model, on the server
 def compute(src: dict[str, Any], master: dict[str, Any], data: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
+    """Answer one filter state. Tabs borrowed from the fallback source are computed there, with the state's filters
+    for those tabs and its time settings; this source's geography does not apply to them."""
+    fb_tabs = fallback_tabs(src)
+    if not fb_tabs:
+        return _compute(src, master, data, state)
+    borrowed = {f for t in fb_tabs for f in FALLBACK_TABS[t]}
+    out = _compute(src, master, data, dict(state, dims={k: v for k, v in state['dims'].items() if k not in borrowed}))
+    theirs = _compute(src['_fb'], master, data['fallback'],
+                      dict(state, geo={}, dims={k: v for k, v in state['dims'].items() if k in borrowed}))
+    for tab in fb_tabs:
+        if tab in theirs:
+            out[tab] = _keep_geo(theirs[tab], state['geo'])
+    out['fallback_tabs'] = fb_tabs
+    return out
+
+
+def _keep_geo(value: Any, geo: dict[str, str]) -> Any:
+    """A borrowed tab's villages are not this source's: selecting its pins and rows keeps the current geography."""
+    if isinstance(value, list):
+        return [_keep_geo(v, geo) for v in value]
+    if isinstance(value, dict):
+        return {k: (dict(geo) if k == 'path' else _keep_geo(v, geo)) for k, v in value.items()}
+    return value
+
+
+def _compute(src: dict[str, Any], master: dict[str, Any], data: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
     S, D = state, state['dims']
     k_min = src['min_cell_size']
     flags = {'suppressed': False}
@@ -435,7 +492,8 @@ def compute(src: dict[str, Any], master: dict[str, Any], data: dict[str, Any], s
     SITES, SIGS, CLUS = data['sites'], data['signals'], data['clusters']
     PER = [p for p in data['persons'] if p['resident']]
     by_v = {v['key']: v for v in VILL}
-    tl = time_points(src, master, data, S)
+    geo_ids = {v['key'] for v in VILL if all(v['levels'].get(level) == value for level, value in S['geo'].items())}
+    tl = time_points(src, master, data, S, geo_ids)
     points = tl['points']
     base = [p['key'] for p in points]
     w_lo, w_hi = tl['window']
@@ -567,6 +625,17 @@ def compute(src: dict[str, Any], master: dict[str, Any], data: dict[str, Any], s
         ov['pins'] = [{'path': vpath(v), 'village': v['levels'].get('village'), 'sub': v['levels'].get('subcounty'),
                        'lat': v['lat'], 'lon': v['lon'], 'residents': cell(pv[v['key']])}
                       for v in VILL if v['key'] in pv and cell(pv[v['key']]) is not None]
+    site_points = (src.get('map') or {}).get('sites')
+    if site_points:  # `map: sites:` one point per site at its registered coordinates, labelled with its person records
+        per_site: dict[str, int] = {}
+        for p in data['persons']:
+            site = by_v[p['v']]['levels'].get('site') if p['v'] in A[0] else None
+            if site in site_points:
+                per_site[site] = per_site.get(site, 0) + p['n']
+        ov['pins'] = [{'path': {'country': master['countries'].get(site), 'site': site}, 'village': None, 'sub': None,
+                       'lat': float(ll[0]), 'lon': float(ll[1]), 'residents': cell(per_site[site]),
+                       'label': f"{site}, {master['countries'].get(site)}: {cell(per_site[site]):,} people registered"}
+                      for site, ll in site_points.items() if site in per_site and cell(per_site[site]) is not None]
     out['overview'] = ov
 
     # ---------------------------------------------------------------- sentinel
@@ -649,7 +718,28 @@ def _reason(entity: dict[str, Any] | None, what: str) -> dict[str, str]:
     return {'status': 'no_source', 'reason': f'No registered source for {what}.'}
 
 
+def fallback_tabs(src: dict[str, Any]) -> list[str]:
+    """Tabs this source has no data for and borrows, unchanged, from its fallback source."""
+    if not src.get('_fb'):
+        return []
+    own = _own_coverage(src)['tabs']
+    return [t for t in FALLBACK_TABS if not own[t]]
+
+
 def coverage(src: dict[str, Any]) -> dict[str, Any]:
+    """Own coverage, with the slots and filters of borrowed tabs taken from the fallback source."""
+    cov = _own_coverage(src)
+    fb_tabs = fallback_tabs(src)
+    if fb_tabs:
+        theirs = _own_coverage(src['_fb'])
+        for tab in fb_tabs:
+            cov['slots'][tab], cov['tabs'][tab] = theirs['slots'][tab], theirs['tabs'][tab]
+            cov['filters'].update({f: theirs['filters'][f] for f in FALLBACK_TABS[tab]})
+    cov['fallback_tabs'] = fb_tabs
+    return cov
+
+
+def _own_coverage(src: dict[str, Any]) -> dict[str, Any]:
     """tab -> slot -> 'bound' | {status, reason}; filters likewise. The page hides unbound slots and empty tabs."""
     V, P, H, E = src['villages'], src['persons'], src['households'], src['events']
     vroles = V.get('roles') or {}
@@ -710,7 +800,7 @@ def coverage(src: dict[str, Any]) -> dict[str, Any]:
     slots['geo']['kpi.pop_at_risk'] = 'bound' if tier_ok and role('population') else role_why('population' if tier_ok else 'tier')
     slots['geo']['kpi.mean_vulnerability'] = 'bound' if role('vulnerability') and role('population') else role_why('vulnerability')
     slots['geo']['map.clusters'] = 'bound' if tier_ok and role('latitude') else role_why('latitude')
-    allowed = allowed_values(src, {})
+    allowed = _own_allowed(src)
     timed = bound(E) or bound(src['site_weeks'])
     filters = {g: 'bound' for g in src['geography']}
     for f in EXTRA_FILTERS:
@@ -826,7 +916,9 @@ def page_spec(spec: dict[str, Any]) -> dict[str, Any]:
         'tabs': [dict(t, visible=cov['tabs'][t['id']]) for t in spec['tabs']],
         'geography': spec['filters']['geography'], 'drill': src['drill'], 'filters': spec['filters']['extra'],
         'options': {k: v for k, v in allowed.items() if k in spec['filters']['extra']},
-        'tiers': list(src['villages'].get('tiers') or []), 'coverage': cov, 'reference_date': src.get('reference_date'),
+        'tiers': list(((src['_fb'] if 'geo' in cov['fallback_tabs'] else src)['villages'].get('tiers')) or []), 'coverage': cov, 'reference_date': src.get('reference_date'),
+        # optional boundary layer for the maps, and site -> country so a site selection can zoom to its country
+        'map': src.get('map'), 'countries': reg['countries'],
     }
 
 

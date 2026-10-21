@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Spec, State, initialState, renderVals, serverState } from "./master-model";
 import { MasterView } from "./master-view";
-import { MASTER_FIT_CSS } from "./master-parts";
+import { MASTER_FIT_CSS, MapFocus, MasterMapContext } from "./master-parts";
 import { StatusBar } from "./hdss-template";
 
 export default function MasterTemplate({ publicationId, canEdit }: { publicationId: string; title: string; canEdit: boolean }) {
@@ -34,6 +34,9 @@ export default function MasterTemplate({ publicationId, canEdit }: { publication
     return <div style={{ fontFamily: "'Inter',sans-serif", background: "#0E0F11", minHeight: "100vh", color: "#FFFFFF", padding: 28 }}>{error ? <span role="alert">{error}</span> : "Loading…"}</div>;
   }
   const o = renderVals(S, data, spec, setS);
+  const focus: MapFocus = spec.map && S.tab === "overview" ? {
+    boundaries: { url: spec.map.boundaries, nameProperty: spec.map.name_property || "name", highlight: spec.map.highlight || [] },
+    country: (S.geo.site && spec.countries?.[S.geo.site]) || S.geo.country || null, village: !!S.geo.village } : {};
   return <div className="mf-frame">
     <style>{MASTER_FIT_CSS}</style>
     <div className="mf-top">
@@ -42,6 +45,6 @@ export default function MasterTemplate({ publicationId, canEdit }: { publication
       {busy && <span style={{ fontSize: 12, color: "#B9B9B9" }}>Updating…</span>}
       {error && <span role="alert" style={{ fontSize: 13, color: "#FDA29B" }}>{error}</span>}
     </div>
-    <MasterView o={o} />
+    <MasterMapContext.Provider value={focus}><MasterView o={o} /></MasterMapContext.Provider>
   </div>;
 }

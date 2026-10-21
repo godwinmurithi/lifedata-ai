@@ -1,19 +1,40 @@
 // Parts the generated master-view.tsx uses where the design had placeholders: real maps and unbound cards.
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 
 type Pin = { lat: number; lon: number; s: number; bg: string; bw: number; bd: string; op: number; label: string; pick: () => void };
+
+/** A source's registered boundary layer (master_bindings.yaml `map:`) and what the filters focus on: the selected
+ *  site's or country's country, and whether a village is selected (then the map fits the pins as before). */
+export type MapFocus = { boundaries?: { url: string; nameProperty: string; highlight: string[] }; country?: string | null; village?: boolean };
+export const MasterMapContext = createContext<MapFocus>({});
+
+const BOUNDARY = { color: "#000000", weight: 1, opacity: 1, fillColor: "#FFFFFF", fillOpacity: 0 };
+const HIGHLIGHT = { color: "#FFD400", weight: 2.5, opacity: 1, fillColor: "#FFD400", fillOpacity: 0.35 };
 
 /** The design's map box, now a Leaflet map (OpenStreetMap tiles) that refits to the current pins. Pins are
  *  keyboard-operable markers with the design's size, fill and border; selecting one filters every tab. */
 export function MasterMap({ pins, label, style, className }: { pins: Pin[]; label: string; style: React.CSSProperties; className?: string }) {
   const host = useRef<HTMLDivElement>(null), map = useRef<L.Map | null>(null), layer = useRef<L.LayerGroup | null>(null);
+  const focus = useContext(MasterMapContext);
+  const shapes = useRef<L.GeoJSON | null>(null);
+  const [shapesReady, setShapesReady] = useState(false);
   const latest = useRef(pins);
   latest.current = pins;
   useEffect(() => {
     if (!host.current) return;
-    map.current = L.map(host.current, { zoomControl: true }).setView([0.6, 33.4], 9);
+    map.current = L.map(host.current, { zoomControl: true, zoomSnap: focus.boundaries ? 0.25 : 1 }).setView([0.6, 33.4], 9);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19 }).addTo(map.current);
+    const b = focus.boundaries;
+    if (b) {  // countries with a transparent fill; the registered ones outlined in yellow, drawn on top
+      const lit = new Set(b.highlight);
+      fetch(b.url, { credentials: "same-origin" }).then((r) => r.json()).then((geo) => {
+        if (!map.current) return;
+        shapes.current = L.geoJSON(geo, { interactive: false, style: (f: any) => (lit.has(f?.properties?.[b.nameProperty]) ? HIGHLIGHT : BOUNDARY) }).addTo(map.current);
+        shapes.current.eachLayer((l: any) => { if (lit.has(l.feature?.properties?.[b.nameProperty])) l.bringToFront(); });
+        setShapesReady(true);
+      }).catch(() => setShapesReady(false));
+    }
     layer.current = L.layerGroup().addTo(map.current);
     const observer = new ResizeObserver(() => map.current?.invalidateSize());
     observer.observe(host.current);
@@ -32,8 +53,15 @@ export function MasterMap({ pins, label, style, className }: { pins: Pin[]; labe
       const el = marker.getElement();
       if (el) { el.setAttribute("aria-label", p.label); el.setAttribute("role", "button"); el.addEventListener("keydown", (e) => { if (e.key === " ") { e.preventDefault(); pick(); } }); }
     });
+    // with a boundary layer: whole layer centred, or the focused country; a selected village fits the pins
+    if (shapes.current && !focus.village) {
+      const b = focus.boundaries!;
+      const country = focus.country ? shapes.current.getLayers().filter((l: any) => l.feature?.properties?.[b.nameProperty] === focus.country) : [];
+      const bounds = country.length ? L.featureGroup(country).getBounds() : shapes.current.getBounds();
+      if (bounds.isValid()) { map.current.fitBounds(bounds, { padding: [16, 16] }); return; }
+    }
     if (valid.length) map.current.fitBounds(L.latLngBounds(valid.map((p) => [p.lat, p.lon] as [number, number])), { padding: [36, 36], maxZoom: 13 });
-  }, [key]);
+  }, [key, shapesReady, focus.country, focus.village]);
   const { backgroundImage, backgroundSize, backgroundColor, ...box } = style as any;
   return <div role="group" aria-label={label} className={className} style={{ ...box, position: "relative" }}><div ref={host} style={{ position: "absolute", inset: 0 }} /></div>;
 }

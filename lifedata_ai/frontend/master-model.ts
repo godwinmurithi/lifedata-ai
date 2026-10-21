@@ -24,7 +24,8 @@ export const initialState = (spec: Spec): State => {
   return { tab: visible.includes("overview") ? "overview" : visible[0] || "overview", geo: {}, cycle: "All", range: "All", tp: "", dims: {} }; // opens on Overview (user request)
 };
 export type Spec = { title: string; status: string; tabs: { id: string; label: string; slots: string[]; visible: boolean }[]; geography: string[]; drill?: string[]; filters: string[];
-  options: Record<string, string[]>; tiers: string[]; privacy: { synthetic: boolean; min_cell_size: number }; coverage: { slots: Record<string, Record<string, any>> } };
+  options: Record<string, string[]>; tiers: string[]; privacy: { synthetic: boolean; min_cell_size: number }; coverage: { slots: Record<string, Record<string, any>> };
+  map?: { boundaries: string; name_property?: string; highlight?: string[] } | null; countries?: Record<string, string> };
 export type Agg = any; // the server's aggregates (see lifedata_ai/hdss/master.py compute())
 
 const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
@@ -190,7 +191,7 @@ export function renderVals(S: State, A: Agg, spec: Spec, set: (s: State) => void
   out.housRows = bars("housing"); out.watRows = bars("water"); out.netRows = bars("bednet");
   const selVillage = S.geo.village;
   out.ovPins = (ov.pins || []).map((p: any) => ({ lat: p.lat, lon: p.lon, s: 18, bg: "#9C4F3C", bw: selVillage === p.village ? 4 : 2, op: 1, bd: selVillage === p.village ? "#1A1A1A" : "#C98C78",
-    label: p.village + ", " + p.sub + " (" + cell(p.residents) + " residents)", pick: go((s) => pickPath(s, p.path)) }));
+    label: p.label || p.village + ", " + p.sub + " (" + cell(p.residents) + " residents)", pick: go((s) => pickPath(s, p.path)) }));
 
   // ================================ sentinel
   const sen = A.sentinel || {};
