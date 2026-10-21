@@ -569,7 +569,10 @@ def cube_executor(rows: list[dict[str, Any]], binding: DatasetBinding) -> Execut
                     row[label] = len({m.get(col) for m in members if m.get(col) is not None})
                 elif metric['aggregate'] == 'AVG':
                     total = _SUM_LAT if metric['label'] == 'lat' else _SUM_LON
-                    row[label] = sum(float(m.get(total) or 0) for m in members) / n if n else None
+                    # as SQL AVG: rows without a coordinate are left out, never counted as 0
+                    known = [m for m in members if m.get(total) is not None]
+                    k = sum(int(m.get('n') or 0) for m in known)
+                    row[label] = sum(float(m[total]) for m in known) / k if k else None
             out.append(row)
         return out
 

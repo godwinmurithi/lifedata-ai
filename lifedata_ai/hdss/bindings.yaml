@@ -136,6 +136,8 @@ datasets:
       village: geography
       latitude: coordinate
       longitude: coordinate
+      subcounty_latitude: coordinate
+      subcounty_longitude: coordinate
       collection_date: temporal
       sex: dimension
       age_years: dimension
@@ -159,8 +161,11 @@ datasets:
     roles:
       household_id: household_key
       record_date: {needs_definition: 'Which date drives the time filter (collection_date, entry_date or latest_event_date) is not decided.'}
-      latitude: {needs_definition: 'All 300 records share one coordinate point; village locations need a defined source.'}
-      longitude: {needs_definition: 'All 300 records share one coordinate point; village locations need a defined source.'}
+      # The records share one placeholder point, so the map uses a point inside each record's subcounty
+      # (Uganda village boundaries; user request 2026-10-21). Villages of subcounties missing from the boundary
+      # layer (Ibulanku, Bukooma, Namungalwe: 72 of 300 people) are not on the map.
+      latitude: subcounty_latitude
+      longitude: subcounty_longitude
     geography: {district: district, county: county, subcounty: subcounty, parish: parish, village: village}
     dimensions:
       sex: {column: sex, categories: {Male: [Male], Female: [Female]}}
