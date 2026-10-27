@@ -14,6 +14,7 @@ venv/
 *.sqlite3
 staticfiles/
 media/
+.boundary-cache/
 
 # The panel is hand-written ES2020 with no build step (see
 # lifedata_ai/static/panel/README.md), so panel.js IS source and must be

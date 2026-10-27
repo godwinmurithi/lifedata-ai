@@ -1,0 +1,227 @@
+# CI for the LifeData AI copilot.
+#
+# This repository had no version control and no CI at all until the improvement
+# plan's Phase 0. The plan is explicit about why that had to be fixed first: it
+# deletes a load-bearing function, rewrites the panel's render path, and PUTs
+# metadata into a live Superset instance. None of that is safe to do against a
+# suite nobody runs.
+#
+# Two properties this workflow is built around:
+#
+#   * **Postgres, not sqlite.** `lifedata_ai/tools/lifedata.py` runs raw SQL
+#     against the LifeHealth tables (`FILTER (WHERE ...)`, `= ANY(%s)`,
+#     `to_regclass`, `obj_description`), none of which sqlite understands. A
+#     sqlite run would go green while the real database path stayed unproven.
+#   * **The plain postgres backend, not postgis.** `settings.py` defaults to
+#     `django.contrib.gis.db.backends.postgis` because the deployed container
+#     has GDAL. The orchestrator's own models declare no geometry columns — the
+#     spatial work lives in the reporting views — so the test run overrides the
+#     engine rather than installing GDAL for nothing.
+#
+# No Anthropic key is present and none is needed: `conftest.py`'s autouse
+# `_forbid_real_anthropic` guard makes a call to the live API impossible, and
+# the end-to-end suite drives a real SDK client against a local mock server.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  # The `live_model` job is manual-only: it is the one that spends money.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Overrides settings.py's postgis default — see the header.
+  DJANGO_DB_ENGINE: django.db.backends.postgresql
+  POSTGRES_DB: lifedata
+  POSTGRES_USER: lifedata
+  POSTGRES_PASSWORD: lifedata-ci
+  POSTGRES_HOST: localhost
+  POSTGRES_PORT: "5432"
+  DJANGO_SECRET_KEY: ci-insecure-key-not-used-for-anything
+  DJANGO_DEBUG: "false"
+
+jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: lifedata
+          POSTGRES_USER: lifedata
+          POSTGRES_PASSWORD: lifedata-ci
+        ports: ["5432:5432"]
+        # Django creates `test_lifedata` on connect; without the healthcheck the
+        # first connection races the container's own initdb.
+        options: >-
+          --health-cmd "pg_isready -U lifedata"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --dev
+      # The markdown tests run here too: they inject markdown.js into a blank
+      # page and need no Superset, no login and no orchestrator, so a markdown
+      # regression reports as a markdown regression rather than as "the stack
+      # is down".
+      - run: uv run playwright install --with-deps chromium
+      - name: Run the suite
+        run: uv run pytest -q
+
+  # Two load-bearing properties that no test could naturally cover, because they
+  # are about what the source does NOT contain. Seconds to run, and each one has
+  # a docstring somewhere demanding exactly this and nothing enforcing it.
+  invariants:
+    name: invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No write tool performs an HTTP write
+        # `superset_write.py`'s own docstring says "if you reach for
+        # client.post(...), stop: that single line would dismantle the security
+        # model". This is the check that makes that true.
+        #
+        # PARSED, not grepped. The previous version of this step noted in its own
+        # comment that "a substring search matches the warning in the docstring
+        # itself" — and then used a substring search, guarded by `^[^#]*` on the
+        # theory that the warning lived in a comment. It lives in a docstring, so
+        # this job failed on every push against a file with nothing wrong with it,
+        # which is worse than not checking: an invariant that cries wolf gets
+        # switched off.
+        #
+        # `python3` is preinstalled on ubuntu-latest and `ast` is stdlib, so this
+        # still needs no `uv sync` and stays a seconds-long job.
+        run: |
+          python3 - <<'PY'
+          import ast, sys
+          path = "lifedata_ai/tools/superset_write.py"
+          tree = ast.parse(open(path, encoding="utf-8").read())
+          bad = sorted({
+              f"{node.lineno}: .{node.func.attr}("
+              for node in ast.walk(tree)
+              if isinstance(node, ast.Call)
+              and isinstance(node.func, ast.Attribute)
+              and node.func.attr in {"post", "put", "delete", "patch"}
+          })
+          if bad:
+              print(f"::error::{path} performs an HTTP write; the panel must do it")
+              print("\n".join(bad))
+              sys.exit(1)
+          print(f"{path}: no HTTP writes")
+          PY
+      - name: The panel never parses a string as HTML
+        # Model output is untrusted input, and the panel runs inside a page
+        # holding the user's Superset session.
+        #
+        # One reviewed exception: addCanvas()'s `iframe.srcdoc = doc` (Phase
+        # 7/10 prototype). Excluded by line content, not by file/line number,
+        # so it stays excluded across edits instead of silently reopening the
+        # check the next time this file's line numbers shift. Still a real
+        # HTML sink in general — `sandbox="allow-scripts"` with no
+        # `allow-same-origin` and no `src` pointed at a real origin is what
+        # makes this one safe, not the absence of the pattern.
+        run: |
+          if grep -nE '(innerHTML|outerHTML|insertAdjacentHTML|document\.write|srcdoc)' \
+               lifedata_ai/static/panel/*.js \
+               | grep -vE '^\S+: *(\*|//)' \
+               | grep -v 'iframe\.srcdoc = doc;'; then
+            echo "::error::a panel script reaches for an HTML sink"
+            exit 1
+          fi
+
+  # The panel is injected by nginx and must be exercised through the same origin
+  # a real user sees, with a real Superset session — so these tests need the
+  # whole docker-compose stack, not just Django. They are a separate job because
+  # they are slow and because a failure here means "the deployed stack is
+  # wrong", which is a different verdict from "the code is wrong".
+  #
+  # Deterministic, free, and NEEDS NO SECRET, so it works on fork PRs: the model
+  # is `scripts/mock_anthropic_server.py` via ANTHROPIC_BASE_URL. It still
+  # exercises nginx injection, the panel, the SSE contract and the real write
+  # path — everything except the model's own judgement.
+  e2e:
+    name: playwright (live stack)
+    runs-on: ubuntu-latest
+    # Not `needs: test` — a panel regression is worth seeing even when a Python
+    # test is red, and vice versa.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --dev
+      - run: uv run playwright install --with-deps chromium
+      - name: Bring up the stack
+        run: |
+          cp .env.example .env
+          # Superset refuses to start with a weak key.
+          {
+            echo "SUPERSET_SECRET_KEY=$(openssl rand -base64 42)"
+            echo "POSTGRES_PASSWORD=lifedata-ci"
+            echo "SUPERSET_ADMIN_PASSWORD=admin-ci-password"
+            echo "SUPERSET_ANALYST_PASSWORD=analyst-ci-password"
+            echo "DJANGO_SECRET_KEY=ci-insecure-key-not-used-for-anything"
+          } >> .env
+          docker compose -f deploy/docker-compose.yml up -d --wait
+      - name: Seed data
+        # Used to also run `manage.py register_superset_datasets` here, which
+        # projected the semantics registry's declared metrics onto Superset.
+        # Both the command and the registry it read from have been removed.
+        run: |
+          dc="docker compose -f deploy/docker-compose.yml exec -T django"
+          $dc uv run --no-sync python manage.py seed_lifehealth
+      - name: Panel tests
+        env:
+          LIFEDATA_LIVE: "1"
+        run: uv run pytest -m superset_live -q
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose -f deploy/docker-compose.yml logs --tail 200
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: panel-screenshots
+          path: tests_browser/artefacts/
+          if-no-files-found: ignore
+
+  # Manual, and the only job that spends money. Its FIRST test is a minimal
+  # smoke call, because nothing else in CI touches a real model: the `effort`
+  # narrative and the `claude-opus-5` string are otherwise unverified by
+  # anything, and a model-string regression would first surface at an
+  # executive's prompt.
+  live_model:
+    name: live model (manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras --dev
+      - env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run pytest -m live_model -q

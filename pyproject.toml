@@ -14,6 +14,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "pyjwt>=2.15.0",
     "mcp==1.30.0",
+    "playwright>=1.48",
 ]
 
 [dependency-groups]
@@ -22,10 +23,7 @@ dev = [
     "pytest>=8.3",
     "pytest-django>=4.9",
     "respx>=0.21",
-    # Browser tests run on the HOST, not in the django container: the panel is
-    # injected by nginx and must be exercised through the same origin a real
-    # user sees (http://localhost:8080), with a real Superset session cookie.
-    "playwright>=1.48",
+    # Browser review is a runtime dependency; browser regression tests reuse it.
 ]
 
 [tool.uv]
