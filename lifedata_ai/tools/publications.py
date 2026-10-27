@@ -6,9 +6,13 @@ from typing import Any
 
 from lifedata_ai.dashboard_design import DESIGN_SCHEMA, validate_design
 from lifedata_ai.workspace import WORKSPACE_SCHEMA, validate_workspace
-from lifedata_ai.administrative import ADMINISTRATIVE_SCHEMA
+from lifedata_ai.administrative import ADMINISTRATIVE_SCHEMA, CATALOGUE_SCHEMA
 from lifedata_ai.models import DashboardPublication
 from lifedata_ai.tools.base import Tool, ToolContext, ToolError, ToolMode
+from lifedata_ai.composition import COMPOSITION_SCHEMA, validate_composition, automatic_layout
+from lifedata_ai.map_style import MAP_STYLE_SCHEMA, validate_map_style, map_fields
+from lifedata_ai.reference_templates import REFERENCE_TEMPLATE_SCHEMA
+from lifedata_ai.tools.quality import SPECIFICATION_SCHEMA
 
 
 def layout_chart_ids(dashboard: dict[str, Any]) -> set[int]:
@@ -100,8 +104,13 @@ class PublishDashboardTool(Tool):
     description = (
         'Publish directly to the custom UI by default WITHOUT creating a Superset dashboard. '
         'Omit dashboard_id for custom-only publishing; configuration references accessible saved raw source charts. '
-        'Reuse existing raw charts and render variables from them; do not create a native chart per panel. '
-        'For updates pass publication_id, not a new dashboard. New custom-only publications require the buikwe-workspace preset. '
+        'For general dashboards use composed-dashboard, chart_ids and composition (purpose, sections, filters, skin). '
+        'reuse executable aggregate charts so full totals are computed by Superset. No supplied template is needed. '
+        'For a requested Buikwe workspace reuse raw charts and derive its variables. '
+        'For updates pass publication_id and preserve the saved design. New custom-only publications support composed-dashboard or buikwe-workspace. '
+        'For the supplied SINCEP Master HDSS design inspect get_dashboard_template, then use reference-template with template=sincep-hdss and validated bindings to your actual chart_ids. Preserve the supplied arrangement. '
+        'Publishing creates a draft and returns build_id: inspect_dashboard then complete_dashboard_build are required before claiming readiness. '
+        'Pass specification to persist the audience, requested questions, exact design and target viewports. '
         'dashboard_id is optional for importing an ALREADY EXISTING Superset dashboard. '
         'The custom page renders live data without a Superset iframe. Call after '
         'the required data-source charts have been saved or reused, when the user asks to publish '
@@ -109,11 +118,11 @@ class PublishDashboardTool(Tool):
         'your existing publication for this dashboard. Viewers still need a login and '
         'Superset permission to its source charts/datasets (and source dashboard when imported). Layout supports mouse, '
         'touch and keyboard drag-and-drop in the custom page. Use theme light or dark. '
-        'All publications use the Vima Buikwe v1 design baseline. Optional design sets '
+        'Composed dashboards default to the adaptive navy/teal design; legacy presets retain their baseline. Optional design sets '
         'colors (accent, yes, no, unknown), a categorical palette, and groups '
         '(title, chart_ids) for related charts stacked into navigable tabbed cards. '
         'Use compact donut charts for Yes/No; preserve missing values separately. '
-        'DEFAULT REQUIRED for new custom dashboards: configuration preset buikwe-workspace, '
+        'For an explicitly requested Buikwe workspace: configuration preset buikwe-workspace, '
         'source_chart_id (a raw current-client record chart), and workspace: selectors, '
         'site_field, country_field, record_columns, panels (slot, title, tabs field/label/chart_id), '
         'and workflow (field/value/label). This reuses the original gauge, five-column grid, '
@@ -148,11 +157,18 @@ class PublishDashboardTool(Tool):
             'title': {'type': 'string', 'minLength': 1, 'maxLength': 255},
             'theme': {'enum': ['light', 'dark']},
             'design': DESIGN_SCHEMA,
+            'specification': SPECIFICATION_SCHEMA,
             'configuration': {'type': 'object', 'additionalProperties': False,
-                'properties': {'preset': {'enum': ['facility-network', 'population-discovery', 'buikwe-workspace']},
+                'properties': {'preset': {'enum': ['facility-network', 'population-discovery', 'buikwe-workspace', 'composed-dashboard', 'reference-template']},
+                    'chart_ids': {'type':'array','minItems':1,'maxItems':40,'uniqueItems':True,'items':{'type':'integer','minimum':1}},
+                    'composition': COMPOSITION_SCHEMA,
+                    'template': {'enum': ['sincep-hdss']},
+                    'bindings': REFERENCE_TEMPLATE_SCHEMA['properties']['bindings'],
                     'source_chart_id': {'type': 'integer', 'minimum': 1},
                     'workspace': WORKSPACE_SCHEMA,
                     'administrative_boundaries': ADMINISTRATIVE_SCHEMA,
+                    'boundary_catalogue': CATALOGUE_SCHEMA,
+                    'map_style': MAP_STYLE_SCHEMA,
                     'network_chart_id': {'type': 'integer', 'minimum': 1},
                     'boundary_chart_id': {'type': 'integer', 'minimum': 1},
                     'facility_chart_id': {'type': 'integer', 'minimum': 1},
@@ -176,7 +192,7 @@ class PublishDashboardTool(Tool):
         'additionalProperties': False,
     }
 
-    def run(self, context: ToolContext, dashboard_id: int | None = None, title: str = '', theme: str = 'light', layout: list[dict[str, int]] | None = None, configuration: dict[str, Any] | None = None, design: dict[str, Any] | None = None, publication_id: str | None = None) -> dict[str, Any]:
+    def run(self, context: ToolContext, dashboard_id: int | None = None, title: str = '', theme: str = 'light', layout: list[dict[str, int]] | None = None, configuration: dict[str, Any] | None = None, design: dict[str, Any] | None = None, publication_id: str | None = None, specification: dict[str, Any] | None = None) -> dict[str, Any]:
         client = context.superset_client()
         from lifedata_ai.publication_sources import configuration_chart_ids
         existing = None
@@ -216,7 +232,7 @@ class PublishDashboardTool(Tool):
                     superset_dashboard_id=dashboard_id, owner_username=context.identity.username).first()
         else:
             effective_config = configuration if configuration is not None else (existing.configuration if existing else {})
-            if effective_config.get('preset') != 'buikwe-workspace':
+            if effective_config.get('preset') not in {'buikwe-workspace','composed-dashboard','reference-template'}:
                 raise ToolError('Custom-only publishing requires the reusable workspace configuration.',
                                 code='workspace_configuration_required')
             ids = configuration_chart_ids(effective_config)
@@ -239,24 +255,75 @@ class PublishDashboardTool(Tool):
             configuration = {key: value for key, value in configuration.items() if key != 'design'}
             if not configuration:
                 configuration = None
-        saved_design = validate_design(design if design is not None else ((existing.configuration or {}).get('design', {}) if existing else {}), set(source_order))
+        effective_preset = (configuration or (existing.configuration if existing else {})).get('preset')
+        adaptive = effective_preset == 'composed-dashboard'
+        adaptive_default = {'baseline':'vima-adaptive-v1','colors':{'accent':'#087f8c','yes':'#087f8c','no':'#b45c42','unknown':'#64748b'},
+                            'palette':['#087f8c','#4167a4','#7863a6','#b47724','#a74460','#426b50']}
+        # buikwe-workspace keeps its own brand baseline by default; every other preset
+        # (including unconfigured ones) falls through to validate_design's neutral
+        # vima-adaptive-v1 default rather than silently inheriting Buikwe's palette.
+        buikwe_default = {'baseline': 'vima-buikwe-v1'}
+        preset_default = adaptive_default if adaptive else buikwe_default if effective_preset == 'buikwe-workspace' else {}
+        saved_design = validate_design(design if design is not None else ((existing.configuration or {}).get('design', {}) if existing else preset_default), set(source_order))
         if configuration is not None:
             preset = configuration.get('preset')
-            sources = ('source_chart_id',) if preset == 'buikwe-workspace' else ('source_chart_id',) if preset == 'facility-network' else (
+            sources = ('source_chart_id',) if preset in {'buikwe-workspace','composed-dashboard','reference-template','facility-network'} else (
                 'source_chart_id', 'boundary_chart_id', 'facility_chart_id')
-            optional = {'workspace', 'boundary_chart_id', 'facility_chart_id', 'administrative_boundaries', 'region_label', 'map_bounds'} if preset == 'buikwe-workspace' else {'network_chart_id', 'region_label', 'map_bounds'} if preset == 'facility-network' else {
+            optional = {'chart_ids','composition','template','bindings'} if preset == 'reference-template' else {'chart_ids','composition'} if preset == 'composed-dashboard' else {'workspace', 'boundary_chart_id', 'facility_chart_id', 'administrative_boundaries', 'boundary_catalogue', 'region_label', 'map_bounds'} if preset == 'buikwe-workspace' else {'network_chart_id', 'region_label', 'map_bounds'} if preset == 'facility-network' else {
                 'region_label', 'map_bounds', 'default_facility', 'native_dashboard_ids', 'summary_chart_id'}
-            if (preset not in {'facility-network', 'population-discovery', 'buikwe-workspace'}
+            if (preset not in {'facility-network', 'population-discovery', 'buikwe-workspace','composed-dashboard','reference-template'}
                     or not {'preset', *sources}.issubset(configuration)
-                    or set(configuration) - {'preset', *sources, *optional}
+                    or set(configuration) - {'preset', *sources, *optional, 'map_style'}
                     or any(type(configuration.get(key)) is not int or configuration[key] not in source_order
                            for key in sources)):
                 label = 'Facility' if preset == 'facility-network' else 'Population'
                 raise ToolError(f'{label} sources must be charts in this dashboard.', code='invalid_configuration')
+            if preset in {'composed-dashboard', 'reference-template'}:
+                if preset == 'reference-template':
+                    from lifedata_ai.reference_templates import validate_reference_template
+                    validate_reference_template(configuration, set(source_order))
+                    configuration.setdefault('composition', {'purpose': 'overview'})
+                validate_composition(configuration, charts, client)
+                from lifedata_ai.publication_validation import validate_renderers
+                validate_renderers(configuration, charts)
+            if 'map_style' in configuration and preset != 'buikwe-workspace':
+                raise ToolError('Map presentation currently supports custom workspace maps.',code='unsupported_surface')
             if preset == 'facility-network' and 'network_chart_id' in configuration:
                 if type(configuration['network_chart_id']) is not int or configuration['network_chart_id'] not in source_order:
                     raise ToolError('Facility sources must be charts in this dashboard.', code='invalid_configuration')
             if preset == 'buikwe-workspace':
+                if 'map_style' in configuration:
+                    validate_map_style(configuration['map_style'])
+                    if map_fields(configuration['map_style']):
+                        from lifedata_ai.tools.map_style import available_map_fields
+                        if not set(map_fields(configuration['map_style'])).issubset(available_map_fields(client,configuration)):
+                            raise ToolError('Map popup fields must exist in the permitted map source.',code='invalid_source')
+                if 'boundary_catalogue' in configuration:
+                    import jsonschema
+                    from lifedata_ai.models import BoundaryRelease
+                    try:
+                        jsonschema.validate(configuration['boundary_catalogue'], CATALOGUE_SCHEMA)
+                    except jsonschema.ValidationError as exc:
+                        raise ToolError('Invalid catalogue mapping: '+exc.message,code='invalid_configuration') from exc
+                    references = configuration['boundary_catalogue']
+                    ids = {s['release_id'] for s in references}
+                    if len(ids) != len(references):
+                        raise ToolError('Each catalogue release may appear only once.',code='invalid_configuration')
+                    ready = BoundaryRelease.objects.filter(pk__in=ids,status='ready')
+                    if ready.count() != len(ids):
+                        raise ToolError('Use ready releases returned by discover_administrative_boundaries.',code='invalid_configuration')
+                    by_field = {}
+                    previous_level = {}
+                    release_map = {r.pk:r for r in ready}
+                    for item in references:
+                        level = release_map[item['release_id']].admin_level
+                        country = release_map[item['release_id']].country_iso3
+                        if level <= previous_level.get(country,-1):
+                            raise ToolError('Catalogue levels must be ordered largest to smallest for each country.',code='invalid_configuration')
+                        previous_level[country] = level
+                        if item['field'] in by_field and by_field[item['field']] != level:
+                            raise ToolError('Do not mix administrative depths in one catalogue field.',code='invalid_configuration')
+                        by_field[item['field']] = level
                 for key in ('boundary_chart_id', 'facility_chart_id'):
                     if key in configuration and (type(configuration[key]) is not int or configuration[key] not in source_order):
                         raise ToolError('Geographic sources must be charts in this dashboard.', code='invalid_configuration')
@@ -289,10 +356,18 @@ class PublishDashboardTool(Tool):
         order += [chart_id for chart_id in source_order if chart_id not in order]
         default_layout = [old_layout.get(chart_id, {'chart_id': chart_id, 'span': 6, 'height': 320})
                   for chart_id in order]
+        if adaptive and not existing and layout is None:
+            default_layout = automatic_layout(charts)
+            sections = (configuration or {}).get('composition',{}).get('sections',[])
+            if sections:
+                index = {item['chart_id']:item for item in default_layout}
+                default_layout = [index[i] for section in sections for i in section['chart_ids']]
         try:
             layout = validate_layout(layout if layout is not None else default_layout, set(source_order))
         except ValueError as exc:
             raise ToolError(str(exc), code='invalid_layout') from exc
+        previous_snapshot = ({'title': existing.title, 'theme': existing.theme, 'layout': existing.layout,
+                              'configuration': existing.configuration} if existing else None)
         values = {'title': title, 'theme': theme, 'layout': layout,
                   'configuration': {**(configuration if configuration is not None else (existing.configuration if existing else {})), 'design': saved_design}}
         if dashboard_id is None:
@@ -307,12 +382,15 @@ class PublishDashboardTool(Tool):
         else:
             publication, _ = DashboardPublication.objects.update_or_create(
                 superset_dashboard_id=dashboard_id, owner_username=context.identity.username, defaults=values)
+        from lifedata_ai.quality import start_build
+        build = start_build(context, publication, specification=specification, previous_snapshot=previous_snapshot)
         return {
             'type': 'published_dashboard', 'publication_id': str(publication.id),
+            'build_id': str(build.id), 'quality_status': 'draft',
             'title': publication.title, 'chart_count': len(layout),
             'url': f'/lifedata-ai/dashboards/{publication.id}/',
             'library_url': '/lifedata-ai/dashboards/',
-            'message': 'Published as a custom dashboard with live Superset data.',
+            'message': 'Saved a live-data draft. Inspect the returned build_id and complete its quality checks before reporting ready.',
         }
 
 
@@ -335,11 +413,13 @@ class EditDashboardChartStyleTool(Tool):
         'dashboard_id': {'type': 'integer', 'minimum': 1},
         'publication_id': {'type': 'string', 'format': 'uuid'}, 'target': {'type': 'string'},
         'style': DESIGN_SCHEMA['properties']['chart_styles']['additionalProperties'],
-        'reset': {'type': 'boolean'}}, 'anyOf': [{'required': ['dashboard_id']}, {'required': ['publication_id']}]}
+        'reset': {'type': 'boolean'}}}
 
     def run(self, context, dashboard_id=None, target=None, style=None, reset=False, publication_id=None):
         import copy
         from django.db import transaction
+        if dashboard_id is None and publication_id is None:
+            raise ToolError('Provide either dashboard_id or publication_id.', code='invalid_configuration')
         client = context.superset_client()
         from lifedata_ai.publication_sources import publication_charts
         from django.core.exceptions import ValidationError
@@ -383,11 +463,13 @@ class EditDashboardChartStyleTool(Tool):
                 targets += [{'target': 'field:' + field, 'title': panel['title'] + ' / ' + label}
                             for panel in panels for field, label in panel['tabs']]
                 targets += [{'target': 'field:' + f, 'title': f.replace('_', ' ').title()} for f in ['age', 'sex', 'district', 'distance_km']]
-            elif not preset:
+            elif not preset or preset in {'composed-dashboard', 'reference-template'}:
                 targets = [{'target': 'chart:' + str(c['id']), 'title': c.get('slice_name', str(c['id']))}
                            for c in charts]
             else:
                 raise ToolError('This publication template has no editable targets.', code='unsupported_template')
+            previous_snapshot = {'title': publication.title, 'theme': publication.theme,
+                                 'layout': publication.layout, 'configuration': publication.configuration}
             if target is not None:
                 if target not in {item['target'] for item in targets}:
                     raise ToolError('Choose an editable target returned by this tool.', code='invalid_chart_target')
@@ -406,7 +488,9 @@ class EditDashboardChartStyleTool(Tool):
                     overrides[target] = merged
                 config['design'] = validate_design(design, chart_ids)
                 publication.configuration = config
-                publication.save(update_fields=['configuration'])
+                publication.save(update_fields=['configuration', 'updated_at'])
+                from lifedata_ai.quality import start_build
+                build = start_build(context, publication, previous_snapshot=previous_snapshot)
             elif style is not None or reset:
                 raise ToolError('Select a chart target first.', code='invalid_chart_target')
             return {'type': 'published_dashboard' if target else 'dashboard_style_targets',
@@ -415,4 +499,6 @@ class EditDashboardChartStyleTool(Tool):
                     'source_chart_id': config.get('source_chart_id'),
                     'url': f'/lifedata-ai/dashboards/{publication.id}/',
                     'targets': targets, 'design': config.get('design', {}),
+                    'build_id': str(build.id) if target is not None else None,
+                    'quality_status': 'draft' if target is not None else None,
                     'updated_target': target, 'message': 'Updated only the selected chart style.' if target else 'Choose an exact chart target.'}

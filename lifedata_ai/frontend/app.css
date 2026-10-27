@@ -114,6 +114,25 @@ nav .primary {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 20px;
 }
+.quality-badge{display:inline-block;vertical-align:middle;font-size:11px;font-weight:600;letter-spacing:0;padding:4px 8px;border-radius:20px;background:#eee8db;color:#725a2c}
+.quality-badge.verified{background:#dfeee6;color:#286648}
+.reference-publication{height:100vh;display:flex;flex-direction:column;background:#f5f2ec}
+.reference-publication-bar{display:flex;align-items:center;gap:16px;padding:10px 18px;font-size:13px;border-bottom:1px solid #d4cabb;flex:none}
+.reference-publication-bar button{margin-left:auto;border:1px solid #c9c2b6;background:#fff;border-radius:6px;padding:6px 12px}
+.reference-publication-frame{border:0;width:100%;flex:1;min-height:0}
+.viewport-pages{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 12px}
+.viewport-pages button{border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);padding:7px 12px;font-size:13px}
+.viewport-pages button[aria-current=true]{background:var(--vima-accent,#087f8c);color:#fff}
+.viewport-pages span{font-size:12px;color:var(--muted)}
+.vima-viewport{padding:12px 22px!important}
+.vima-viewport .dashboard-header{padding:4px 0!important;margin-bottom:8px;gap:12px}
+.vima-viewport .dashboard-header h1{font-size:23px!important;margin:10px 0 6px!important}
+.vima-viewport .dashboard-header p{line-height:1.35;font-size:12px}
+.vima-viewport .save-status{min-height:16px}
+.vima-viewport .dashboard-header nav button,.vima-viewport .dashboard-header nav a{padding:7px 9px;min-height:34px}
+.vima-viewport .composition-filters{margin:4px 0}
+.vima-viewport .card-header{padding:10px 14px 6px}
+.vima-viewport .card-header h2{font-size:14px;line-height:1.3}
 .chart-card {
   background: var(--card);
   border: 1px solid var(--border);

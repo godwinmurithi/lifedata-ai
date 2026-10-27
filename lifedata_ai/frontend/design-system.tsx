@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState } from "react";
 import "./design-system.css";
 export type ChartStyle = {color?:string;colors?:Partial<Record<"accent"|"yes"|"no"|"unknown",string>>;palette?:string[]};
-export type DashboardDesign = { chart_styles?:Record<string,ChartStyle>; baseline?: "vima-buikwe-v1"; colors?: Partial<Record<"accent" | "yes" | "no" | "unknown", string>>; palette?: string[]; groups?: {title: string; chart_ids: number[]}[] };
+export type DashboardDesign = { chart_styles?:Record<string,ChartStyle>; baseline?: "vima-buikwe-v1" | "vima-adaptive-v1"; colors?: Partial<Record<"accent" | "yes" | "no" | "unknown", string>>; palette?: string[]; groups?: {title: string; chart_ids: number[]}[] };
 export const designTokens = { font: 'Inter, "Segoe UI", Arial, sans-serif', accent: "#a43b5d", yes: "#13a58a", no: "#e15b6c", unknown: "#94a3b8", palette: ["#cc00ff", "#ffff00", "#87ec36", "#34c8df", "#ff9200", "#f04bff", "#36c98a", "#7a75e8"] };
 export const DesignContext = createContext<DashboardDesign>({});
 export function responseColor(value: unknown, index: number, design: DashboardDesign = {}) {

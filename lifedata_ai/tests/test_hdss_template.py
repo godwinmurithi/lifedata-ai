@@ -376,6 +376,14 @@ def test_cached_answers_are_never_served_without_reauthorising(page, fake):
     assert views.query(_req('POST', '/q'), page.pk).status_code == 403
 
 
+def test_aggregate_cache_is_scoped_to_viewer_session(page):
+    first = _req('POST', '/q')
+    second = _req('POST', '/q')
+    second.superset_session_cookie = 'another-session'
+    assert views._cache_stamp(first, page) != views._cache_stamp(second, page)
+    assert 'another-session' not in views._cache_stamp(second, page)
+
+
 def test_template_catalogue_lists_only_readable_registered_datasets(monkeypatch, fake):
     monkeypatch.setattr(views, '_client', lambda request: fake)
     body = json.loads(views.templates(_req('GET', '/t')).content)

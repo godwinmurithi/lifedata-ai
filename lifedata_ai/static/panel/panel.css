@@ -775,6 +775,8 @@
 
 .ld-status {
   display: none;
+  align-items: center;
+  gap: 6px;
   padding: 6px 14px;
   border-top: 1px solid var(--ld-border);
   background: var(--ld-surface-raised);
@@ -784,7 +786,31 @@
 }
 
 .ld-status.is-visible {
-  display: block;
+  display: flex;
+}
+
+/* The one "Vima is working" indicator — a single spinning glyph plus a
+   rotating generic verb (see startStatusClock in panel.js), replacing what
+   used to be a line per tool call. */
+.ld-status__icon {
+  flex: none;
+  display: inline-block;
+  color: var(--ld-accent);
+  font-size: 13px;
+  line-height: 1;
+  animation: ld-spin 1.6s linear infinite;
+}
+
+@keyframes ld-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ld-status__icon {
+    animation: none;
+  }
 }
 
 /* --- History ------------------------------------------------------------ */

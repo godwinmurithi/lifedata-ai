@@ -28,7 +28,7 @@ import { CanvasRenderer } from "echarts/renderers";
 import type { EChartsOption } from "echarts";
 import "./app.css";
 import Facilities, { FacilityConfiguration } from "./facilities";
-import { DashboardDesign, DesignContext, designTokens, responseColor, ResponseDonut, ChartTabs, DesignLibrary } from "./design-system";
+import { DashboardDesign, DesignContext, designTokens, responseColor, ResponseDonut, ChartTabs, DesignLibrary, syncDashboardFilters } from "./design-system";
 import BuikweWorkspace, {WorkspaceConfiguration} from "./buikwe-workspace";
 import Population, { PopulationConfiguration } from "./population";
 import HdssTemplate, { HdssCreator } from "./hdss-template";
@@ -45,11 +45,19 @@ echarts.use([
   CanvasRenderer,
 ]);
 
+import {mountQueryMap} from "./query-map";
+import { Encoding, resolveEncoding, pivotRows, formatValue } from "./chart-encoding";
+
 type Row = Record<string, unknown>;
 type Layout = { chart_id: number; span: number; height: number };
 type Chart = { id: number; title: string; viz_type: string };
+type Composition = {encodings?:Record<string,Encoding>;layout_mode?:"flow"|"viewport";purpose:string;subtitle?:string;skin?:"navy-teal"|"warm";sections?:{title:string;chart_ids:number[]}[];filters?:{field:string;label:string;chart_ids:number[]}[]};
+type ReferenceConfiguration = {preset:"reference-template";template:"sincep-hdss";source_chart_id:number;chart_ids:number[];bindings:Record<string,{chart_ids:number[];title?:string;encoding?:Encoding}>;composition?:Composition;design?:DashboardDesign};
+type ComposedConfiguration = {preset:"composed-dashboard";source_chart_id:number;chart_ids:number[];composition:Composition;design?:DashboardDesign};
+function getComposition(publication?:Publication):Composition|undefined {const config=publication?.configuration;return config && (config.preset==="composed-dashboard" || config.preset==="reference-template") ? (config as ComposedConfiguration).composition : undefined;}
 export type Publication = {
-  configuration?: (FacilityConfiguration | PopulationConfiguration | WorkspaceConfiguration | {preset?: undefined}) & {design?: DashboardDesign};
+  configuration?: (FacilityConfiguration | PopulationConfiguration | WorkspaceConfiguration | ComposedConfiguration | ReferenceConfiguration | {preset?: undefined}) & {design?: DashboardDesign};
+  quality?:{status:string;build_id?:string};
   id: string;
   title: string;
   theme: string;
@@ -208,24 +216,14 @@ function optionFor(
   data: ChartData,
   dark: boolean,
   design: DashboardDesign = {},
+  explicit: Encoding = {},
 ): EChartsOption | null {
   const { rows, columns, form_data: form } = data;
-  const viz = chart.viz_type;
+  const viz = explicit.chart_type || chart.viz_type;
   if (!rows.length || viz === "table" || viz.startsWith("big_number"))
     return null;
-  const groupby = Array.isArray(form.groupby) ? form.groupby : [];
-  const dimension =
-    typeof form.x_axis === "string"
-      ? form.x_axis
-      : typeof groupby[0] === "string"
-        ? groupby[0]
-        : columns[0];
-  const metrics = columns.filter(
-    (column) =>
-      column !== dimension &&
-      rows.some((row) => number(row[column]) !== null) &&
-      !groupby.includes(column),
-  );
+  const encoding=resolveEncoding(columns, rows, form, explicit);
+  const {dimension,metrics}=encoding;
   if (!metrics.length) return null;
   const text = dark ? "#e4eaf3" : "#324359";
   const common: EChartsOption = {
@@ -233,9 +231,9 @@ function optionFor(
     tooltip: { trigger: "axis" },
     textStyle: { color: text, fontFamily: designTokens.font },
     grid: { left: 55, right: 24, top: 36, bottom: 64 },
-    legend: { textStyle: { color: text }, type: "scroll" },
+    legend: { show: typeof form.show_legend === "boolean" ? form.show_legend : metrics.length > 1, textStyle: { color: text }, type: "scroll" },
   };
-  if (viz === "pie")
+  if (viz === "pie" || viz === "donut")
     return {
       ...common,
       tooltip: { trigger: "item" },
@@ -254,7 +252,8 @@ function optionFor(
     };
   if (viz.includes("line") || viz.includes("area") || viz.includes("bar")) {
     const horizontal = form.orientation === "horizontal";
-    const categories = rows.map((row) => display(row[dimension]));
+    const pivot=pivotRows(rows,encoding);
+    const categories = pivot.keys;
     const category = {
       type: "category" as const,
       data: categories,
@@ -262,17 +261,20 @@ function optionFor(
     };
     const value = {
       type: "value" as const,
-      axisLabel: { color: text },
+      axisLabel: { color: text, formatter:(value:number)=>formatValue(value,encoding.number_format) },
+      name:encoding.unit || "",
       splitLine: { lineStyle: { color: dark ? "#2f3b50" : "#e7edf3" } },
     };
     return {
       ...common,
-      xAxis: horizontal ? value : category,
+      xAxis: horizontal ? value : encoding.time ? {type:"time",axisLabel:{color:text}} : category,
       yAxis: horizontal ? category : value,
-      series: metrics.map((metric) => ({
-        name: metric.replace(/_/g, " "),
+      series: pivot.series.map((series) => ({
+        name: series.name.replace(/_/g, " "),
         type: viz.includes("bar") ? ("bar" as const) : ("line" as const),
-        data: rows.map((row) => number(row[metric])),
+        data: encoding.time && !horizontal ? pivot.keys.map((key,index)=>[key,series.values[index]]) : series.values,
+        stack:encoding.stack?"total":undefined,
+        connectNulls:false,
         ...(viz.includes("area") ? { areaStyle: {} } : {}),
       })),
     };
@@ -298,19 +300,23 @@ function Visual({
   chart,
   data,
   dark,
+  encoding = {},
 }: {
+  encoding?: Encoding;
   chart: Chart;
   data: ChartData;
   dark: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const parent = React.useContext(DesignContext), override=parent.chart_styles?.[`chart:${chart.id}`] || {}, design={...parent,...override,colors:{...parent.colors,...override.colors}};
-  const option = optionFor(chart, data, dark, design);
+  let option:EChartsOption|null=null, encodingError="";
+  try { option = optionFor(chart, data, dark, design, encoding); } catch(error) { encodingError=(error as Error).message; }
   const dimension = typeof data.form_data.x_axis === "string" ? data.form_data.x_axis : (data.form_data.groupby as string[] | undefined)?.[0] || data.columns[0];
   const metric = data.columns.find(c => c !== dimension && data.rows.some(r => number(r[c]) !== null));
   const binary = (chart.viz_type === "pie" || chart.viz_type.includes("bar")) && metric && data.rows.every(r => r[dimension] == null || ["yes","no","y","n","true","false","unknown","not recorded"].includes(String(r[dimension]).toLowerCase()));
+  useEffect(()=>{if(encoding.chart_type!=="map" || !container.current)return;return mountQueryMap(container.current,data.rows,encoding);},[data,JSON.stringify(encoding)]);
   useEffect(() => {
-    if (!container.current || !option || binary) return undefined;
+    if (!container.current || encoding.chart_type === "map" || !option || binary) return undefined;
     const instance = echarts.init(container.current);
     instance.setOption(option);
     const observer = new ResizeObserver(() => instance.resize());
@@ -320,11 +326,13 @@ function Visual({
       instance.dispose();
     };
   }, [data, chart.viz_type, dark, design, binary]);
-  if (binary && metric) return <DesignContext.Provider value={design}><ResponseDonut title={chart.title} values={data.rows.map(r=>({label:r[dimension],value:number(r[metric]) || 0}))}/></DesignContext.Provider>;
+  if(encoding.chart_type === "map") return <div className="chart-plot" role="img" aria-label={chart.title} ref={container}/>;
+  if (encodingError) return <div className="error" role="alert">{encodingError}</div>;
+  if (binary && metric && !encoding.series && !encoding.chart_type) return <DesignContext.Provider value={design}><ResponseDonut title={chart.title} values={data.rows.map(r=>({label:r[dimension],value:number(r[metric]) || 0}))}/></DesignContext.Provider>;
   if (!data.rows.length)
     return <div className="empty">No results for this chart.</div>;
-  if (chart.viz_type.startsWith("big_number")) {
-    const metric =
+  if (chart.viz_type.startsWith("big_number") || encoding.chart_type === "kpi") {
+    const metric = encoding.metrics?.[0] ||
       data.columns.find((column) => number(data.rows[0][column]) !== null) ||
       data.columns[0];
     const value = number(data.rows[0][metric]);
@@ -333,7 +341,7 @@ function Visual({
         <strong>
           {value === null
             ? display(data.rows[0][metric])
-            : value.toLocaleString()}
+            : formatValue(value,encoding.number_format,encoding.unit)}
         </strong>
         <span>{metric.replace(/_/g, " ")}</span>
       </div>
@@ -367,6 +375,7 @@ function Card({
   edit,
   refresh,
   update,
+  criteria = "{}",
 }: {
   publication: Publication;
   chart: Chart;
@@ -374,6 +383,7 @@ function Card({
   edit: boolean;
   refresh: number;
   update: (item: Layout) => void;
+  criteria?: string;
 }) {
   const {
     attributes,
@@ -385,10 +395,13 @@ function Card({
   } = useSortable({ id: chart.id, disabled: !edit });
   const [data, setData] = useState<ChartData>();
   const [error, setError] = useState("");
+  const scopedCriteria = JSON.stringify(Object.fromEntries(Object.entries(JSON.parse(criteria) as Record<string,string[]>).filter(([field]) =>
+    getComposition(publication)?.filters?.some(filter => filter.field === field && filter.chart_ids.includes(chart.id)))));
   useEffect(() => {
     const controller = new AbortController();
     setError("");
-    request<ChartData>(`${api}${publication.id}/charts/${chart.id}/`, {
+    setData(undefined);
+    request<ChartData>(`${api}${publication.id}/charts/${chart.id}/?criteria=${encodeURIComponent(scopedCriteria)}`, {
       signal: controller.signal,
     })
       .then(setData)
@@ -396,7 +409,7 @@ function Card({
         if (err.name !== "AbortError") setError(err.message);
       });
     return () => controller.abort();
-  }, [publication.id, chart.id, refresh]);
+  }, [publication.id, chart.id, refresh, scopedCriteria]);
   return (
     <section
       ref={setNodeRef}
@@ -464,6 +477,7 @@ function Card({
             chart={chart}
             data={data}
             dark={publication.theme === "dark"}
+            encoding={getComposition(publication)?.encodings?.[String(chart.id)]}
           />
         ) : (
           <div className="empty">Loading live data…</div>
@@ -478,6 +492,10 @@ function Card({
   );
 }
 function Viewer() {
+  const [criteria,setCriteria] = useState<Record<string,string[]>>({});
+  const [viewportPage,setViewportPage]=useState(0);
+  const [viewport,setViewport]=useState({width:window.innerWidth,height:window.innerHeight});
+  useEffect(()=>{const resize=()=>setViewport({width:window.innerWidth,height:window.innerHeight});window.addEventListener("resize",resize);return()=>window.removeEventListener("resize",resize);},[]);
   const [publication, setPublication] = useState<Publication>();
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -506,6 +524,11 @@ function Viewer() {
       })
       .catch((err) => setError(err.message));
   }, []);
+  useEffect(()=>{
+    const update=(event:Event)=>{const detail=(event as CustomEvent<{publication_id:string}>).detail;if(detail?.publication_id!==publicationId)return;
+      request<Publication>(`${api}${publicationId}/`).then(value=>{setPublication(value);setRefresh(n=>n+1);}).catch(err=>setStatus(err.message));};
+    window.addEventListener("lifedata:publication-updated",update);return()=>window.removeEventListener("lifedata:publication-updated",update);
+  },[]);
   function save(layout: Layout[]) {
     if (!publication) return;
     setPublication({ ...publication, layout });
@@ -565,18 +588,28 @@ function Viewer() {
         config={publication.configuration as FacilityConfiguration}
       />
     );
+  if(publication?.configuration?.preset === "reference-template")return <main className="reference-publication"><div className="reference-publication-bar"><a href="/lifedata-ai/dashboards/">Dashboards</a><strong>{publication.title}</strong><span className={`quality-badge ${publication.quality?.status === "verified" ? "verified" : "draft"}`}>{publication.quality?.status === "verified" ? "Verified" : "Draft"}</span><button onClick={()=>setRefresh(refresh+1)}>Refresh</button></div><iframe key={refresh} title={publication.title} className="reference-publication-frame" src={`${api}${publication.id}/template/`} /></main>;
+  const viewportMode = publication?.configuration?.preset === "composed-dashboard" && getComposition(publication)?.layout_mode !== "flow" && !edit;
+  const visibleLayout=(publication?.layout || []).filter(item=>!(publication?.configuration?.design?.groups || []).some(group=>group.chart_ids.slice(1).includes(item.chart_id)));
+  const viewportColumns=viewport.width>=1000?2:1;
+  const viewportRows=viewport.height>=880?2:1;
+  const pageCapacity=viewportColumns*viewportRows;
+  const pageCount=viewportMode?Math.max(1,Math.ceil(visibleLayout.length/pageCapacity)):1;
+  const currentPage=Math.min(viewportPage,pageCount-1);
+  const pageLayout=viewportMode?visibleLayout.slice(currentPage*pageCapacity,(currentPage+1)*pageCapacity):visibleLayout;
+  const chartHeight=Math.max(240,Math.floor((viewport.height-(viewport.width<800?320:270)-(viewportRows-1)*10)/viewportRows));
   const charts = new Map(
     publication?.charts.map((chart) => [chart.id, chart]) || [],
   );
   return (
-    <DesignContext.Provider value={publication?.configuration?.design || {}}><main className={`dashboard-shell vima-baseline ${theme}`} style={{"--vima-accent":publication?.configuration?.design?.colors?.accent || designTokens.accent} as React.CSSProperties}>
+    <DesignContext.Provider value={publication?.configuration?.design || {}}><main className={`dashboard-shell vima-baseline ${viewportMode ? "vima-viewport" : ""} ${publication?.configuration?.preset === "composed-dashboard" ? `vima-adaptive skin-${getComposition(publication)?.skin || "navy-teal"}` : ""} ${theme}`} style={{"--vima-accent":publication?.configuration?.design?.colors?.accent || designTokens.accent} as React.CSSProperties}>
       <header className="dashboard-header">
         <div>
           <a className="brand" href="/lifedata-ai/dashboards/">
             LifeData<span>Dashboards</span>
           </a>
-          <h1>{publication?.title || "Dashboard"}</h1>
-          <p>Live insights · Built with Vima · <a href="/lifedata-ai/dashboards/?design-library=1">Design library</a></p>
+          <h1>{publication?.title || "Dashboard"} <span className={`quality-badge ${publication?.quality?.status === "verified" ? "verified" : "draft"}`}>{publication?.quality?.status === "verified" ? "Verified" : "Draft"}</span></h1>
+          <p>{publication?.configuration?.preset === "composed-dashboard" ? getComposition(publication)?.subtitle || "Live insights · Built with Vima" : "Live insights · Built with Vima"} · <a href="/lifedata-ai/dashboards/?design-library=1">Design library</a></p>
         </div>
         <nav>
           {themeControl}
@@ -605,6 +638,8 @@ function Viewer() {
         {status}
       </div>
       {error && <div className="error">{error}</div>}
+      {publication?.configuration?.preset === "composed-dashboard" && <AdaptiveFilters publication={publication} criteria={criteria} setCriteria={setCriteria} refresh={refresh}/>}
+      {viewportMode && <nav className="viewport-pages" aria-label="Dashboard views">{Array.from({length:pageCount},(_,i)=><button key={i} aria-current={currentPage===i} onClick={()=>setViewportPage(i)}>View {i+1}</button>)}<span>{visibleLayout.length} charts · Readable views</span></nav>}
       {publication && (
         <DndContext
           sensors={sensors}
@@ -616,17 +651,19 @@ function Viewer() {
             strategy={rectSortingStrategy}
           >
             <div className="dashboard-grid">
-              {publication.layout
-                .filter((item) => charts.has(item.chart_id) && !(publication.configuration?.design?.groups || []).some(group=>group.chart_ids.slice(1).includes(item.chart_id)))
+              {pageLayout
+                .filter((item) => charts.has(item.chart_id))
                 .map((item) => (
+                  <React.Fragment key={item.chart_id}>
+                  {!viewportMode && publication.configuration?.preset === "composed-dashboard" && getComposition(publication)?.sections?.filter(s=>s.chart_ids[0]===item.chart_id).map(s=><h2 key={s.title} className="composition-section">{s.title}</h2>)}
                   <GroupedCard
-                    key={item.chart_id}
                     publication={{ ...publication, theme }}
                     group={publication.configuration?.design?.groups?.find(group=>group.chart_ids[0]===item.chart_id)}
                     chart={charts.get(item.chart_id)!}
-                    item={item}
+                    item={viewportMode?{...item,span:12/viewportColumns,height:chartHeight-(publication.configuration?.design?.groups?.some(g=>g.chart_ids[0]===item.chart_id)?72:0)}:item}
                     edit={edit}
                     refresh={refresh}
+                    criteria={JSON.stringify(criteria)}
                     update={(changed) =>
                       save(
                         publication.layout.map((value) =>
@@ -635,6 +672,7 @@ function Viewer() {
                       )
                     }
                   />
+                  </React.Fragment>
                 ))}
             </div>
           </SortableContext>
@@ -644,11 +682,20 @@ function Viewer() {
   );
 }
 
+function AdaptiveFilters({publication,criteria,setCriteria,refresh}:{publication:Publication;criteria:Record<string,string[]>;setCriteria:(v:Record<string,string[]>)=>void;refresh:number}) {
+ const [filters,setFilters]=useState<{field:string;label:string;values:string[];truncated:boolean;scope_count:number}[]>([]),[error,setError]=useState("");
+ const composition=publication.configuration?.preset === "composed-dashboard" ? getComposition(publication) : undefined;
+ useEffect(()=>{if(!composition?.filters?.length)return;const controller=new AbortController();setError("");request<{filters:typeof filters}>(`${api}${publication.id}/filter-options/?criteria=${encodeURIComponent(JSON.stringify(criteria))}`,{signal:controller.signal}).then(v=>setFilters(v.filters)).catch(e=>{if(e.name!=="AbortError")setError(e.message);});return()=>controller.abort();},[publication.id,refresh,JSON.stringify(criteria)]);
+ useEffect(()=>{syncDashboardFilters(Object.entries(criteria).map(([column,values])=>({column,operator:"IN",values})));},[JSON.stringify(criteria)]);
+ if(!composition?.filters?.length)return null;
+ return <section className="composition-filters" aria-label="Dashboard filters">{error&&<p role="alert">{error}</p>}{!filters.length&&!error&&<span>Loading filters…</span>}{filters.map(f=><label key={f.field}>{f.label}<select aria-label={f.label} value={criteria[f.field]?.[0] || ""} onChange={e=>{const next={...criteria};if(e.target.value)next[f.field]=[e.target.value];else delete next[f.field];setCriteria(next);}}><option value="">All values</option>{f.values.map(v=><option key={v} value={v}>{v}</option>)}</select><small>{f.scope_count} charts{f.truncated?" · first 200 options":""}</small></label>)}<button onClick={()=>setCriteria({})} disabled={!Object.keys(criteria).length}>Reset filters</button></section>;
+}
+
 function GroupedCard(props: React.ComponentProps<typeof Card> & {group?: {title:string;chart_ids:number[]}}) {
  const [active,setActive]=useState(props.group?.chart_ids[0] || props.chart.id);
  if (!props.group) return <Card {...props}/>;
  const tabs=props.group.chart_ids.map(id=>({id,label:props.publication.charts.find(c=>c.id===id)?.title || `Chart ${id}`}));
- const chart=props.publication.charts.find(c=>c.id===active) || props.chart;
+ const chart=(props.group.chart_ids.includes(active) && props.publication.charts.find(c=>c.id===active)) || props.chart;
  return <section className="vima-group" style={{gridColumn:`span ${props.item.span}`,height:props.item.height+72}}><h2 className="vima-group-title">{props.group.title}</h2><ChartTabs title={props.group.title} tabs={tabs} active={chart.id} select={setActive}/><div role="tabpanel" aria-label={chart.title} style={{minHeight:0,display:"flex",flex:1}}><Card {...props} chart={chart} item={{...props.item,chart_id:chart.id}} edit={false}/></div></section>;
 }
 
@@ -975,6 +1022,8 @@ function Home() {
                       className="library-card"
                       key={item.id}
                       href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       style={
                         { "--accent": accentFor(item.id) } as React.CSSProperties
                       }

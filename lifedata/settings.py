@@ -110,6 +110,7 @@ INSTALLED_APPS = [
 # here would create a second, conflicting notion of "who the user is".
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "django.middleware.gzip.GZipMiddleware",
     "django.middleware.common.CommonMiddleware",
     "lifedata_ai.middleware.SupersetIdentityMiddleware",
 ]
@@ -264,6 +265,12 @@ LIFEDATA_AI_PROVIDER = _env("LIFEDATA_AI_PROVIDER", "anthropic").lower()
 if LIFEDATA_AI_PROVIDER not in {"anthropic", "openai", "deepseek"}:
     raise ValueError("LIFEDATA_AI_PROVIDER must be anthropic, openai or deepseek")
 
+#: The independent visual-review sub-call (quality.py:independent_visual_review)
+#: defaults to a different provider than the main loop when unset — explicit
+#: here so that choice is visible and overridable rather than a silent fallback.
+LIFEDATA_AI_VISUAL_REVIEW_PROVIDER = _env("LIFEDATA_AI_VISUAL_REVIEW_PROVIDER", "").lower()
+LIFEDATA_AI_VISUAL_REVIEW_MODEL = _env("LIFEDATA_AI_VISUAL_REVIEW_MODEL", "")
+
 #: Model catalogue verified rather than assumed — the spec's suggested
 #: `claude-sonnet-4-6` predates the current line-up.
 LIFEDATA_AI_MODEL = _env(
@@ -356,6 +363,14 @@ LIFEDATA_AI_IDENTITY_CACHE_SECONDS = 60
 #: whole point of the injection approach. Set this only where nginx terminates on
 #: a different host from the one Django believes it is serving.
 LIFEDATA_AI_ALLOWED_ORIGINS = _env_list("LIFEDATA_AI_ALLOWED_ORIGINS", [])
+
+# Browser review runs against the same configured public application origin.
+# It forwards only the requesting viewer's session; never use a service account.
+LIFEDATA_AI_BROWSER_BASE_URL = _env(
+    "LIFEDATA_AI_BROWSER_BASE_URL",
+    LIFEDATA_AI_ALLOWED_ORIGINS[0] if LIFEDATA_AI_ALLOWED_ORIGINS else "http://localhost:8080",
+)
+LIFEDATA_AI_QUALITY_REPAIR_LIMIT = _env_int("LIFEDATA_AI_QUALITY_REPAIR_LIMIT", 2)
 
 
 # --- Logging --------------------------------------------------------------

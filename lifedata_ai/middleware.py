@@ -272,7 +272,13 @@ def _unauthenticated(message: str) -> JsonResponse:
 def _login_or_unauthenticated(request, message):
     """HTML entry points use shared login; API callers receive a JSON 401."""
     path = request.path.rstrip("/")
-    is_page = path == "/lifedata-ai" or path == "/lifedata-ai/dashboards" or path.startswith("/lifedata-ai/dashboards/")
+    page_prefixes = (
+        "/lifedata-ai/dashboards/",
+        "/lifedata-ai/dashboard-template-preview/",
+        "/lifedata-ai/boundaries",
+        "/lifedata-ai/dashboard-design-preview",
+    )
+    is_page = path in {"/lifedata-ai", "/lifedata-ai/dashboards"} or path.startswith(page_prefixes)
     if request.method == "GET" and is_page:
         from urllib.parse import urlencode
         target = request.get_full_path()

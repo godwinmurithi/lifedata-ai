@@ -31,6 +31,10 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
+# Authenticated dashboard review is part of the production build lifecycle.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+RUN .venv/bin/python -m playwright install --with-deps chromium
+
 COPY . .
 
 EXPOSE 8000

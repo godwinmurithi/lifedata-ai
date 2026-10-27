@@ -60,6 +60,28 @@ def test_workspace_filters_every_panel_and_details_from_same_cohort(source):
     assert data['options']['country']==['ghana','mali']
 
 
+def test_filter_reuses_source_but_refresh_and_session_changes_reload(source):
+    publication, client = source
+    first = request()
+    first.superset_session_cookie = 'session-a'
+    assert workspace.data(first, publication.id).status_code == 200
+    filtered = request({'country': ['mali']})
+    filtered.superset_session_cookie = 'session-a'
+    assert json.loads(workspace.data(filtered, publication.id).content)['matches'] == 1
+    assert client.chart_data.call_count == 1
+    fresh = RequestFactory().post('/workspace/', data=json.dumps({'refresh': True}), content_type='application/json')
+    fresh.superset_identity = first.superset_identity
+    fresh.superset_session_cookie = 'session-a'
+    assert workspace.data(fresh, publication.id).status_code == 200
+    assert client.chart_data.call_count == 2
+    filtered.superset_session_cookie = 'session-b'
+    assert workspace.data(filtered, publication.id).status_code == 200
+    assert client.chart_data.call_count == 3
+    client.get_dashboard.side_effect = SupersetError('Denied', status_code=403)
+    assert workspace.data(first, publication.id).status_code == 403
+    assert client.chart_data.call_count == 3
+
+
 def test_workspace_requires_source_dashboard_and_chart_permission(source):
     publication,client=source
     client.get_dashboard_charts.return_value=[{'id':999}]
@@ -67,6 +89,26 @@ def test_workspace_requires_source_dashboard_and_chart_permission(source):
     client.chart_data.assert_not_called()
     client.get_dashboard.side_effect=SupersetError('Denied',status_code=403)
     assert workspace.data(request(),publication.id).status_code==403
+
+
+def test_geometry_reuse_keeps_area_metadata_and_other_viewers_get_coordinates(source, monkeypatch):
+    publication, client = source
+    boundary = {'field': 'country', 'area_name': 'ghana', 'parents': {},
+                'geometry_geojson': {'type': 'Polygon', 'coordinates': [[[0, 0], [1, 0], [0, 0]]]}}
+    geography = {'boundaries': [boundary], 'all_facilities': [], 'facilities': [], 'counts': {}}
+    monkeypatch.setattr(workspace, 'enrich_administrative', lambda *args: (geography, []))
+    first = json.loads(workspace.data(request(), publication.id).content)
+    assert first['geography']['boundaries'][0]['geometry_geojson']
+    req = RequestFactory().post('/workspace/', data=json.dumps({'criteria': {'country': ['ghana']},
+        'geometry_version': first['geometry_version']}), content_type='application/json')
+    req.superset_identity = SupersetIdentity(username='ana')
+    second = json.loads(workspace.data(req, publication.id).content)
+    assert second['geography']['boundaries'][0]['area_name'] == 'ghana'
+    assert 'geometry_geojson' not in second['geography']['boundaries'][0]
+    assert second['matches'] == 2
+    assert client.chart_data.call_count == 1
+    third = json.loads(workspace.data(request(), publication.id).content)
+    assert third['geography']['boundaries'][0]['geometry_geojson']
 
 
 def test_workspace_rejects_fields_outside_the_current_source_dataset(source):

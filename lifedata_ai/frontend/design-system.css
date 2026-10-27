@@ -1,5 +1,31 @@
 .vima-baseline{font-family:Inter,"Segoe UI",Arial,sans-serif;background:#eef3f7;color:#233748;--vima-accent:#a43b5d}.vima-baseline.dark{background:#17212d;color:#e4eaf3}.vima-baseline .dashboard-grid{gap:8px}.vima-baseline .chart-card{border:1px solid #d7e1e9;border-radius:9px;box-shadow:0 2px 7px #23374808}.vima-baseline.dark .chart-card{border-color:#34465d}.vima-baseline .card-header h2{font-size:13px}.vima-baseline button.primary{background:var(--vima-accent)}.vima-donut{display:flex;flex:1;min-height:0;flex-direction:column;align-items:center;justify-content:center;color:inherit;overflow:auto}.vima-donut svg{width:100%;max-height:210px;min-height:120px}.vima-donut text{fill:currentColor;font:11px Inter,"Segoe UI",Arial,sans-serif}.vima-response-counts{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;font-size:11px;padding:4px 8px}.vima-response-counts i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}.vima-tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:3px;padding:5px 8px;border-bottom:1px solid #d7e1e9;flex-shrink:0}.vima-tabs button{white-space:nowrap;font-size:11px;padding:5px 9px;border-radius:5px;flex-shrink:0}.vima-tabs button[aria-selected=true]{background:var(--vima-accent);color:white;border-color:var(--vima-accent)}.vima-tabs button:focus-visible{outline:2px solid #38bdf8;outline-offset:2px}.vima-group{min-width:0;display:flex;flex-direction:column}.vima-group>.chart-card{width:100%;min-height:0;flex:1}.vima-group-title{font-size:13px;font-weight:650;margin:0;padding:8px}.vima-precepts{padding:0 16px;font-size:13px;overflow:auto}.vima-baseline .dashboard-header{padding:14px 22px}.vima-baseline .dashboard-header h1{font-size:22px}@media(max-width:799px){.vima-group{grid-column:span 12!important}.vima-baseline .dashboard-grid>.chart-card{grid-column:span 12!important}}
 
 .sb-shell .vima-donut{overflow:hidden}.sb-shell .vima-donut svg{min-height:0;flex:1}.sb-shell .vima-response-counts{font-size:10px;padding:1px 4px;gap:3px 6px}
+.vima-adaptive{background:#f4f7fa;color:#17324d;padding:32px clamp(16px,4vw,64px);font-variant-numeric:tabular-nums}
+.vima-adaptive .dashboard-header{padding:0 0 24px;border-bottom:1px solid #dce5ec;align-items:flex-start}
+.vima-adaptive .dashboard-header h1{font-size:clamp(26px,3vw,38px);line-height:1.15;letter-spacing:-.035em;margin:20px 0 12px}
+.vima-adaptive .dashboard-header p{max-width:70ch;line-height:1.6}
+.vima-adaptive .dashboard-grid{gap:20px}
+.vima-adaptive .chart-card{border-radius:14px;border-color:#dce5ec;box-shadow:0 3px 16px #17324d05}
+.vima-adaptive .card-header{padding:18px 20px 10px}
+.vima-adaptive .card-header h2{font-size:16px;line-height:1.4;font-weight:600}
+.vima-adaptive button.primary{background:var(--vima-accent);border-color:var(--vima-accent);color:#fff}
+.vima-adaptive button,.vima-adaptive select{min-height:40px;border-radius:8px}
+.vima-adaptive .composition-section{grid-column:span 12;font-size:19px;margin:14px 0 0;letter-spacing:-.02em}
+.composition-filters{display:flex;align-items:flex-end;flex-wrap:wrap;gap:16px;padding:18px 20px;margin:0 0 24px;background:var(--card);border:1px solid var(--border);border-radius:12px}
+.composition-filters label{display:flex;flex-direction:column;gap:7px;font-size:14px;font-weight:600;min-width:150px}
+.composition-filters select{background:var(--card);color:var(--text);border:1px solid var(--border);padding:8px 12px;max-width:280px}
+.composition-filters small{font-size:12px;color:var(--muted);font-weight:400}
+.vima-adaptive.skin-warm:not(.dark){background:#f7f4ee;color:#3d3a33;--bg:#f7f4ee;--text:#3d3a33;--border:#e4ded2;--muted:#6e6659}
+.vima-adaptive.skin-warm:not(.dark) .chart-card{border-color:#e4ded2;background:#fffdfa}
+.vima-adaptive.dark{background:#101c2c;color:#e4edf6}
+.vima-adaptive.dark .chart-card{border-color:#34465d}
+.vima-symbol-marker{background:transparent;border:0}
+.vima-map-popup{font:13px/1.5 Inter,"Segoe UI",Arial,sans-serif;min-width:220px;max-width:300px;overflow-wrap:anywhere;color:#17324d}
+.vima-map-popup>strong{font-size:15px;display:block;margin-bottom:8px}
+.vima-map-popup dl{display:grid;grid-template-columns:minmax(60px,1fr) minmax(70px,1.3fr);gap:5px 12px;margin:0 0 10px}
+.vima-map-popup dt{color:#58677a}.vima-map-popup dd{margin:0;font-weight:500;white-space:pre-wrap}
+.vima-map-popup button{border:1px solid #cbd5e1;border-radius:6px;background:white;padding:6px 10px;color:#17324d}
+@media(max-width:799px){.vima-adaptive .dashboard-header{flex-direction:column;gap:10px}.vima-adaptive .dashboard-header nav{flex-wrap:wrap}.composition-filters label,.composition-filters select{width:100%;max-width:none}.composition-filters{align-items:stretch}.vima-adaptive .dashboard-grid{gap:14px}}
 
 .vima-baseline button{font:inherit;border:1px solid #d7e1e9;border-radius:6px;background:#fff;color:inherit;padding:6px 10px;cursor:pointer}.vima-baseline.dark button{background:#243244;border-color:#34465d}.vima-baseline .vima-tabs button{font-size:11px;padding:5px 9px}.vima-baseline .vima-tabs button[aria-selected=true]{background:var(--vima-accent);color:white;border-color:var(--vima-accent)}

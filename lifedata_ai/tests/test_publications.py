@@ -45,7 +45,7 @@ def test_facility_preset_sources_must_belong_to_dashboard(monkeypatch):
     PublishDashboardTool().run(context, 4, 'Facilities', 'light', configuration=configuration)
     PublishDashboardTool().run(context, 4, 'Facilities updated', 'light')
     publication.refresh_from_db()
-    assert publication.configuration == {**configuration, 'design': {'baseline': 'vima-buikwe-v1'}}
+    assert publication.configuration == {**configuration, 'design': {'baseline': 'vima-adaptive-v1'}}
     assert json.loads(dashboards.detail(make_request(), publication.id).content)['configuration'] == publication.configuration
 
 
@@ -134,13 +134,13 @@ def test_dashboard_login_fix_keeps_api_requests_as_json_401():
 
 def test_design_defaults_and_republish_preserve_colors_and_groups(monkeypatch):
     context, _, publication = setup_publication(monkeypatch)
-    assert publication.configuration['design']['baseline'] == 'vima-buikwe-v1'
+    assert publication.configuration['design']['baseline'] == 'vima-adaptive-v1'
     design = {'colors': {'yes': '#2563eb', 'no': '#f59e0b'},
               'groups': [{'title': 'Responses', 'chart_ids': [12, 13]}]}
     PublishDashboardTool().run(context, 4, 'Responses', 'light', design=design)
     PublishDashboardTool().run(context, 4, 'Responses updated', 'dark')
     publication.refresh_from_db()
-    assert publication.configuration['design'] == {'baseline': 'vima-buikwe-v1', **design}
+    assert publication.configuration['design'] == {'baseline': 'vima-adaptive-v1', **design}
     assert json.loads(dashboards.detail(make_request(), publication.id).content)['configuration']['design'] == publication.configuration['design']
 
 
@@ -221,7 +221,7 @@ def test_generic_publication_can_reuse_its_saved_configuration(monkeypatch):
     context, _, publication = setup_publication(monkeypatch)
     PublishDashboardTool().run(context, 4, 'Reused configuration', 'light', configuration=publication.configuration)
     publication.refresh_from_db()
-    assert publication.configuration == {'design': {'baseline': 'vima-buikwe-v1'}}
+    assert publication.configuration == {'design': {'baseline': 'vima-adaptive-v1'}}
 
 
 def test_new_publication_requires_default_workspace_configuration():

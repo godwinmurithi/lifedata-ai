@@ -87,6 +87,7 @@ def test_workspace_filters_and_cascades_on_enriched_fields(monkeypatch):
     assert 'county' not in primary['queries'][0]['columns']
 
 
+@pytest.mark.django_db
 def test_discovery_searches_outside_primary_dataset_and_keeps_country_evidence():
     from lifedata_ai.tools.geography import DiscoverAdministrativeBoundariesTool
     client=Mock()

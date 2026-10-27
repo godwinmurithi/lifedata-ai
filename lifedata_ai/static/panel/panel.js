@@ -187,9 +187,16 @@
   // instead of what's actually happening. These rotate through whenever the
   // server hasn't sent its own summary, so the fallback never looks like a
   // function name that leaked into the UI.
+  // What the status icon's label cycles through while a turn is in flight.
+  // Deliberately generic — earlier versions surfaced the literal tool being
+  // called ("inspecting dataset 2", "call mcp tool") as a line per step. That
+  // narrated internals the user has no use for; a single rotating-verb
+  // indicator (the same idea as Claude Code's own CLI spinner) reads as
+  // "working" without it.
   var WORKING_PHRASES = [
-    "Digesting",
-    "Preparing",
+    "Working",
+    "Tinkering",
+    "Generating",
     "Thinking it through",
     "Connecting the dots",
     "Crunching the numbers",
@@ -203,19 +210,6 @@
     var phrase = WORKING_PHRASES[workingPhraseIndex % WORKING_PHRASES.length];
     workingPhraseIndex += 1;
     return phrase;
-  }
-
-  /** Human phrasing for a tool name the server did not summarise. */
-  function toolLabel(data) {
-    // The server sends a specific summary on every tool_use frame ("inspecting
-    // dataset 2", "building chart Patients by facility") and that is always
-    // preferred. Only the fallback changed: it used to recompute a coarse
-    // label from the raw tool name (`data.name.replace(/_/g, " ")`), which for
-    // any tool without a dedicated summary — including every MCP-passthrough
-    // call — surfaced the literal function name verbatim ("call mcp tool").
-    // A rotating, content-free phrase reads as progress without describing
-    // internals the user has no use for.
-    return data.summary || nextWorkingPhrase();
   }
 
   /** Read/write panel-scoped localStorage without letting private mode throw. */
@@ -1140,15 +1134,23 @@
     // the approve button. Outcomes move into the transcript on resolution.
     var actions = el("div", { class: "ld-actions", id: "lifedata-ai-actions" });
 
-    // Two minutes of silence reads as a hang. This says what is happening and
-    // for how long; it is also the one place activity is announced, so the
-    // transcript can stop re-announcing tool lines.
-    var status = el("div", {
-      class: "ld-status",
-      id: "lifedata-ai-status",
-      role: "status",
-      "aria-live": "polite",
-    });
+    // Two minutes of silence reads as a hang. This says something is
+    // happening and for how long; it is also the one place activity is
+    // announced, so the transcript can stop re-announcing tool lines. A
+    // single spinning icon plus a rotating verb (never the literal tool
+    // being called) — see startStatusClock.
+    var statusIcon = el("span", { class: "ld-status__icon", "aria-hidden": "true", text: "✻" });
+    var statusText = el("span", { class: "ld-status__text" });
+    var status = el(
+      "div",
+      {
+        class: "ld-status",
+        id: "lifedata-ai-status",
+        role: "status",
+        "aria-live": "polite",
+      },
+      [statusIcon, statusText]
+    );
 
     var input = el("textarea", {
       class: "ld-input",
@@ -1251,6 +1253,7 @@
       messages: messages,
       actions: actions,
       status: status,
+      statusText: statusText,
       composer: composer,
       fileInput: fileInput,
       attachButton: attachButton,
@@ -1877,7 +1880,6 @@
       /** @type {any} The pending clarification card, if one is on screen. */
       pendingAsk: null,
       turnStarted: 0,
-      steps: 0,
     };
 
     var transcript = createTranscript(refs, {
@@ -1893,29 +1895,41 @@
 
     var statusTimer = null;
 
+    //: How long one rotating verb stays up before the next one takes over.
+    var PHRASE_ROTATE_MS = 2600;
+
     function setStatus(text) {
-      refs.status.textContent = text || "";
+      refs.statusText.textContent = text || "";
       refs.status.classList.toggle("is-visible", Boolean(text));
     }
 
     function startStatusClock(label) {
       state.turnStarted = Date.now();
-      state.steps = 0;
       stopStatusClock();
-      var current = label || "Working";
-      statusTimer = window.setInterval(function () {
+      // `forced` is an explicit server-provided message (see the "progress"
+      // frame) that should stick rather than be overtaken by the next
+      // rotation — everything else is just a generic verb on a timer, never
+      // the name of whatever tool is actually running.
+      var forced = null;
+      var phrase = label || "Working";
+      var rotateAt = Date.now() + PHRASE_ROTATE_MS;
+
+      function render() {
         var seconds = Math.round((Date.now() - state.turnStarted) / 1000);
-        var parts = [current];
-        if (state.steps) {
-          parts.push("step " + state.steps);
+        setStatus((forced || phrase) + "… " + seconds + "s");
+      }
+
+      statusTimer = window.setInterval(function () {
+        if (!forced && Date.now() >= rotateAt) {
+          phrase = nextWorkingPhrase();
+          rotateAt = Date.now() + PHRASE_ROTATE_MS;
         }
-        parts.push(seconds + "s");
-        setStatus(parts.join(" · "));
+        render();
       }, 1000);
-      setStatus(current);
+      render();
       return {
-        set: function (label) {
-          current = label;
+        set: function (text) {
+          forced = text;
         },
       };
     }
@@ -2337,6 +2351,7 @@
 
     function mountPublication(data) {
       if (!/^\/lifedata-ai\/dashboards\/[0-9a-f-]{36}\/$/.test(data.url || "")) return;
+      window.dispatchEvent(new CustomEvent("lifedata:publication-updated", { detail: data }));
       var card = el("div", { class: "ld-publication" }, [
         el("strong", { text: data.title || "Dashboard published" }),
         el("a", { href: data.url, text: "Open custom dashboard →" }),
@@ -2435,8 +2450,6 @@
 
       /** @type {{appendText: (t: string) => void, isEmpty: () => boolean}|null} */
       var assistant = null;
-      /** @type {Record<string, {complete: (isError?: boolean) => void}>} */
-      var toolLines = {};
       var sawStop = false;
       var sawError = false;
       var stopped = false;
@@ -2473,21 +2486,10 @@
             }
             break;
 
-          case "tool_use":
-            state.steps += 1;
-            var label = toolLabel(data);
-            clock.set(label.charAt(0).toUpperCase() + label.slice(1));
-            toolLines[data.id || data.tool_use_id || data.name] = transcript.addToolLine(label);
-            break;
-
-          case "tool_result":
-            var resultKey = data.tool_use_id || data.id || data.name;
-            var line = toolLines[resultKey];
-            if (line) {
-              line.complete(Boolean(data.is_error));
-              delete toolLines[resultKey];
-            }
-            break;
+          // `tool_use`/`tool_result` carry no UI of their own any more — the
+          // single rotating status icon (startStatusClock) is the whole
+          // "Vima is working" signal now, regardless of which or how many
+          // tools are actually running underneath it.
 
           case "progress":
             // Emitted from inside the awaited-browser poll. Nine round trips
@@ -2587,9 +2589,6 @@
           showError(err, options);
         })
         .then(function () {
-          Object.keys(toolLines).forEach(function (key) {
-            toolLines[key].complete(true);
-          });
           // A turn that only ASKS returns no text, and that is correct rather
           // than a failure — guarding this is what stops the clarification flow
           // ending on "The copilot returned no text for this turn."

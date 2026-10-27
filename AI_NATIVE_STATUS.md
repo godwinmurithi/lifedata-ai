@@ -2155,3 +2155,13 @@ otherwise the migration itself is complete and verified.
   schema. Deployed bundle is served; dashboard pages redirect logged-out users
   to the shared Superset login. See `docs/custom-dashboards-and-uploads.md` for
   validation commands and technical limits.
+
+
+## African boundaries and adaptive dashboard upgrade (2026-10-20)
+
+- Shared staging catalogue: all 54 African countries have ADM0, with 193 validated layers and 26,768 areas. Libya/Mauritius ADM2 are unavailable from this source; seven deeper source files exceed the 50 MB importer limit and are explicitly deferred.
+- Added catalogue discovery, pinned workspace references, authenticated coverage/geometry endpoints and a catalogue page. Applied migration 0009 only to VIMA staging.
+- Added plan_dashboard and composed-dashboard publishing with adaptive layouts, scoped filters, sections and custom-publication design review. Existing publications retain saved layouts. SINCEP stays a project-specific use case.
+- Added edit_dashboard_map_style for safe popup fields, marker shapes/icons, colors, categories, boundaries and basemaps. Supports facility coordinates and existing country-centroid site maps; updates retain current filters.
+- Validation: 54 feature regressions + 47 workspace/review/prompt regressions passed, browser checks passed, typecheck/build/lint and Django checks passed. Live catalogue/geometry/page verified; anonymous API access rejected. The broader old test_tools suite still needs environment/expectation maintenance; it was not reported as passing.
+- Details, operational commands and remaining scope: docs/boundary-catalogue-and-adaptive-dashboards.md. Authenticated previews: /lifedata-ai/dashboard-design-preview/; catalogue: /lifedata-ai/boundaries/.
