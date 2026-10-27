@@ -1,8 +1,10 @@
 """Client data adapter for the shared Buikwe workspace; no benchmark chart dependency."""
 import copy
 import json
+import hashlib
 from collections import Counter
 
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from lifedata_ai.models import DashboardPublication
@@ -57,22 +59,45 @@ def data(request, pk):
             *[t.get('measure') for p in settings['panels'] for t in p['tabs']]])))
         dataset = client.get_dataset(prepared['datasource']['id'])
         available = {c['column_name'] for c in dataset.get('columns', [])}
+        # Real coordinates must reach the join even when the user did not put
+        # them in the detail table or choose a separate facility reference.
+        if levels:
+            fields += [f for f in ('lat', 'latitude', 'lng', 'lon', 'longitude', 'x', 'y')
+                       if f in available and f not in fields]
+        if not config.get('facility_chart_id') and config.get('map_style'):
+            from lifedata_ai.map_style import map_fields
+            fields += [f for f in map_fields(config['map_style']) if f in available and f not in fields]
         if not (set(fields) - set(administrative_fields)).issubset(available):
             raise ToolError('Workspace fields must exist in the current client dataset.', code='invalid_source')
         query = copy.deepcopy(prepared['queries'][0]);query['columns'] = [f for f in fields if f in available];query['metrics'] = [];query['row_limit'] = 10000
         prepared['queries'] = [query]
-        payload = client.chart_data(prepared)
-        result = (payload.get('result') or [{}])[0]
-        if result.get('error'):
-            raise ToolError('Superset could not run the workspace source.', code='query_failed')
-        rows = result.get('data') or []
-        members = {int(c['id']) for c in charts}
-        geography = workspace_geography(client, config, members, rows, {}) if config.get('facility_chart_id') or config.get('boundary_chart_id') else None
-        geography, levels = enrich_administrative(client, config, members, rows, geography)
         body = json.loads(request.body or '{}') if request.method == 'POST' else {}
         criteria = body.get('criteria', {})
         if not isinstance(criteria, dict) or set(criteria) - set(fields) or any(not isinstance(v,list) or any(not isinstance(x,str) for x in v) for v in criteria.values()):
             raise ToolError('Invalid workspace selection.', code='invalid_criteria')
+        # Permissions and source metadata above are checked on every request.
+        # Only the expensive unfiltered source/join is reused, within this
+        # viewer's session, so RLS results never cross session boundaries.
+        stamp = json.dumps([str(publication.pk), publication.updated_at.isoformat(),
+                            config, prepared, getattr(request, 'superset_session_cookie', ''),
+                            request.superset_identity.username], sort_keys=True)
+        key = 'workspace:source:' + hashlib.sha256(stamp.encode()).hexdigest()
+        snapshot = None if body.get('refresh') else cache.get(key)
+        if snapshot is None:
+            payload = client.chart_data(prepared)
+            result = (payload.get('result') or [{}])[0]
+            if result.get('error'):
+                raise ToolError('Superset could not run the workspace source.', code='query_failed')
+            rows = result.get('data') or []
+            members = {int(c['id']) for c in charts}
+            geography = workspace_geography(client, config, members, rows, {}) if config.get('facility_chart_id') or config.get('boundary_chart_id') else None
+            geography, levels = enrich_administrative(client, config, members, rows, geography)
+            cache.set(key, (rows, geography, levels), 60)
+            geometry_version = hashlib.sha256(json.dumps(geography, sort_keys=True).encode()).hexdigest()
+            cache.set(key + ':geometry', geometry_version, 60)
+        else:
+            rows, geography, levels = snapshot
+            geometry_version = cache.get(key + ':geometry')
         def matches(record, field, chosen):
             actual = values(record.get(field))
             if field in administrative_fields:
@@ -117,7 +142,14 @@ def data(request, pk):
             cohort = [r for r in cohort if step['value'] in values(r.get(step['field']))]
             stages.append({'label': step['label'], 'count': len(cohort)})
         geography = filter_geography(geography, settings, selected, criteria, levels)
-        return JsonResponse({'admin_hierarchy': levels, 'geography': geography, 'rows': selected, 'total': len(rows), 'matches': len(selected),
+        # The browser already has the polygons for this exact source snapshot.
+        # Keep filtered area metadata/counts, and reuse its coordinates rather
+        # than serialising megabytes of unchanged GeoJSON on every selection.
+        if geography and geometry_version and body.get('geometry_version') == geometry_version:
+            geography = {**geography, 'boundaries': [
+                {k: v for k, v in boundary.items() if k != 'geometry_geojson'}
+                for boundary in geography['boundaries']]}
+        return JsonResponse({'geometry_version': geometry_version, 'admin_hierarchy': levels, 'geography': geography, 'rows': selected, 'total': len(rows), 'matches': len(selected),
             'sites': len({r.get(settings['site_field']) for r in selected if r.get(settings['site_field'])}),
             'countries': len({r.get(settings['country_field']) for r in selected if r.get(settings['country_field'])}),
             'options': options, 'breakdowns': breakdowns, 'series': series, 'stages': stages,

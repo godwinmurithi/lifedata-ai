@@ -1,10 +1,12 @@
-"""Versioned publication design contract; Buikwe is the visual benchmark."""
+"""Versioned publication design contract. vima-adaptive-v1 (navy-teal) is the
+general-purpose default; vima-buikwe-v1 is that program's own specific brand
+baseline and must be requested explicitly, not inherited by unrelated dashboards."""
 import re
 
 DESIGN_SCHEMA = {
     'type': 'object', 'additionalProperties': False,
     'properties': {
-        'baseline': {'enum': ['vima-buikwe-v1']},
+        'baseline': {'enum': ['vima-buikwe-v1', 'vima-adaptive-v1']},
         'colors': {'type': 'object', 'additionalProperties': False,
                    'properties': {k: {'type': 'string', 'pattern': '^#[0-9a-fA-F]{6}$'}
                                   for k in ('accent', 'yes', 'no', 'unknown') }},
@@ -31,8 +33,8 @@ def validate_design(design, chart_ids):
         raise ToolError(message, code='invalid_design')
     if not isinstance(design, dict) or set(design) - set(DESIGN_SCHEMA['properties']):
         invalid('Unsupported dashboard design settings.')
-    if design.get('baseline', 'vima-buikwe-v1') != 'vima-buikwe-v1':
-        invalid('Use the vima-buikwe-v1 design baseline.')
+    if design.get('baseline', 'vima-adaptive-v1') not in {'vima-buikwe-v1','vima-adaptive-v1'}:
+        invalid('Use a supported versioned design baseline.')
     colors = design.get('colors', {})
     if not isinstance(colors, dict) or set(colors) - {'accent', 'yes', 'no', 'unknown'}:
         invalid('Unsupported semantic color.')
@@ -69,4 +71,4 @@ def validate_design(design, chart_ids):
             if type(identifier) is not int or identifier not in chart_ids or identifier in seen:
                 invalid('Grouped charts must belong to this dashboard and occur in only one group.')
             seen.add(identifier)
-    return {'baseline': 'vima-buikwe-v1', **design}
+    return {'baseline': 'vima-adaptive-v1', **design}

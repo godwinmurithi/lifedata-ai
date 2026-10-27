@@ -10,6 +10,15 @@ def configuration_chart_ids(configuration):
     for key in ('source_chart_id', 'facility_chart_id', 'boundary_chart_id',
                 'network_chart_id', 'summary_chart_id'):
         add(configuration.get(key))
+    for identifier in configuration.get('chart_ids',[]):
+        add(identifier)
+    for binding in configuration.get('bindings', {}).values():
+        for identifier in binding.get('chart_ids', []):
+            add(identifier)
+        geography = binding.get('geography', {})
+        add(geography.get('source_chart_id'))
+        for source in geography.get('administrative_boundaries', []):
+            add(source.get('chart_id'))
     for source in configuration.get('administrative_boundaries', []):
         add(source.get('chart_id'))
     workspace = configuration.get('workspace') or {}

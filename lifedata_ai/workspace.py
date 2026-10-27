@@ -20,7 +20,7 @@ WORKSPACE_SCHEMA = {
                     'type': 'object', 'additionalProperties': False,
                     'properties': {'field': {'type': 'string'}, 'label': {'type': 'string'},
                                    'chart_id': {'type': 'integer', 'minimum': 1},
-                                   'renderer': {'enum': ['donut', 'bar', 'line']},
+                                   'renderer': {'enum': ['donut', 'bar', 'line', 'kpi']},
                                    'measure': {'type': 'string'},
                                    'aggregation': {'enum': ['sum', 'avg']}},
                     'required': ['field', 'label']}}}, 'required': ['slot', 'title', 'tabs']}},

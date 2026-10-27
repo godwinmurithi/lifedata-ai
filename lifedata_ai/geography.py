@@ -6,7 +6,8 @@ from collections import defaultdict
 from lifedata_ai.tools.base import ToolError
 from lifedata_ai.tools.superset_read import _parse_json_field, _prepare_query_context
 
-FACILITY_COLUMNS = ('facility_name', 'name_facility', 'name_of_he', 'name', 'lat', 'latitude', 'lng', 'lon', 'longitude',
+FACILITY_COLUMNS = ('facility_name', 'name_facility', 'name_of_he', 'name', 'site_name', 'household_id',
+                    'individual_id', 'site_id', 'label', 'lat', 'latitude', 'lng', 'lon', 'longitude',
                     'facility_level', 'hf_level', 'level_of_h', 'level', 'beds', 'no_beds', 'how_many_b', 'x', 'y', 'district', 'county', 'subcounty', 'ward', 'parish', 'village')
 BOUNDARY_COLUMNS = ('district', 'county', 'subcounty', 'geometry_geojson', 'geometry', 'geojson')
 
@@ -29,7 +30,7 @@ def number(value):
         return None
 
 
-def source_rows(client, chart_id, members, columns, require_all=False):
+def source_rows(client, chart_id, members, columns, require_all=False, configuration=None, criteria=None):
     if type(chart_id) is not int or chart_id not in members:
         raise ToolError('Geographic sources must belong to this dashboard.', code='forbidden')
     chart = client.get_chart(chart_id)
@@ -48,6 +49,9 @@ def source_rows(client, chart_id, members, columns, require_all=False):
     query['columns'] = projection
     # Keep the saved source filters and existing result cap; never read another dataset.
     query['row_limit'] = min(query['row_limit'], 10000)
+    if configuration is not None:
+        from lifedata_ai.composition import apply_criteria
+        apply_criteria(prepared, configuration, chart_id, criteria or {})
     result = (client.chart_data(prepared).get('result') or [{}])[0]
     if result.get('error'):
         raise ToolError('The geographic source query failed.', code='query_failed')
@@ -60,11 +64,17 @@ def workspace_geography(client, config, members, selected_rows, criteria):
     facilities, boundaries, notes = [], [], []
     truncated = False
     if config.get('facility_chart_id'):
-        raw, capped = source_rows(client, config['facility_chart_id'], members, FACILITY_COLUMNS)
+        from lifedata_ai.map_style import map_fields
+        extras=map_fields(config.get('map_style',{}))
+        raw, capped = source_rows(client, config['facility_chart_id'], members, [*FACILITY_COLUMNS,*extras])
         truncated |= capped
         seen, invalid_points = set(), 0
         for row in raw:
-            name = first(row, 'facility_name', 'name_facility', 'name_of_he', 'name')
+            # Not facility-specific: any raw point source works as long as it has
+            # coordinates plus some identifying label — household/individual surveys
+            # commonly key on an id rather than a literal "facility_name".
+            name = first(row, 'facility_name', 'name_facility', 'name_of_he', 'name',
+                         'site_name', 'household_id', 'individual_id', 'site_id', 'label')
             lat = number(first(row, 'lat', 'latitude', 'y'))
             lng = number(first(row, 'lng', 'lon', 'longitude', 'x'))
             if not name or lat is None or lng is None or abs(lat) > 90 or abs(lng) > 180:
@@ -75,7 +85,7 @@ def workspace_geography(client, config, members, selected_rows, criteria):
                 continue
             seen.add(key)
             beds = number(first(row, 'beds', 'no_beds', 'how_many_b'))
-            facilities.append({'facility_name': str(name), 'lat': lat, 'lng': lng,
+            facilities.append({**{k:row.get(k) for k in extras},'facility_name': str(name), 'lat': lat, 'lng': lng,
                 'facility_level': first(row, 'facility_level', 'hf_level', 'level_of_h', 'level'),
                 'beds': beds if beds is not None and beds >= 0 else None,
                 **{k: row.get(k) for k in ('district', 'county', 'subcounty')}})

@@ -37,7 +37,9 @@ def _chart_metadata(chart: dict[str, Any]) -> dict[str, Any]:
 
 
 def _payload(publication: DashboardPublication, request: HttpRequest) -> dict[str, Any]:
+    from lifedata_ai.quality import quality_summary
     return {
+        'quality': quality_summary(publication),
         'id': str(publication.id), 'title': publication.title, 'theme': publication.theme,
         'layout': publication.layout, 'configuration': publication.configuration,
         'dashboard_id': publication.superset_dashboard_id,
@@ -106,8 +108,13 @@ def detail(request: HttpRequest, pk) -> JsonResponse:
             layout = validate_layout(layout, allowed)
         except (ValueError, KeyError, TypeError) as exc:
             return JsonResponse({'error': str(exc)}, status=400)
+        previous_snapshot = {'title': publication.title, 'theme': publication.theme,
+                             'layout': publication.layout, 'configuration': publication.configuration}
         publication.layout = layout
         publication.save(update_fields=['layout', 'updated_at'])
+        from lifedata_ai.quality import start_build
+        start_build(ToolContext(superset_session_cookie=request.superset_session_cookie,
+                               identity=request.superset_identity), publication, previous_snapshot=previous_snapshot)
     payload = _payload(publication, request)
     payload['charts'] = [_chart_metadata(chart) for chart in charts]
     return JsonResponse(payload)
@@ -130,7 +137,11 @@ def chart_data(request: HttpRequest, pk, chart_id: int) -> JsonResponse:
         # Both stored queries and reconstructed definitions use the same client
         # identity, membership checks, and saved limit, with a viewer ceiling.
         prepared = _prepare_query_context(context, chart, note, row_limit_cap=10000)
+        from lifedata_ai.composition import apply_criteria
+        apply_criteria(prepared, publication.configuration, chart_id, json.loads(request.GET.get('criteria','{}')))
         payload = client.chart_data(prepared)
+    except (ValueError,TypeError):
+        return JsonResponse({'error':'Invalid dashboard criteria.'},status=400)
     except (SupersetError, ToolError) as exc:
         return _error(exc)
     results = payload.get('result') or []

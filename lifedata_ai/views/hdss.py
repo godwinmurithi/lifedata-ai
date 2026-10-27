@@ -29,6 +29,13 @@ from lifedata_ai.views.dashboards import _client, _error
 CACHE_SECONDS = 300
 
 
+def _cache_stamp(request, publication):
+    # Grouped data and derived aggregates can be affected by viewer RLS.
+    # A publication revision alone is not a sufficient cache boundary.
+    viewer = hashlib.sha256(request.superset_session_cookie.encode()).hexdigest()
+    return f'{publication.pk}:{publication.updated_at.isoformat()}:{viewer}'
+
+
 def _publication(request, pk):
     publication = DashboardPublication.objects.filter(pk=pk).first()
     if not publication or not is_hdss(publication) or not visible_to(publication, request.superset_identity):
@@ -65,7 +72,7 @@ def query(request, pk):
     except (SpecError, BindingsError) as exc:
         return JsonResponse({'error': str(exc)}, status=409)
     execute = engine.superset_executor(client)
-    stamp = f'{publication.pk}:{publication.updated_at.isoformat()}'
+    stamp = _cache_stamp(request, publication)
     try:
         prof = cache.get(f'hdss:profile:{stamp}')
         if prof is None:
@@ -104,7 +111,7 @@ def _master_query(request, publication, client, body):
         return _error(exc)
     except (SpecError, BindingsError) as exc:
         return JsonResponse({'error': str(exc)}, status=409)
-    stamp = f'{publication.pk}:{publication.updated_at.isoformat()}'
+    stamp = _cache_stamp(request, publication)
     try:
         data = cache.get(f'hdss:mdata:{stamp}')
         if data is None:

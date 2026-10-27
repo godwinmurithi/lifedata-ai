@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from lifedata_ai.hdss.spec import PRESET, SpecError, build_spec, effective, validate_spec
@@ -42,9 +43,13 @@ def authorise(client, publication) -> None:
     ids = (spec.get('source') or {}).get('datasets') if is_master(spec) else [(spec.get('dataset') or {}).get('superset_dataset_id')]
     if not ids or any(type(i) is not int for i in ids):
         raise SupersetError('Publication has no sources.', status_code=404)
-    for dataset_id in ids:  # a Master page needs every registered dataset of its source
+    def check(dataset_id):
         if not client.get_dataset(dataset_id):
             raise SupersetError('Dataset not found.', status_code=404)
+    # Master sources can bind many datasets. Check each on every request, but
+    # avoid serial HTTP round trips before serving an in-memory filter result.
+    with ThreadPoolExecutor(max_workers=min(4, len(ids))) as pool:
+        list(pool.map(check, dict.fromkeys(ids)))
 
 
 def save(client, username: str, spec: dict[str, Any], publication_id: str | None = None) -> dict[str, Any]:

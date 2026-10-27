@@ -141,7 +141,7 @@ function PopulationMap({ rows, boundaries, facilities, allFacilities, selected, 
   </section>;
 }
 
-function segmentColor(label: unknown, index: number, design: DashboardDesign) {
+export function segmentColor(label: unknown, index: number, design: DashboardDesign) {
   const value=String(label).toLowerCase();
   if(["yes","negative","normal","no abnormality"].includes(value))return design.colors?.yes || "#13a58a";
   if(["no","positive","high","abnormal"].includes(value))return design.colors?.no || "#e15b6c";
