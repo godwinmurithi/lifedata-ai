@@ -1,0 +1,41 @@
+[
+  {
+    "id": "general-monitoring",
+    "prompt": "Using dataset {dataset_id}, create a polished monitoring dashboard. Confirm the entity grain, reporting period, missingness and units from the data. Include meaningful headline aggregates, a genuine time trend if a date exists, comparisons and detail. Use tabbed chart stacks where related views share a panel, working filters and readable desktop/mobile layouts. Run data and browser review and repair findings before saying it is ready.",
+    "required_tools": [
+      "plan_dashboard",
+      "publish_dashboard",
+      "review_dashboard_design",
+      "begin_dashboard_build",
+      "inspect_dashboard",
+      "complete_dashboard_build"
+    ],
+    "rubric": "Numerical correctness against full-data aggregates; meaningful metric definitions; readable visual hierarchy; working filters and stacks; responsive layout."
+  },
+  {
+    "id": "exact-reference",
+    "prompt": "Using dataset {dataset_id}, issue the SINCEP HDSS master template as supplied. Preserve its design and interactions. Bind only verified available data; identify unavailable fields honestly. Do not redesign or substitute the reference. Review the rendered result before declaring it ready.",
+    "required_tools": [
+      "get_dashboard_template",
+      "publish_dashboard",
+      "review_dashboard_design",
+      "begin_dashboard_build",
+      "inspect_dashboard",
+      "complete_dashboard_build"
+    ],
+    "rubric": "Compare screenshot with supplied master at matching viewport: hierarchy, spacing, type, colors, panel arrangement and interactions. Missing data must be explicit. Never infer fidelity from tool use alone."
+  },
+  {
+    "id": "stacked-comparison",
+    "prompt": "Using dataset {dataset_id}, build a comparison dashboard with related charts sharing tabbed panels, filters that affect every intended chart, explicit missing categories and accurate source-backed totals. Keep each view readable at desktop and mobile widths and verify switching every tab.",
+    "required_tools": [
+      "plan_dashboard",
+      "publish_dashboard",
+      "review_dashboard_design",
+      "begin_dashboard_build",
+      "inspect_dashboard",
+      "complete_dashboard_build"
+    ],
+    "rubric": "Shared stacking works across templates; tabs reveal the correct chart; filters update all targets; no overflow or truncated labels."
+  }
+]

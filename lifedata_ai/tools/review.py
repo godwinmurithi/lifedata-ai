@@ -67,8 +67,8 @@ class ReviewDashboardDesignTool(Tool):
     input_schema: ClassVar[dict[str, Any]] = {
         "type": "object",
         "additionalProperties": False,
-        "required": ["dashboard_id"],
         "properties": {
+            "publication_id": {"type":"string","format":"uuid","description":"Custom publication to review without a native dashboard."},
             "dashboard_id": {
                 "type": "integer",
                 "description": "The dashboard to review.",
@@ -76,8 +76,25 @@ class ReviewDashboardDesignTool(Tool):
         },
     }
 
-    def run(self, context: ToolContext, dashboard_id: int) -> dict[str, Any]:
+    def run(self, context: ToolContext, dashboard_id: int | None = None, publication_id: str | None = None) -> dict[str, Any]:
+        if not dashboard_id and not publication_id:
+            raise ToolError("Provide either dashboard_id or publication_id.", code="invalid_configuration")
         client = context.superset_client()
+        if publication_id:
+            from lifedata_ai.models import DashboardPublication
+            from lifedata_ai.publication_sources import publication_charts
+            from lifedata_ai.composition import review_composition
+            from django.core.exceptions import ValidationError
+            try:
+                publication=DashboardPublication.objects.filter(pk=publication_id,owner_username=context.identity.username).first()
+            except (ValidationError,ValueError):
+                raise ToolError('Invalid publication ID.',code='invalid_configuration')
+            if not publication:raise ToolError('No publication owned by you exists.',code='not_found')
+            charts=publication_charts(client,publication)
+            findings=review_composition(publication,charts)
+            return {'publication_id':str(publication.id),'chart_count':len(charts),'findings':findings,
+                    'verdict':'ok' if not findings else f'{len(findings)} to fix',
+                    'review_scope':'Saved configuration and chart definitions. Browser appearance and numerical accuracy require separate verification.'}
         try:
             dashboard = client.get_dashboard(dashboard_id)
         except SupersetError as exc:
