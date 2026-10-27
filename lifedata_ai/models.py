@@ -10,6 +10,44 @@ import uuid
 from django.db import models
 
 
+class BoundaryRelease(models.Model):
+    """Immutable provider layer; importing never replaces a published release."""
+    id = models.CharField(primary_key=True, max_length=100)
+    country_iso3 = models.CharField(max_length=3, db_index=True)
+    country_name = models.CharField(max_length=120)
+    admin_level = models.PositiveSmallIntegerField()
+    label = models.CharField(max_length=120)
+    provider = models.CharField(max_length=40, default='geoBoundaries gbOpen')
+    represented_year = models.CharField(max_length=80, blank=True)
+    license = models.TextField(blank=True)
+    attribution = models.TextField()
+    source_url = models.URLField(max_length=1000)
+    checksum = models.CharField(max_length=64)
+    metadata = models.JSONField(default=dict)
+    feature_count = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=20, default='pending')
+    error = models.TextField(blank=True)
+    dataset_id = models.PositiveIntegerField(null=True, blank=True)
+    imported_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['country_iso3', 'admin_level', 'status'], name='boundary_country_level')]
+
+
+class BoundaryArea(models.Model):
+    release = models.ForeignKey(BoundaryRelease, on_delete=models.CASCADE, related_name='areas')
+    source_id = models.CharField(max_length=160)
+    area_name = models.CharField(max_length=300)
+    parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.PROTECT)
+    geometry_geojson = models.JSONField()
+    display_geojson = models.JSONField()
+    bbox = models.JSONField()
+    properties = models.JSONField(default=dict)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['release', 'source_id'], name='boundary_source_unique')]
+
+
 class Conversation(models.Model):
     """One chat thread between a Superset user and the copilot."""
 
@@ -415,3 +453,21 @@ class DashboardPublication(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+
+class DashboardBuild(models.Model):
+    """A permission-scoped build whose approval is tied to exact reviewed content."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    publication = models.ForeignKey(DashboardPublication, on_delete=models.CASCADE, related_name='builds')
+    conversation = models.ForeignKey(Conversation, on_delete=models.SET_NULL, null=True, blank=True)
+    username = models.CharField(max_length=255, db_index=True)
+    specification = models.JSONField(default=dict)
+    previous_revision = models.JSONField(default=dict)
+    status = models.CharField(max_length=20, default='draft', db_index=True)
+    review = models.JSONField(default=dict)
+    fingerprint = models.CharField(max_length=64, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']

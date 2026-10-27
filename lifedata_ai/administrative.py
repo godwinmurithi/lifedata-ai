@@ -17,20 +17,41 @@ ADMINISTRATIVE_SCHEMA = {'type': 'array', 'minItems': 1, 'maxItems': 8, 'items':
         'geometry_field': {'type': 'string', 'minLength': 1},
         'levels': {'type': 'array', 'minItems': 1, 'maxItems': 8, 'items': LEVEL_SCHEMA}},
     'required': ['chart_id', 'geometry_field', 'levels']}}
+CATALOGUE_SCHEMA = {'type':'array', 'minItems':1, 'maxItems':300, 'items':{
+    'type':'object','additionalProperties':False,'properties':{
+        'release_id':{'type':'string','maxLength':100},
+        'field':{'type':'string','pattern':'^[A-Za-z_][A-Za-z0-9_]*$'},
+        'label':{'type':'string','minLength':1,'maxLength':120}},
+    'required':['release_id','field','label']}}
 
 
 @lru_cache(maxsize=128)
-def dissolved_geojson(parts):
+def dissolved_shape(parts):
     # Only geometry operations are cached. Every request still runs the
     # reference query with its own viewer permissions and saved filters; the
     # cache key contains the exact authorised geometries returned this time.
     geometries = [GEOSGeometry(memoryview(part), srid=4326) for part in parts]
-    geometry = geometries[0] if len(geometries) == 1 else GeometryCollection(*geometries).unary_union
-    return geometry.geojson
+    return geometries[0] if len(geometries) == 1 else GeometryCollection(*geometries).unary_union
+
+
+def dissolved_geojson(parts):
+    return dissolved_shape(parts).geojson
+
+
+def dissolved_marker_point(parts):
+    # `centroid` is the mean of all vertices and routinely lands outside a
+    # concave or multi-part shape (a bay, a strait, an exclave) — exactly
+    # where a "click this country" marker must not be. `point_on_surface`
+    # is GEOS's guaranteed-interior point: always on the shape itself.
+    point = dissolved_shape(parts).point_on_surface
+    return {'lat': point.y, 'lng': point.x}
 
 
 def hierarchy(config):
     result = []
+    for source in config.get('boundary_catalogue', []):
+        if source['field'] not in {item['field'] for item in result}:
+            result.append({'field':source['field'],'label':source['label']})
     for source in config.get('administrative_boundaries', []):
         for level in source['levels']:
             if level['field'] not in {item['field'] for item in result}:
@@ -53,7 +74,19 @@ def enrich_administrative(client, config, members, rows, geography):
     geo['hierarchy'] = levels
     pieces = []
     invalid = 0
-    for source in config['administrative_boundaries']:
+    if config.get('boundary_catalogue'):
+        from lifedata_ai.models import BoundaryRelease
+        from lifedata_ai.tools.base import ToolError
+        for source in config['boundary_catalogue']:
+            release = BoundaryRelease.objects.filter(pk=source['release_id'],status='ready').first()
+            if not release:
+                raise ToolError('Saved boundary catalogue release is unavailable.',code='invalid_source')
+            geo['notes'].append(f'{release.country_name} · {release.label} · reference {release.represented_year} · '
+                                f'{release.attribution} · {release.license} · release {release.pk}')
+            for area in release.areas.all().iterator(chunk_size=100):
+                geometry = GEOSGeometry(json.dumps(area.geometry_geojson),srid=4326)
+                pieces.append((geometry,geometry.prepared,{source['field']:area.area_name},geometry.extent))
+    for source in config.get('administrative_boundaries', []):
         columns = [l['source_field'] for l in source['levels']] + [source['geometry_field']]
         raw, capped = source_rows(client, source['chart_id'], members, columns, require_all=True)
         geo['truncated'] |= capped
@@ -110,6 +143,7 @@ def enrich_administrative(client, config, members, rows, geography):
     by_name = defaultdict(list)
     for facility in geo['all_facilities']:
         by_name[name_key(facility['facility_name'])].append(facility)
+    matched_rows = 0
     for record in rows:
         candidates = by_name.get(name_key(record.get(config['workspace']['site_field'])), [])
         for level in levels:
@@ -117,7 +151,9 @@ def enrich_administrative(client, config, members, rows, geography):
             names = {f[field] for f in candidates if area_name(f.get(field))}
             if not area_name(record.get(field)) and len({name_key(v) for v in names}) == 1:
                 record[field] = sorted(names)[0]
-        assign(record)
+        matched_rows += bool(assign(record))
+    geo['join_diagnostics'] = {'records_checked':len(rows), 'matched_records':matched_rows,
+                               'unmatched_or_ambiguous_records':len(rows)-matched_rows}
     if unmatched:
         geo['notes'].append(f'{unmatched} facility locations could not be uniquely matched to the administrative source.')
     grouped = defaultdict(list)
@@ -143,10 +179,14 @@ def enrich_administrative(client, config, members, rows, geography):
         # unrelated parish polygons on a client's map.
         if not covered(field, value, parents):
             continue
-        geometry_json = dissolved_geojson(tuple(bytes(part.wkb) for part in parts))
+        wkb_parts = tuple(bytes(part.wkb) for part in parts)
         geo['boundaries'].append({'area_level': field, 'area_name': value, 'field': field,
             'label': next(l['label'] for l in levels if l['field'] == field), 'parents': dict(parents),
-            'geometry_geojson': json.loads(geometry_json)})
+            'geometry_geojson': json.loads(dissolved_geojson(wkb_parts)),
+            # Every entry here already passed `covered()` above, i.e. has at
+            # least one real record — so a marker here always means "has a
+            # submission", never an empty area.
+            'representative_point': dissolved_marker_point(wkb_parts)})
     for level in levels:
         geo['counts'][level['field']] = sum(b['field'] == level['field'] for b in geo['boundaries'])
     if geo['truncated']:
