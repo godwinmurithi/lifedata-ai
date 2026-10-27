@@ -61,17 +61,19 @@ def response_input(messages):
             elif kind == "tool_result":
                 flush()
                 output = block.get("content", "")
-                if not isinstance(output, str):
-                    output = json.dumps(output)
+                images=[]
+                if isinstance(output,list):
+                    images=[part for part in output if part.get('type')=='image']
+                    output='\n'.join(part.get('text','') for part in output if part.get('type')=='text')
+                elif not isinstance(output,str):
+                    output=json.dumps(output)
                 if block.get("is_error"):
-                    output = "Tool error: " + output
-                items.append(
-                    {
-                        "type": "function_call_output",
-                        "call_id": block["tool_use_id"],
-                        "output": output,
-                    }
-                )
+                    output="Tool error: "+output
+                items.append({'type':'function_call_output','call_id':block['tool_use_id'],'output':output})
+                # Responses function outputs are text; visual evidence must be a separate user image input.
+                if images:
+                    items.append({'role':'user','content':[{'type':'input_image','image_url':
+                        f"data:{part['source']['media_type']};base64,{part['source']['data']}"} for part in images]})
             elif kind in ("image", "document"):
                 source = block["source"]
                 if source.get("type") == "base64":

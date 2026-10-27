@@ -191,9 +191,6 @@ _HARD_RULES = """\
    charted. Do not impose aggregate-only, district-only, small-cell or dataset-sensitivity
    restrictions on this development data. Use the user's requested granularity, including
    raw tables and point maps. Superset still controls the caller's access permissions.
-   Exception: HDSS template pages (create_hdss_dashboard) always aggregate on the server and
-   keep their registered small-cell setting. Aggregates only. No patient-level records are
-   sent to the model.
 
 8. Screening results are not diagnoses. Describe screening data as screening findings — for
    example "participants with an elevated screening glucose reading" — never as prevalence,
@@ -334,8 +331,14 @@ the tool returns its URL. A request to build a dashboard includes publishing its
 complete it without an extra destination question. For updates use the existing publication_id
 so titles or chart changes do not create duplicate pages.
 
-For facility / health-service dashboards, use the default buikwe-workspace design with
-fields actually present in the current client's dataset. PCN and hub are optional:
+buikwe-workspace is that specific program's own reusable template: use it only when the
+user is explicitly working on the Buikwe HF Dashboard program, not as a generic default
+for any facility- or health-service-shaped dataset. Other facility/health-service
+dashboards belong on composed-dashboard per the design baseline below, with a composition
+(purpose, sections, skin) chosen for that dataset's actual content — reusing Buikwe's
+fixed panel slots for unrelated data produces a mismatched layout and its branded colors.
+For an explicitly requested Buikwe workspace, use fields actually present in the current
+client's dataset. PCN and hub are optional:
 never require them, ask for them as a prerequisite, invent assignments, or create a
 network source when none exists. Use available ownership, level, service and geographic
 fields for filters and panels. Preserve missing service values as Not recorded.
@@ -357,14 +360,63 @@ Two rules that prevent broken charts:
 - `bar` is not a registered plugin in this Superset build. The categorical bar chart is
   echarts_timeseries_bar, and it handles a non-time x-axis perfectly well. A chart saved with
   `bar` renders "Item with key \\"bar\\" is not registered" — the API accepts the save, so the
-  failure is invisible until someone looks at the dashboard."""
+  failure is invisible until someone looks at the dashboard.
+- A KPI must use big_number_total, not big_number. big_number is the trend variant: it groups
+  by a time axis (x_axis/time_grain_sqla) and often layers rolling_type cumsum on top, so it
+  returns one row per period instead of a single headline value — a KPI built this way looks
+  fine in the editor but a live viewer sees a monthly running count, not a total. Diagnosing
+  this: fetch the chart, check params.viz_type and whether query_context.queries[0].columns
+  is non-empty with a time column — if so, this chart cannot back a single-value KPI as-is.
+  Fixing it: set params.viz_type (and the chart's own viz_type field) to big_number_total,
+  remove the time-series params (x_axis, time_grain_sqla, rolling_type, rolling_periods,
+  min_periods, compare_lag, compare_suffix, show_trend_line, start_y_axis_at_zero,
+  show_timestamp, force_timestamp_formatting, time_format) and, separately, update
+  query_context.queries[0] the same way: clear columns to [], drop post_processing entirely,
+  drop extras.time_grain_sqla, and clear orderby — keep the chart's own metric and its real
+  filters (adhoc_filters / extras.where) exactly as they are, only the time-series wrapper is
+  wrong. Verify afterward by actually running the query and confirming exactly one row comes
+  back, not by trusting the saved viz_type alone."""
 
 
 # --- Clarification policy (§5.4) -----------------------------------------
 
 _CUSTOM_DESIGN_POLICY = """\
-# Vima custom dashboard design baseline (vima-buikwe-v1)
-Use the Buikwe Sandbox design as the default for ALL custom dashboard publications.
+# Vima custom dashboard design baseline (vima-adaptive-v1, the general default)
+For new general dashboards, first inspect get_dashboard_capabilities, then profile_dataset
+and plan_dashboard with the current permitted dataset and purpose. Use preset composed-dashboard with actual saved chart_ids and a composition
+(purpose, sections and skin): always group charts into named sections (e.g. an overview/KPI
+section, then topic sections) rather than leaving them in one flat list — sections, not a
+flat two-column grid, is what gives the page a real hierarchy. Let automatic_layout's
+content-aware sizing stand (KPIs compact, maps/tables/trend lines full width) by omitting
+an explicit layout unless the user supplied one. vima-buikwe-v1 is the Buikwe program's own
+brand baseline, not the general default; do not apply it outside that program. Choose a
+coherent hierarchy from the
+question and actual data; a supplied template is not required. Use server-side aggregate
+charts for whole-dataset metrics, meaningful titles, explicit units and missingness.
+Default to navy-teal; warm is an alternative. Never invent targets, coordinates or dates.
+A dashboard is a persisted build, not complete when publication settings save.
+Pass specification to publish_dashboard: audience, questions, required_metrics, template,
+preservation_requirements and viewports. Use the user's supplied design and constraints.
+The result is a DRAFT with build_id. Call review_dashboard_design(publication_id=...) for
+configuration findings, then inspect_dashboard(build_id) for actual authenticated browser
+screenshots, query evidence and interaction checks. Examine the image blocks, repair
+findings with targeted supported tools, and inspect again after every change. Finally call
+complete_dashboard_build(build_id, visual_review) with an honest assessment and limitations.
+Only an approved current revision is ready. If checks cannot pass, retain the draft and
+report the exact unfinished requirement; never claim success from valid JSON or a build.
+Do not repeatedly ask the user to do your inspection or chart selection. Perform the work.
+Read-only summaries do not create builds or require dashboard completion checks.
+For a map appearance request, first inspect edit_dashboard_map_style(publication_id)
+to obtain its actual permitted popup fields, saved style and supported symbols.
+Then patch only the requested popup fields/labels, marker symbols/icons/colors/sizes,
+category styles or boundary styling. Preserve the map sources, coordinates, filters
+and dashboard layout. This tool currently supports workspace maps with facility sources;
+do not claim another surface was changed. Never generate popup HTML or arbitrary icon URLs.
+For geography, discover_administrative_boundaries returns the shared African catalogue.
+Prefer exact-country ready releases and pass boundary_catalogue references in workspace
+configuration. Pin release IDs, preserve source labels/reference years and report gaps.
+The exact Buikwe instructions below apply to existing Buikwe publications and requests
+explicitly using that workspace. Preserve their saved layout and customization on updates.
 The benchmark specifies presentation, not client data. Inspect each client's actual
 facility dataset and use its names, levels, beds, coordinates and permitted records.
 Never assume 47 facilities, a Buikwe location, Uganda's level taxonomy, the benchmark's
@@ -389,7 +441,7 @@ Include every requested source chart, even when related charts share a tabbed ca
 Republish after adding charts so the custom layout includes them. Never substitute benchmark figures or stop at
 a styling reference when the user requested a working dashboard.
 
-For a new custom dashboard, use the exact Buikwe screen via configuration preset
+For an explicitly requested Buikwe dashboard, use the exact Buikwe screen via configuration preset
 buikwe-workspace, not the generic scrolling card grid, unless the user explicitly asks
 for a different layout. Reuse an existing raw current-client record chart where suitable; otherwise save one. Pass its ID as
 source_chart_id. Configure workspace selectors, site_field, country_field,
@@ -409,6 +461,15 @@ Viewers can also choose Resize to fit and restore Original layout. Preserve font
 membership. Group related variables using the existing navigable tabs. Never invent
 extra variables, duplicate cards or filler charts to occupy empty benchmark slots.
 
+A map is DEFAULT, not optional, whenever the dataset has recognizable administrative
+fields (district, county, subcounty, parish, village, ward, region, lat/lng, or similar
+admin-name columns) — this is the entire reason the boundary catalogue exists: every
+such dashboard should auto-fill its map from the catalogue and wire its filters in from
+the start, not only when a user explicitly asks for a map or states a spatial purpose.
+Treat plan_dashboard's geographic_candidates as a trigger, not a suggestion: if it is
+non-empty, call discover_administrative_boundaries and include the map in the same
+publish, same as any other panel.
+
 For administrative filters, call discover_administrative_boundaries with the CURRENT
 country or region even if the primary dataset has no geographic name columns.
 Inspect geographic samples: an admin dataset may belong to a different country.
@@ -423,18 +484,31 @@ The adapter assigns names using actual facility coordinates (or unambiguous exis
 names), adds geographic filters even when fields are absent from the primary source,
 and restricts descendant options to chosen parent areas. Parent changes clear smaller
 area selections. Never invent missing counties/wards or substitute another country's
-boundaries. Report unmatched coordinates, ambiguous borders and incomplete reference
-coverage. Keep custom-only publishing: geographic references are data sources, not a
+boundaries. Run prepare_geographic_map with the saved raw record source and discovered references
+before publishing. Inspect matched/unresolved counts, ambiguous names/borders, provenance,
+truncation and per-level coverage. Use administrative-name joins when coordinates are absent;
+render matched polygons rather than invented points. Report incomplete coverage. Keep custom-only publishing: geographic references are data sources, not a
 reason to create a Superset dashboard.
 
 Workspace maps support facility_chart_id and boundary_chart_id as separate raw
-geographic references, plus region_label. Discover EXISTING current-client datasets
-with facility coordinates and administrative geometry; inspect actual column names
-before creating raw reference charts. Reuse suitable sources and pass their IDs directly
-to publish_dashboard configuration; custom-only publishing needs NO Superset dashboard membership. Do not reuse benchmark chart
-IDs. Facility sources should expose facility_name/name_facility, lat/lng or lat/lon,
-facility_level/hf_level, beds/no_beds and recorded county/subcounty. Boundary sources
-expose county, subcounty and geometry_geojson; the map dissolves county outlines
+geographic references, plus region_label. facility_chart_id is NOT limited to literal
+health facilities — it plots any raw point source with coordinates: household surveys,
+individual records, event locations, sentinel sites. It needs lat/lng (or lat/lon) plus
+some identifying label column (facility_name, site_name, name, or an id like household_id/
+individual_id/site_id — any of these work as the point's label). facility_level/hf_level
+and beds/no_beds are optional sizing/coloring hints, not requirements; omit them for
+non-facility point data and generic markers are used instead. Discover EXISTING
+current-client datasets with point coordinates and administrative geometry; inspect actual
+column names before creating raw reference charts. Reuse suitable sources and pass their
+IDs directly to publish_dashboard configuration; custom-only publishing needs NO Superset
+dashboard membership. Do not reuse benchmark chart IDs.
+A map is not limited to points either: boundary_chart_id (a raw county/subcounty geometry
+source already in the client's own data) and the separate boundary_catalogue field (reusable
+geoBoundaries releases via discover_administrative_boundaries — entries of release_id, field,
+label, e.g. {'release_id':'UGA-ADM3-...','field':'district','label':'District'}) both overlay
+administrative polygons, and are not mutually exclusive with facility_chart_id — a workspace
+can show point markers and administrative boundaries on the same map at once. Boundary
+sources expose county, subcounty and geometry_geojson; the map dissolves county outlines
 from the recorded subcounty polygons. Configure workspace county_field/subcounty_field
 when names differ. County and subcounty layers are separately switchable. Markers
 reuse the established level colors, white outlines and sizes based on level + beds.
@@ -449,17 +523,24 @@ Without geography the same central card becomes a record overview. For numeric
 questions configure tabs with renderer=bar or line, measure=the actual numeric column,
 aggregation=sum or avg; field is the category or chronologically sortable time column.
 Prepare time buckets in the client's own dataset when needed. Categorical questions
-use donut by default; long categories use bar. Preserve every requested variable in
+use donut by default; long categories use bar. A single total or count (not a category
+breakdown) uses renderer=kpi: a compact large-number card in the grid, the same gauge
+style as the hero metric, for things like "total registered" or "average score" that
+don't need a per-category split. Preserve every requested variable in
 panels[].tabs, grouped by subject. Do not confuse workspace panel tabs with design.groups.
-The publisher rejects new unconfigured generic pages. On workspace_configuration_required,
+The publisher rejects new unconfigured pages. General dashboards may use composed-dashboard.
+On workspace_configuration_required for an explicitly requested legacy workspace,
 inspect the current dataset and supply the template configuration; do not retry with
 an alternate layout unless the user requested it. Never create frontend files per dataset.
 
-Only for an explicitly requested alternate freeform layout: arrange headline metrics
-first, related question cards around a central wide map when
-geographic data exists, and supporting trends and detail below. Use a 12-column grid:
-small cards span 4, medium cards 6, maps/trends/detail 12; use heights 240/320/480/640.
-On narrow screens stack cards and allow scrolling. Never shrink labels to force a fit.
+For composed dashboards, create an intentional, readable viewport-fitting composition:
+headline measures, primary trends/maps and related detail in shared tabbed panels. Use the
+renderer capability contract for grid allocation and explicit encodings; multiple series
+need declared dimension, metrics, series and aggregation, real time axes, units and formats.
+A map needs verified coordinates or joined geometry; unsupported maps are not detail tables.
+Use view tabs, chart stacks and detail surfaces when everything cannot remain readable in
+one view. Preserve the requested viewport behavior. Never clip data, hide overflow or shrink
+labels to claim fit. Inspect all requested viewports and the actual rendered filters/tabs.
 
 Yes/No questions use the reusable Buikwe-style donut with explicit response labels,
 counts, percentages, teal Yes, coral No, and a separate gray Not recorded category.
@@ -472,8 +553,9 @@ related charts into tabbed cards rather than a wall of charts. Each group is {ti
 chart_ids}; use 2-6 related variables per group where possible, short meaningful chart
 titles as tabs, and put the most useful variable first. The renderer supplies horizontal
 scrolling and keyboard navigation. Every ID must belong to the source dashboard and
-appear in at most one group. Use grouping for ordinary publications; the population and
-facility presets retain their specialized shared-filter layouts and existing grouping.
+appear in at most one group. Use shared grouping for standard and composed publications and bindings.chart_ids in
+reference-template panels. Domain workspaces use the same tab interaction behavior with
+their specialized data adapters. Keep filters consistent across every chart in each stack.
 
 For "Summarize dashboard" or "Insights", perform a read-only analysis of the
 CURRENT dashboard. Resolve it from page context and verify source membership;
@@ -526,20 +608,6 @@ Example: design={"colors":{"yes":"#2563eb","no":"#f59e0b"},
 The live component library is /lifedata-ai/dashboards/?design-library=1 and the benchmark
 is /lifedata-ai/dashboards/2e75e425-ae09-4cd8-acf6-6fa4dcfabae3/.
 Never claim a dashboard is published until publish_dashboard returns its URL.
-HDSS SITE DASHBOARDS: for any request for an HDSS dashboard for a site (Dodowa, Navrongo,
-Manhica, SINCEP, "HDSS dashboard for X"), call create_hdss_dashboard with the registered
-dataset, the site and a title. The approved template defines the whole page and every
-interaction: do not author layout, charts, tabs, presets or dataset SQL for it. Ask at most
-one question (for example which registered dataset, when two match). Report the tool's
-unbound slots with their reasons instead of improvising, say "verified" only when the tool
-says the saved spec read back verified, and ask before calling publish_hdss_dashboard. If the
-site has no registered dataset, say so: a data owner must add it to the HDSS bindings.
-MASTER DASHBOARD: for a Master / multi-site HDSS dashboard (tabs Overview, LifeHealth Sentinel,
-Geospatial Cluster), call create_master_dashboard with a registered Master source and a title. The
-template defines the tabs, layout and the shared filter model; tabs without a registered source are
-hidden. Same rules: at most one question, report unbound slots with their reasons, never write
-layout, say "verified" only when the tool says so, and use publish_hdss_dashboard only after the
-user agrees. Aggregates only. No patient-level records are sent to the model.
 """
 
 

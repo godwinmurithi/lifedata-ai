@@ -140,9 +140,13 @@ _READ_TOOL_SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # by omission from non-admin registries -- see canvas.py's own gate).
     ("lifedata_ai.tools.canvas", ("AuthorCanvasTool",)),
     ("lifedata_ai.tools.publications", ("PublishDashboardTool", "EditDashboardChartStyleTool")),
-    # hdss-site template: Vima fills a spec from the scoped HDSS bindings; it never writes layout.
-    ("lifedata_ai.tools.hdss", ("CreateHdssDashboardTool", "CreateMasterDashboardTool", "PublishHdssDashboardTool")),
-    ("lifedata_ai.tools.geography", ("DiscoverAdministrativeBoundariesTool",)),
+    ("lifedata_ai.tools.geography", ("DiscoverAdministrativeBoundariesTool", "PrepareGeographicMapTool")),
+    ("lifedata_ai.tools.templates", ("GetDashboardTemplateTool",)),
+    ("lifedata_ai.tools.data_profile", ("ProfileDatasetTool",)),
+    ("lifedata_ai.tools.capabilities", ("GetDashboardCapabilitiesTool",)),
+    ("lifedata_ai.tools.quality", ("BeginDashboardBuildTool", "InspectDashboardTool", "CompleteDashboardBuildTool", "RestoreDashboardBuildTool")),
+    ("lifedata_ai.tools.composition", ("PlanDashboardTool",)),
+    ("lifedata_ai.tools.map_style", ("EditDashboardMapStyleTool",)),
     # Phase 18. READ mode despite `propose_skill` writing a `Skill` row --
     # see skills.py's module docstring for why that is not a WRITE tool in
     # this codebase's sense (no Superset envelope/apply step exists for it).
@@ -275,12 +279,19 @@ class ToolResult:
         """
         return json.dumps(self.content, default=str)
 
+    def to_model_content(self):
+        # Images are multimodal content, never text containing base64 JSON.
+        if isinstance(self.content, dict) and self.content.get('_tool_images'):
+            metadata = {k:v for k,v in self.content.items() if k != '_tool_images'}
+            return [{'type':'text','text':json.dumps(metadata,default=str)}, *self.content['_tool_images']]
+        return self.to_anthropic_content()
+
     def to_tool_result_block(self, tool_use_id: str) -> dict[str, Any]:
         """The complete `tool_result` block, `is_error` included."""
         block: dict[str, Any] = {
             "type": "tool_result",
             "tool_use_id": tool_use_id,
-            "content": self.to_anthropic_content(),
+            "content": self.to_model_content(),
         }
         if not self.ok:
             block["is_error"] = True

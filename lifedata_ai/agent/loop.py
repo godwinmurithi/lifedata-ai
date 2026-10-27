@@ -282,6 +282,14 @@ def _tool_use_ids(content: Any) -> set[str]:
     }
 
 
+def _contains_image(value):
+    if isinstance(value,dict):
+        return value.get('type') == 'image' or any(_contains_image(v) for v in value.values())
+    if isinstance(value,list):
+        return any(_contains_image(v) for v in value)
+    return False
+
+
 def _tool_result_ids(content: Any) -> set[str]:
     return {
         block["tool_use_id"]
@@ -889,6 +897,8 @@ def run_turn(
     #: per round — a busy period tends to affect several rounds in a row.
     provider_retries = 0
 
+    selected_model = settings.LIFEDATA_AI_MODEL
+    quality_completion_retries = 0
     for round_number in range(max_rounds + 1):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -903,11 +913,24 @@ def run_turn(
             )
             break
 
+        # DeepSeek's text model cannot judge screenshots. Route only image-bearing context
+        # to the configured vision provider; ordinary text conversations keep their provider.
+        if provider == 'deepseek' and _contains_image(messages):
+            vision_provider=getattr(settings,'LIFEDATA_AI_VISION_PROVIDER','openai')
+            if vision_provider == 'anthropic':
+                client=anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+                selected_model=getattr(settings,'LIFEDATA_AI_VISION_MODEL','claude-sonnet-4-6')
+                provider='anthropic';provider_label='Anthropic vision'
+            else:
+                client=OpenAIClient(settings.OPENAI_API_KEY)
+                selected_model=getattr(settings,'LIFEDATA_AI_VISION_MODEL','gpt-5.4')
+                provider='openai';provider_label='OpenAI vision'
         try:
             response = None
+            buffered_text = []
             request_id = ""
             with client.messages.stream(
-                model=settings.LIFEDATA_AI_MODEL,
+                model=selected_model,
                 max_tokens=MAX_TOKENS,
                 system=system_blocks,
                 messages=messages,
@@ -923,7 +946,7 @@ def run_turn(
                         chunk.type == "content_block_delta"
                         and getattr(chunk.delta, "type", None) == "text_delta"
                     ):
-                        yield _event("text_delta", text=chunk.delta.text)
+                        buffered_text.append(chunk.delta.text)
                 response = stream.get_final_message()
                 # Read from the stream, not from `response._request_id`: the
                 # latter is only populated on non-streaming calls, so taking it
@@ -1011,6 +1034,35 @@ def run_turn(
             )
             break
 
+        # Hold final prose until persisted build checks allow completion. Tool-round progress still streams.
+        if response.stop_reason not in ('tool_use','pause_turn','max_tokens'):
+            from lifedata_ai.quality import pending_builds
+            try:
+                pending = pending_builds(tool_context)
+            except Exception:
+                logger.exception('Could not verify dashboard build completion')
+                pending = [{'status':'quality_state_unavailable'}] if tool_context.page_context.get('publication_id') else []
+            if pending:
+                quality_completion_retries += 1
+                if quality_completion_retries > getattr(settings,'LIFEDATA_AI_QUALITY_REPAIR_LIMIT',2):
+                    draft_text = 'The dashboard remains a draft because its required quality checks have not passed. Review the reported findings before using it as a completed dashboard.'
+                    Message.objects.create(conversation=conversation,role=Message.Role.ASSISTANT,content=[{'type':'text','text':draft_text}])
+                    yield _event('text_delta',text=draft_text)
+                    yield _event('quality_check_required',builds=pending)
+                    stop_reason='quality_checks_required'
+                    break
+                instruction = ('Dashboard completion is blocked by persisted quality checks: '+json.dumps(pending)+
+                    '. Continue with inspect_dashboard and complete_dashboard_build. Fix reported blockers. '
+                    'Do not state that this dashboard is ready. If blocked by unavailable runtime or permissions, '
+                    'repair what is available and report the specific blocker; the build remains draft.')
+                # A genuine user-role correction, no fabricated tool call/result pair.
+                Message.objects.create(conversation=conversation,role=Message.Role.USER,content=[{'type':'text','text':instruction}])
+                messages.append({'role':'user','content':[{'type':'text','text':instruction}]})
+                yield _event('quality_check_required',builds=pending)
+                continue
+        for text_part in buffered_text:
+            yield _event('text_delta',text=text_part)
+
         assistant_blocks = _serialise_blocks(response.content)
         Message.objects.create(
             conversation=conversation,
@@ -1093,7 +1145,7 @@ def run_turn(
                     is_error=not result.ok,
                 )
 
-                if block.name in {"publish_dashboard", "edit_dashboard_chart_style"} and result.ok and isinstance(result.content, dict) and result.content.get("type") == "published_dashboard":
+                if block.name in {"publish_dashboard", "edit_dashboard_chart_style", "edit_dashboard_map_style"} and result.ok and isinstance(result.content, dict) and result.content.get("type") == "published_dashboard":
                     yield _event("published_dashboard", **result.content)
 
                 if (
