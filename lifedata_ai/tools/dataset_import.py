@@ -79,6 +79,26 @@ def _synthetic_database_id() -> int:
     return database_id
 
 
+def _upload_body(file_type: str, table_name: str, already_exists: str) -> dict[str, Any]:
+    """Form fields shared by both tools' upload call.
+
+    `schema` is a server-side setting for the same reason `database_id` is
+    (see that setting's docstring): the one thing a model-authored payload
+    must never choose is *where* a new table lands. Superset additionally
+    enforces this — `schemas_allowed_for_file_upload` on the connection must
+    already list this schema, or the upload is refused server-side too.
+    """
+    body: dict[str, Any] = {
+        "type": file_type,
+        "table_name": table_name,
+        "already_exists": already_exists,
+        "header_row": "0",
+    }
+    if settings.LIFEDATA_AI_SYNTHETIC_DATASET_SCHEMA:
+        body["schema"] = settings.LIFEDATA_AI_SYNTHETIC_DATASET_SCHEMA
+    return body
+
+
 class CreateSyntheticDatasetTool(WriteTool):
     name: ClassVar[str] = "create_dataset_from_values"
     action_type: ClassVar[str] = "create_dataset_from_values"
@@ -119,13 +139,8 @@ class CreateSyntheticDatasetTool(WriteTool):
             )
 
         csv_bytes = _build_csv(columns, rows)
-        body = {
-            "type": "csv",
-            "table_name": payload["table_name"],
-            "already_exists": payload.get("already_exists", "fail"),
-            "header_row": "0",
-            "delimiter": ",",
-        }
+        body = _upload_body("csv", payload["table_name"], payload.get("already_exists", "fail"))
+        body["delimiter"] = ","
         return [
             {
                 "method": "POST",
@@ -189,12 +204,9 @@ class ImportDatasetFromAttachmentTool(WriteTool):
             )
 
         is_csv = attachment.file_type == ChatAttachment.FileType.CSV
-        body = {
-            "type": attachment.file_type,
-            "table_name": payload["table_name"],
-            "already_exists": payload.get("already_exists", "fail"),
-            "header_row": "0",
-        }
+        body = _upload_body(
+            attachment.file_type, payload["table_name"], payload.get("already_exists", "fail")
+        )
         if is_csv:
             body["delimiter"] = attachment.delimiter or ","
         return [

@@ -353,6 +353,14 @@ LIFEDATA_AI_SYNTHETIC_DATASET_DATABASE_ID = (
     _env_int("LIFEDATA_AI_SYNTHETIC_DATASET_DATABASE_ID", 0) or None
 )
 
+#: Schema within that connection new tables are created in, or `""` to use
+#: the connection's own default schema. Also server-side for the same reason
+#: as the database id above — see `dataset_import.py`'s `_upload_body`. Must
+#: already be in that connection's Superset "Allow file uploads" schema
+#: allow-list (`schemas_allowed_for_file_upload`), or Superset refuses the
+#: upload itself regardless of this setting.
+LIFEDATA_AI_SYNTHETIC_DATASET_SCHEMA = _env("LIFEDATA_AI_SYNTHETIC_DATASET_SCHEMA", "")
+
 #: Row caps applied before any query result is shown to the model (spec §5).
 LIFEDATA_AI_MAX_QUERY_ROW_LIMIT = 200
 LIFEDATA_AI_MAX_ROWS_TO_MODEL = 50
