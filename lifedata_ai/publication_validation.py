@@ -4,31 +4,18 @@ from lifedata_ai.tools.base import ToolError
 
 
 def validate_renderers(config, charts):
-    if config.get('preset') not in {'composed-dashboard', 'reference-template'}:
+    if config.get('preset') != 'composed-dashboard':
         return
     encodings = config.get('composition', {}).get('encodings', {})
-    bound_encodings = {}
-    for binding in config.get('bindings', {}).values():
-        for identifier in binding.get('chart_ids', []):
-            if binding.get('geography'):
-                bound_encodings[identifier] = {'chart_type': 'map'}
-            elif binding.get('encoding'):
-                bound_encodings[identifier] = binding['encoding']
     unsupported = []
     for chart in charts:
         identifier = int(chart['id'])
-        encoding = bound_encodings.get(identifier) or encodings.get(str(identifier), {})
+        encoding = encodings.get(str(identifier), {})
         if encoding.get('chart_type'):
             continue
         kind = viz(chart)
         if (kind.startswith('big_number') or kind in {'table', 'pie', 'scatter', 'bar', 'line', 'area', 'dist_bar'}
                 or 'timeseries_line' in kind or 'timeseries_bar' in kind or 'timeseries_area' in kind):
-            continue
-        # Geographic reference charts are helper sources, not visible visuals.
-        helper_ids = {source['chart_id'] for binding in config.get('bindings', {}).values()
-                      for source in binding.get('geography', {}).get('administrative_boundaries', [])}
-        visible_ids = {i for binding in config.get('bindings', {}).values() for i in binding.get('chart_ids', [])}
-        if identifier in helper_ids and identifier not in visible_ids:
             continue
         unsupported.append({'chart_id': identifier, 'viz_type': kind})
     if unsupported:

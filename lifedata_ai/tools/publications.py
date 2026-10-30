@@ -11,7 +11,6 @@ from lifedata_ai.models import DashboardPublication
 from lifedata_ai.tools.base import Tool, ToolContext, ToolError, ToolMode
 from lifedata_ai.composition import COMPOSITION_SCHEMA, validate_composition, automatic_layout
 from lifedata_ai.map_style import MAP_STYLE_SCHEMA, validate_map_style, map_fields
-from lifedata_ai.reference_templates import REFERENCE_TEMPLATE_SCHEMA
 from lifedata_ai.tools.quality import SPECIFICATION_SCHEMA
 
 
@@ -108,7 +107,6 @@ class PublishDashboardTool(Tool):
         'reuse executable aggregate charts so full totals are computed by Superset. No supplied template is needed. '
         'For a requested Buikwe workspace reuse raw charts and derive its variables. '
         'For updates pass publication_id and preserve the saved design. New custom-only publications support composed-dashboard or buikwe-workspace. '
-        'For the supplied SINCEP Master HDSS design inspect get_dashboard_template, then use reference-template with template=sincep-hdss and validated bindings to your actual chart_ids. Preserve the supplied arrangement. '
         'Publishing creates a draft and returns build_id: inspect_dashboard then complete_dashboard_build are required before claiming readiness. '
         'Pass specification to persist the audience, requested questions, exact design and target viewports. '
         'dashboard_id is optional for importing an ALREADY EXISTING Superset dashboard. '
@@ -136,8 +134,12 @@ class PublishDashboardTool(Tool):
         'Optional administrative_boundaries lists chart_id, geometry_field and levels ordered largest to smallest '
         '(each field, source_field, label). GeoJSON polygons must use WGS84 longitude/latitude. '
         'The UI spatially joins real facility coordinates, provides cascading filters, and preserves the original compact sandbox chart layout. '
-        'Optionally supply layout to match a screenshot: ordered chart_id, span (4/6/12) '
-        'and height in pixels for EVERY source chart. Omit layout to preserve manual edits. '
+        'Optionally supply layout to match an attached reference (a screenshot image OR an attached '
+        'HTML page): ordered chart_id, span (4/6/12) and height in pixels for EVERY source chart, read '
+        'off the reference\'s own card order and relative sizing. There is no named template for an '
+        'attached reference — inspect the attachment itself and reproduce its arrangement directly via '
+        'this layout parameter; never substitute a different registered preset for what was actually '
+        'supplied. Omit layout to preserve manual edits. '
         'PCN and hub are optional for every dashboard; never require missing network fields. '
         'The legacy facility-network preset requires only source_chart_id (raw full survey). '
         'Optional network_chart_id supplies genuine facility-name PCN/hub assignments; '
@@ -159,11 +161,9 @@ class PublishDashboardTool(Tool):
             'design': DESIGN_SCHEMA,
             'specification': SPECIFICATION_SCHEMA,
             'configuration': {'type': 'object', 'additionalProperties': False,
-                'properties': {'preset': {'enum': ['facility-network', 'population-discovery', 'buikwe-workspace', 'composed-dashboard', 'reference-template']},
+                'properties': {'preset': {'enum': ['facility-network', 'population-discovery', 'buikwe-workspace', 'composed-dashboard']},
                     'chart_ids': {'type':'array','minItems':1,'maxItems':40,'uniqueItems':True,'items':{'type':'integer','minimum':1}},
                     'composition': COMPOSITION_SCHEMA,
-                    'template': {'enum': ['sincep-hdss']},
-                    'bindings': REFERENCE_TEMPLATE_SCHEMA['properties']['bindings'],
                     'source_chart_id': {'type': 'integer', 'minimum': 1},
                     'workspace': WORKSPACE_SCHEMA,
                     'administrative_boundaries': ADMINISTRATIVE_SCHEMA,
@@ -232,7 +232,7 @@ class PublishDashboardTool(Tool):
                     superset_dashboard_id=dashboard_id, owner_username=context.identity.username).first()
         else:
             effective_config = configuration if configuration is not None else (existing.configuration if existing else {})
-            if effective_config.get('preset') not in {'buikwe-workspace','composed-dashboard','reference-template'}:
+            if effective_config.get('preset') not in {'buikwe-workspace','composed-dashboard'}:
                 raise ToolError('Custom-only publishing requires the reusable workspace configuration.',
                                 code='workspace_configuration_required')
             ids = configuration_chart_ids(effective_config)
@@ -267,22 +267,18 @@ class PublishDashboardTool(Tool):
         saved_design = validate_design(design if design is not None else ((existing.configuration or {}).get('design', {}) if existing else preset_default), set(source_order))
         if configuration is not None:
             preset = configuration.get('preset')
-            sources = ('source_chart_id',) if preset in {'buikwe-workspace','composed-dashboard','reference-template','facility-network'} else (
+            sources = ('source_chart_id',) if preset in {'buikwe-workspace','composed-dashboard','facility-network'} else (
                 'source_chart_id', 'boundary_chart_id', 'facility_chart_id')
-            optional = {'chart_ids','composition','template','bindings'} if preset == 'reference-template' else {'chart_ids','composition'} if preset == 'composed-dashboard' else {'workspace', 'boundary_chart_id', 'facility_chart_id', 'administrative_boundaries', 'boundary_catalogue', 'region_label', 'map_bounds'} if preset == 'buikwe-workspace' else {'network_chart_id', 'region_label', 'map_bounds'} if preset == 'facility-network' else {
+            optional = {'chart_ids','composition'} if preset == 'composed-dashboard' else {'workspace', 'boundary_chart_id', 'facility_chart_id', 'administrative_boundaries', 'boundary_catalogue', 'region_label', 'map_bounds'} if preset == 'buikwe-workspace' else {'network_chart_id', 'region_label', 'map_bounds'} if preset == 'facility-network' else {
                 'region_label', 'map_bounds', 'default_facility', 'native_dashboard_ids', 'summary_chart_id'}
-            if (preset not in {'facility-network', 'population-discovery', 'buikwe-workspace','composed-dashboard','reference-template'}
+            if (preset not in {'facility-network', 'population-discovery', 'buikwe-workspace','composed-dashboard'}
                     or not {'preset', *sources}.issubset(configuration)
                     or set(configuration) - {'preset', *sources, *optional, 'map_style'}
                     or any(type(configuration.get(key)) is not int or configuration[key] not in source_order
                            for key in sources)):
                 label = 'Facility' if preset == 'facility-network' else 'Population'
                 raise ToolError(f'{label} sources must be charts in this dashboard.', code='invalid_configuration')
-            if preset in {'composed-dashboard', 'reference-template'}:
-                if preset == 'reference-template':
-                    from lifedata_ai.reference_templates import validate_reference_template
-                    validate_reference_template(configuration, set(source_order))
-                    configuration.setdefault('composition', {'purpose': 'overview'})
+            if preset == 'composed-dashboard':
                 validate_composition(configuration, charts, client)
                 from lifedata_ai.publication_validation import validate_renderers
                 validate_renderers(configuration, charts)
@@ -463,7 +459,7 @@ class EditDashboardChartStyleTool(Tool):
                 targets += [{'target': 'field:' + field, 'title': panel['title'] + ' / ' + label}
                             for panel in panels for field, label in panel['tabs']]
                 targets += [{'target': 'field:' + f, 'title': f.replace('_', ' ').title()} for f in ['age', 'sex', 'district', 'distance_km']]
-            elif not preset or preset in {'composed-dashboard', 'reference-template'}:
+            elif not preset or preset == 'composed-dashboard':
                 targets = [{'target': 'chart:' + str(c['id']), 'title': c.get('slice_name', str(c['id']))}
                            for c in charts]
             else:

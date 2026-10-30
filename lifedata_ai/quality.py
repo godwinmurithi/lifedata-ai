@@ -41,12 +41,9 @@ def current_fingerprint(publication, client=None):
     static = Path(__file__).parent / "static" / "dashboards"
     value["renderer"] = {
         name: hashlib.sha256((static / name).read_bytes()).hexdigest()
-        for name in ("app.js", "app.css", "reference.js", "reference.css")
+        for name in ("app.js", "app.css")
         if (static / name).exists()
     }
-    template = Path(__file__).parent / "dashboard_templates" / "sincep-hdss.html"
-    if publication.configuration.get("preset") == "reference-template" and template.exists():
-        value["reference_source"] = hashlib.sha256(template.read_bytes()).hexdigest()
     return hashlib.sha256(json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()
 
 
@@ -355,10 +352,7 @@ def inspect_browser(context, publication, specification=None):
         browser_context.close()
         browser.close()
     findings = []
-    viewport_fit = publication.configuration.get("preset") in (
-        "buikwe-workspace",
-        "reference-template",
-    )
+    viewport_fit = publication.configuration.get("preset") == "buikwe-workspace"
     for state in viewports:
         if state["horizontalOverflow"]:
             findings.append(

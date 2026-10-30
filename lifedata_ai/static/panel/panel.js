@@ -1230,7 +1230,7 @@
       : null;
 
     var fileInput = el("input", { type: "file", multiple: "", class: "ld-visually-hidden",
-      accept: ".png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.xlsx,.csv,.tsv,.txt,.md,.json,.log,.yaml,.yml",
+      accept: ".png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.xlsx,.csv,.tsv,.txt,.md,.json,.log,.yaml,.yml,.html,.htm",
       "aria-label": "Attach images or files" });
     var attachButton = el("button", { type: "button", class: "ld-attach", text: "+",
       title: "Attach images or files", "aria-label": "Attach images or files" });

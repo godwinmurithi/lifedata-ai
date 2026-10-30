@@ -116,10 +116,6 @@ nav .primary {
 }
 .quality-badge{display:inline-block;vertical-align:middle;font-size:11px;font-weight:600;letter-spacing:0;padding:4px 8px;border-radius:20px;background:#eee8db;color:#725a2c}
 .quality-badge.verified{background:#dfeee6;color:#286648}
-.reference-publication{height:100vh;display:flex;flex-direction:column;background:#f5f2ec}
-.reference-publication-bar{display:flex;align-items:center;gap:16px;padding:10px 18px;font-size:13px;border-bottom:1px solid #d4cabb;flex:none}
-.reference-publication-bar button{margin-left:auto;border:1px solid #c9c2b6;background:#fff;border-radius:6px;padding:6px 12px}
-.reference-publication-frame{border:0;width:100%;flex:1;min-height:0}
 .viewport-pages{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 12px}
 .viewport-pages button{border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);padding:7px 12px;font-size:13px}
 .viewport-pages button[aria-current=true]{background:var(--vima-accent,#087f8c);color:#fff}

@@ -52,11 +52,10 @@ type Row = Record<string, unknown>;
 type Layout = { chart_id: number; span: number; height: number };
 type Chart = { id: number; title: string; viz_type: string };
 type Composition = {encodings?:Record<string,Encoding>;layout_mode?:"flow"|"viewport";purpose:string;subtitle?:string;skin?:"navy-teal"|"warm";sections?:{title:string;chart_ids:number[]}[];filters?:{field:string;label:string;chart_ids:number[]}[]};
-type ReferenceConfiguration = {preset:"reference-template";template:"sincep-hdss";source_chart_id:number;chart_ids:number[];bindings:Record<string,{chart_ids:number[];title?:string;encoding?:Encoding}>;composition?:Composition;design?:DashboardDesign};
 type ComposedConfiguration = {preset:"composed-dashboard";source_chart_id:number;chart_ids:number[];composition:Composition;design?:DashboardDesign};
-function getComposition(publication?:Publication):Composition|undefined {const config=publication?.configuration;return config && (config.preset==="composed-dashboard" || config.preset==="reference-template") ? (config as ComposedConfiguration).composition : undefined;}
+function getComposition(publication?:Publication):Composition|undefined {const config=publication?.configuration;return config && config.preset==="composed-dashboard" ? (config as ComposedConfiguration).composition : undefined;}
 export type Publication = {
-  configuration?: (FacilityConfiguration | PopulationConfiguration | WorkspaceConfiguration | ComposedConfiguration | ReferenceConfiguration | {preset?: undefined}) & {design?: DashboardDesign};
+  configuration?: (FacilityConfiguration | PopulationConfiguration | WorkspaceConfiguration | ComposedConfiguration | {preset?: undefined}) & {design?: DashboardDesign};
   quality?:{status:string;build_id?:string};
   id: string;
   title: string;
@@ -588,7 +587,6 @@ function Viewer() {
         config={publication.configuration as FacilityConfiguration}
       />
     );
-  if(publication?.configuration?.preset === "reference-template")return <main className="reference-publication"><div className="reference-publication-bar"><a href="/lifedata-ai/dashboards/">Dashboards</a><strong>{publication.title}</strong><span className={`quality-badge ${publication.quality?.status === "verified" ? "verified" : "draft"}`}>{publication.quality?.status === "verified" ? "Verified" : "Draft"}</span><button onClick={()=>setRefresh(refresh+1)}>Refresh</button></div><iframe key={refresh} title={publication.title} className="reference-publication-frame" src={`${api}${publication.id}/template/`} /></main>;
   const viewportMode = publication?.configuration?.preset === "composed-dashboard" && getComposition(publication)?.layout_mode !== "flow" && !edit;
   const visibleLayout=(publication?.layout || []).filter(item=>!(publication?.configuration?.design?.groups || []).some(group=>group.chart_ids.slice(1).includes(item.chart_id)));
   const viewportColumns=viewport.width>=1000?2:1;

@@ -12,7 +12,6 @@ class GetDashboardCapabilitiesTool(Tool):
 
     def run(self, context):
         from lifedata_ai.composition import RENDERER_CAPABILITIES, COMPOSITION_SCHEMA
-        from lifedata_ai.reference_templates import REFERENCE_TEMPLATE_SCHEMA, REFERENCE_SLOTS
         from lifedata_ai.dashboard_design import DESIGN_SCHEMA
         from lifedata_ai.tools.quality import SPECIFICATION_SCHEMA
         return {
@@ -20,10 +19,7 @@ class GetDashboardCapabilitiesTool(Tool):
             'composition_schema': COMPOSITION_SCHEMA,
             'chart_stack_schema': DESIGN_SCHEMA['properties']['groups'],
             'brief_schema': SPECIFICATION_SCHEMA,
-            'reference_template_schema': REFERENCE_TEMPLATE_SCHEMA,
-            'reference_slots': {key: {'label': label, 'view': page, 'kind': kind}
-                                for key, (label, page, kind) in REFERENCE_SLOTS.items()},
-            'presets': ['buikwe-workspace', 'composed-dashboard', 'reference-template'],
+            'presets': ['buikwe-workspace', 'composed-dashboard'],
             'workflow': ['profile_dataset', 'plan_dashboard', 'get_dashboard_template when requested',
                          'create or reuse executable current-client charts', 'prepare_geographic_map when needed',
                          'publish_dashboard with specification', 'inspect_dashboard',
@@ -31,6 +27,9 @@ class GetDashboardCapabilitiesTool(Tool):
             'rules': ['An unsupported visualization is not a successful dashboard chart.',
                       'Use explicit dimensions, measures, series, aggregation, units and formats where needed.',
                       'Stack related charts in one panel; use view tabs for detail and readable viewport fit.',
-                      'Exact references preserve their original design and use only current permitted chart bindings.',
+                      'There is no registered preset for an attached design reference (screenshot or HTML page): '
+                      'inspect the attachment directly and reproduce its card order/sizing via publish_dashboard\'s '
+                      'own layout parameter against composed-dashboard charts, never by inventing or reaching for '
+                      'an unrelated preset.',
                       'Saved revisions and query definitions invalidate old quality evidence when changed.'],
         }

@@ -12,7 +12,7 @@ MAX_FILES = 4
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_TOTAL_BYTES = 15 * 1024 * 1024
 MAX_TEXT_CHARS = 100_000
-TEXT_EXTENSIONS = {'.txt', '.md', '.csv', '.tsv', '.json', '.log', '.yaml', '.yml'}
+TEXT_EXTENSIONS = {'.txt', '.md', '.csv', '.tsv', '.json', '.log', '.yaml', '.yml', '.html', '.htm'}
 
 
 class AttachmentError(ValueError):
@@ -110,7 +110,7 @@ def attachment_blocks(files: list[Any]) -> list[dict[str, Any]]:
             except UnicodeDecodeError as exc:
                 raise AttachmentError(f'{name} must use UTF-8 text encoding.') from exc
         else:
-            raise AttachmentError(f'{name}: use PNG, JPEG, GIF, WebP, PDF, DOCX, XLSX, CSV or a text file.')
+            raise AttachmentError(f'{name}: use PNG, JPEG, GIF, WebP, PDF, DOCX, XLSX, CSV, HTML or a text file.')
         if not text.strip():
             raise AttachmentError(f'{name} contains no readable text.')
         truncated = len(text) > MAX_TEXT_CHARS

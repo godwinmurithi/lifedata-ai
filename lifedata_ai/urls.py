@@ -2,7 +2,7 @@
 
 from django.urls import path
 from django.views.generic import RedirectView
-from lifedata_ai.views import boundaries, composition, hdss, templates
+from lifedata_ai.views import boundaries, composition, hdss
 
 from lifedata_ai.views import (
     action_result,
@@ -19,8 +19,6 @@ from lifedata_ai.views import (
 app_name = "lifedata_ai"
 
 urlpatterns = [
-    path('dashboard-template-preview/<str:template>/', templates.preview, name='dashboard-template-preview'),
-    path('api/dashboard-templates/<str:template>/source/', templates.source, name='dashboard-template-source'),
     path('boundaries/', boundaries.page, name='boundary-catalogue-page'),
     path('dashboard-design-preview/', boundaries.design_preview, name='dashboard-design-preview'),
     path('api/boundaries/', boundaries.catalogue, name='boundary-catalogue'),
@@ -43,8 +41,6 @@ urlpatterns = [
     path("api/publications/creatable/", dashboards.creatable, name="publication-creatable"),
     path("api/publications/create/", dashboards.create, name="publication-create"),
     path("api/publications/<uuid:pk>/", dashboards.detail, name="publication-detail"),
-    path('api/publications/<uuid:pk>/map-data/<str:slot>/', templates.map_data, name='reference-template-map-data'),
-    path('api/publications/<uuid:pk>/template/', templates.document, name='reference-template-document'),
     path('api/publications/<uuid:pk>/filter-options/', composition.filter_options, name='composition-filter-options'),
     path("api/publications/<uuid:pk>/charts/<int:chart_id>/", dashboards.chart_data, name="publication-chart-data"),
     path("api/publications/<uuid:pk>/population/", population.discovery, name="population-discovery"),
