@@ -45,15 +45,46 @@ from lifedata_ai.agent.loop import (
     resolve_conversation,
     run_turn,
 )
-from lifedata_ai.attachments import AttachmentError, attachment_blocks
+from lifedata_ai.attachments import AttachmentError, attachment_blocks, extract_tabular_attachments
 from lifedata_ai.middleware import SupersetIdentity
-from lifedata_ai.models import Conversation
+from lifedata_ai.models import ChatAttachment, Conversation
 
 logger = logging.getLogger(__name__)
 
 #: A single user message is a prompt, not a document upload. Anything longer is
 #: either a mistake or an attempt to blow out the context budget.
 MAX_MESSAGE_LENGTH = 8000
+
+
+def _persist_tabular_attachments(
+    *, conversation: Conversation, identity: SupersetIdentity, tabular_attachments: list[dict],
+) -> dict:
+    """Save raw bytes of this turn's CSV/TSV/XLSX uploads, and tell the model their ids.
+
+    A plain text block, not a tool result — there is no tool call for the model
+    to have made yet. The model reads this the same way it reads any other
+    attachment note, and quotes an id back as `import_dataset_from_attachment`'s
+    `attachment_id` argument instead of retyping the file.
+    """
+    rows = [
+        ChatAttachment.objects.create(
+            conversation=conversation,
+            filename=item["filename"],
+            file_type=item["file_type"],
+            delimiter=item["delimiter"],
+            data=item["data"],
+            uploaded_by_username=identity.username,
+        )
+        for item in tabular_attachments
+    ]
+    references = "; ".join(f"{row.filename} -> attachment_id {row.pk}" for row in rows)
+    return {
+        "type": "text",
+        "text": (
+            "Attachment references for import_dataset_from_attachment (quote the id "
+            f"back exactly, never retype the file's rows): {references}"
+        ),
+    }
 
 
 def _frame(event: AgentEvent) -> str:
@@ -91,6 +122,10 @@ def chat(request: HttpRequest) -> HttpResponse:
         attachments = attachment_blocks(request.FILES.getlist("files"))
     except AttachmentError as exc:
         return JsonResponse({"error": "invalid_attachment", "message": str(exc)}, status=400)
+    # Re-reads the same uploads for the subset `import_dataset_from_attachment`
+    # can use — cheap relative to the request, and failing attachment_blocks
+    # above already screened out oversized/unreadable files.
+    tabular_attachments = extract_tabular_attachments(request.FILES.getlist("files"))
 
     is_resume = payload.get("resume") is True
     raw_message = payload.get("message")
@@ -167,6 +202,11 @@ def chat(request: HttpRequest) -> HttpResponse:
             },
             status=409,
         )
+
+    if tabular_attachments:
+        attachments.append(_persist_tabular_attachments(
+            conversation=conversation, identity=identity, tabular_attachments=tabular_attachments,
+        ))
 
     stream = _safe_stream(
         conversation=conversation,

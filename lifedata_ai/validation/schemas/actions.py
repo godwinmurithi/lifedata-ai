@@ -638,6 +638,78 @@ _RESIZE_DASHBOARD_COMPONENT: Final[dict[str, Any]] = {
 }
 
 
+# --- Dataset actions -------------------------------------------------------
+
+#: Values only, never SQL (spec §6.3 applies here too): a column is a name and
+#: one of a closed set of plain types, a row is positional scalars. There is no
+#: key this schema accepts that could carry an expression — `_SCALAR` is
+#: `string | number | boolean | null`, capped at 256 characters, same as any
+#: other leaf value the validator scans with `_rule_no_adhoc_sql`.
+#:
+#: What is absent on purpose: a `database_id` or `schema` property. Which
+#: connection this writes into is a server-side setting
+#: (`LIFEDATA_AI_SYNTHETIC_DATASET_DATABASE_ID`), not something this payload
+#: can name — see that setting's docstring for why.
+_CREATE_DATASET_FROM_VALUES: Final[dict[str, Any]] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["table_name", "columns", "rows"],
+    "properties": {
+        "table_name": _IDENTIFIER,
+        "description": _DESCRIPTION,
+        "columns": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["name", "type"],
+                "properties": {
+                    "name": _IDENTIFIER,
+                    "type": {"enum": ["string", "integer", "number", "boolean", "date"]},
+                },
+            },
+        },
+        # Row length vs. `columns` length and duplicate column names cannot be
+        # expressed in JSON Schema without `$data` references (unsupported by
+        # this draft's validator); `CreateSyntheticDatasetTool.build_calls`
+        # checks both before issuing the upload.
+        "rows": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2000,
+            "items": {"type": "array", "minItems": 1, "items": _SCALAR},
+        },
+        # "append" is deliberately not offered: appending invented rows to a
+        # table whose existing contents the model has not seen is how a demo
+        # dataset quietly stops matching the dashboard built from it.
+        "already_exists": {"enum": ["fail", "replace"]},
+    },
+}
+
+#: Companion to `_CREATE_DATASET_FROM_VALUES`, for data that arrived as an
+#: upload rather than being invented in the conversation. No `columns`/`rows`
+#: here — `ImportDatasetFromAttachmentTool.build_calls` forwards the
+#: `ChatAttachment` row's own bytes to Superset's upload endpoint unmodified,
+#: so the only things the model supplies are which attachment and what to
+#: call the table. `attachment_id` is `_SUPERSET_ID`-shaped because
+#: `ChatAttachment` has no explicit `id` field — like `Message`, it is an
+#: internal child row of `Conversation` rather than a URL-addressable object,
+#: so Django's default integer `AutoField` applies, not a UUID.
+_IMPORT_DATASET_FROM_ATTACHMENT: Final[dict[str, Any]] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["attachment_id", "table_name"],
+    "properties": {
+        "attachment_id": _SUPERSET_ID,
+        "table_name": _IDENTIFIER,
+        "description": _DESCRIPTION,
+        "already_exists": {"enum": ["fail", "replace"]},
+    },
+}
+
+
 # --- Public registry ------------------------------------------------------
 
 ACTION_SCHEMAS: Final[dict[str, dict[str, Any]]] = {
@@ -653,6 +725,8 @@ ACTION_SCHEMAS: Final[dict[str, dict[str, Any]]] = {
     "move_dashboard_component": _MOVE_DASHBOARD_COMPONENT,
     "resize_dashboard_component": _RESIZE_DASHBOARD_COMPONENT,
     "add_native_filter": _ADD_NATIVE_FILTER,
+    "create_dataset_from_values": _CREATE_DATASET_FROM_VALUES,
+    "import_dataset_from_attachment": _IMPORT_DATASET_FROM_ATTACHMENT,
 }
 
 for _action_type, _schema in ACTION_SCHEMAS.items():

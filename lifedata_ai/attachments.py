@@ -19,6 +19,17 @@ class AttachmentError(ValueError):
     """An attachment cannot be interpreted by this build."""
 
 
+#: Extension -> (`ChatAttachment.FileType` value, delimiter). Values are plain
+#: strings rather than the model import, so this parsing module stays free of
+#: a dependency on `models.py`; `chat.py` is the one place that turns these
+#: into rows, and it already imports both.
+TABULAR_EXTENSIONS: dict[str, tuple[str, str]] = {
+    '.csv': ('csv', ','),
+    '.tsv': ('csv', '\t'),
+    '.xlsx': ('excel', ''),
+}
+
+
 def _office_text(data: bytes, extension: str) -> str:
     """Extract document paragraphs or spreadsheet cells without executing content."""
     try:
@@ -107,3 +118,32 @@ def attachment_blocks(files: list[Any]) -> list[dict[str, Any]]:
                        + ('[Excerpt: file text truncated]\n' if truncated else '')
                        + text[:MAX_TEXT_CHARS]})
     return blocks
+
+
+def extract_tabular_attachments(files: list[Any]) -> list[dict[str, Any]]:
+    """Recover raw bytes of CSV/TSV/XLSX uploads, for `ChatAttachment` persistence.
+
+    Call only after `attachment_blocks` has already validated and read `files`
+    once — this re-reads each eligible upload from the start, which Django's
+    `UploadedFile` supports regardless of backing store (`InMemoryUploadedFile`
+    and `TemporaryUploadedFile` both proxy `seek`/`read` to the underlying
+    file). Non-tabular uploads (images, PDFs, docx, plain text) are skipped:
+    nothing outside `dataset_import.py`'s `import_dataset_from_attachment`
+    reads this data, so only the file types that tool can forward to
+    Superset's upload endpoint unmodified are worth capturing.
+    """
+    tabular: list[dict[str, Any]] = []
+    for upload in files:
+        name = Path(upload.name).name[:200]
+        mapping = TABULAR_EXTENSIONS.get(Path(name).suffix.lower())
+        if mapping is None:
+            continue
+        file_type, delimiter = mapping
+        upload.seek(0)
+        tabular.append({
+            'filename': name,
+            'file_type': file_type,
+            'delimiter': delimiter,
+            'data': upload.read(),
+        })
+    return tabular

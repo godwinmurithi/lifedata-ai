@@ -339,6 +339,20 @@ LIFEDATA_AI_ENVELOPE_TTL_SECONDS = _env_int("LIFEDATA_AI_ENVELOPE_TTL_SECONDS", 
 #: it cannot deliver.
 LIFEDATA_AI_ENABLE_FORM_TOOLS = _env_bool("LIFEDATA_AI_ENABLE_FORM_TOOLS", True)
 
+#: Superset database connection `create_dataset_from_values` is allowed to
+#: write new tables into, or `None` to disable the tool entirely.
+#:
+#: Deliberately a server-side setting, never a model-supplied argument. The
+#: tool creates a brand-new physical table from values the model invented, so
+#: the one thing that must not be model-controlled is *where* — otherwise a
+#: prompt-injected turn could point the same action at a dataset holding real
+#: operational data. Point this only at a connection whose Superset "Allow
+#: file uploads" setting is already on for the target schema; the action
+#: fails closed with a clear error if it is not, rather than silently no-op.
+LIFEDATA_AI_SYNTHETIC_DATASET_DATABASE_ID = (
+    _env_int("LIFEDATA_AI_SYNTHETIC_DATASET_DATABASE_ID", 0) or None
+)
+
 #: Row caps applied before any query result is shown to the model (spec §5).
 LIFEDATA_AI_MAX_QUERY_ROW_LIMIT = 200
 LIFEDATA_AI_MAX_ROWS_TO_MODEL = 50

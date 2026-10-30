@@ -49,7 +49,7 @@ from django.test import Client, override_settings
 from lifedata_ai import middleware
 from lifedata_ai.agent.loop import AgentEvent
 from lifedata_ai.middleware import SupersetIdentity
-from lifedata_ai.models import Conversation, Message, ToolCallLog
+from lifedata_ai.models import ChatAttachment, Conversation, Message, ToolCallLog
 from lifedata_ai.superset_client import SupersetError
 from lifedata_ai.tools import get_registry
 from lifedata_ai.views import chat as chat_view
@@ -602,6 +602,35 @@ def test_screenshot_upload_is_persisted_and_forwarded_to_model(fake_anthropic: A
     assert content[1]["source"]["media_type"] == "image/png"
     assert content[-1]["text"] == "Build a dashboard like this screenshot"
     assert fake_anthropic.requests[0].kwargs["messages"][0]["content"] == content
+
+
+@pytest.mark.django_db
+def test_csv_upload_is_persisted_as_a_chat_attachment(fake_anthropic: Any):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    fake_anthropic.queue_text("Got it, I can see the file.")
+    csv_bytes = b"facility,orders\nMulago,12\n"
+    response = signed_in("ana").post(CHAT_URL, {
+        "payload": json.dumps({"message": "Load this as a dataset"}),
+        "files": SimpleUploadedFile("orders.csv", csv_bytes, content_type="text/csv"),
+    })
+    assert response.status_code == 200
+    frames = read_sse(response)
+    conversation = Conversation.objects.get(pk=frames[0][1]["conversation_id"])
+
+    attachment = ChatAttachment.objects.get(conversation=conversation)
+    assert attachment.filename == "orders.csv"
+    assert attachment.file_type == ChatAttachment.FileType.CSV
+    assert attachment.delimiter == ","
+    assert bytes(attachment.data) == csv_bytes
+    assert attachment.uploaded_by_username == "ana"
+
+    # The model sees a reference to the id it must quote back, not the rows.
+    content = conversation.messages.get(role="user").content
+    reference_text = content[-2]["text"]
+    assert "orders.csv" in reference_text
+    assert str(attachment.pk) in reference_text
+    assert "Mulago,12" not in reference_text
 
 
 def test_upload_error_is_returned_before_starting_a_turn():

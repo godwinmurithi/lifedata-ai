@@ -110,6 +110,47 @@ class Message(models.Model):
         return f"{self.conversation_id} {self.role} @{self.created_at:%H:%M:%S}"
 
 
+class ChatAttachment(models.Model):
+    """Raw bytes of an uploaded tabular file, kept for exactly one purpose.
+
+    `attachments.py`'s `attachment_blocks` folds every upload straight into the
+    message text/image content the model reads and stores nothing separately
+    — intentional, since the model needs the content, not a pointer. That is
+    wrong for one case: loading an uploaded CSV/TSV/Excel file as a Superset
+    dataset should send Superset the file itself, not the model's retyped
+    transcription of it (slow, token-expensive, and a real fidelity risk on
+    anything but a tiny file). This table exists only to give that one
+    operation — `import_dataset_from_attachment` — a stable id to point at,
+    scoped to the conversation that uploaded it.
+
+    Deliberately NOT a general attachment store: images, PDFs and office
+    documents the chatbot merely discusses never get a row here, only the
+    handful of extensions `tools/dataset_import.py` can import unmodified.
+    """
+
+    class FileType(models.TextChoices):
+        CSV = "csv", "CSV"
+        EXCEL = "excel", "Excel"
+
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, related_name="attachments"
+    )
+    filename = models.CharField(max_length=200)
+    file_type = models.CharField(max_length=16, choices=FileType.choices)
+    #: Only meaningful for `file_type == "csv"` — Superset's CSV reader needs
+    #: it to tell a `.tsv` upload's tabs from a `.csv` upload's commas.
+    delimiter = models.CharField(max_length=4, blank=True)
+    data = models.BinaryField()
+    uploaded_by_username = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["conversation", "created_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.filename} ({self.conversation_id})"
+
+
 class ActionRecord(models.Model):
     """A write action the model proposed, and what became of it.
 

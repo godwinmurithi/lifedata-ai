@@ -263,7 +263,15 @@ _SQL_PATTERNS_QUERY_VALUES: Final[tuple[tuple[re.Pattern[str], str], ...]] = (
 
 #: Actions that are `preview` no matter how small they look. Removal is
 #: destructive, so it is confirmed however few components it touches (spec §6.6).
-_ALWAYS_PREVIEW: Final[frozenset[str]] = frozenset({"remove_chart_from_dashboard"})
+#: `create_dataset_from_values` and `import_dataset_from_attachment` join it for
+#: a different reason: both create a new physical table — from invented values
+#: or an upload's bytes respectively — and with `already_exists: "replace"` can
+#: drop an existing one. Not a "components touched" question at all, so both
+#: are pinned to preview rather than left to `_components_touched`'s generic
+#: default of 1.
+_ALWAYS_PREVIEW: Final[frozenset[str]] = frozenset(
+    {"remove_chart_from_dashboard", "create_dataset_from_values", "import_dataset_from_attachment"}
+)
 
 #: Layout operations that restructure rows rather than moving one component.
 _LAYOUT_REBUILD_OPERATIONS: Final[frozenset[str]] = frozenset({"kpi_row", "equalize_row"})

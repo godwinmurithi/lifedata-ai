@@ -173,6 +173,7 @@ _WRITE_TOOL_SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "AddNativeFilterTool",
         ),
     ),
+    ("lifedata_ai.tools.dataset_import", ("CreateSyntheticDatasetTool", "ImportDatasetFromAttachmentTool")),
 )
 
 

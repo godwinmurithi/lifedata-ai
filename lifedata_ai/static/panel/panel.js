@@ -614,13 +614,26 @@
             return Promise.resolve(firstOutcome);
           }
           var call = calls[index];
-          var body = encodeBody(substituteNewId(call.body, createdId), call.json_encode);
-          return fetch(call.path, {
-            method: call.method,
-            credentials: "same-origin",
-            headers: { "Content-Type": "application/json", "X-CSRFToken": token },
-            body: call.method === "GET" ? undefined : JSON.stringify(body || {}),
-          })
+          // `multipart` calls (today, only the dataset-upload action) carry a
+          // file that JSON cannot transport. Everything else is the ordinary
+          // JSON path. Never both: a signed call is one shape or the other.
+          var requestInit = call.multipart
+            ? {
+                method: call.method,
+                credentials: "same-origin",
+                headers: { "X-CSRFToken": token },
+                body: buildMultipartBody(call),
+              }
+            : {
+                method: call.method,
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/json", "X-CSRFToken": token },
+                body:
+                  call.method === "GET"
+                    ? undefined
+                    : JSON.stringify(encodeBody(substituteNewId(call.body, createdId), call.json_encode) || {}),
+              };
+          return fetch(call.path, requestInit)
             .then(function (response) {
               return response
                 .json()
@@ -771,6 +784,37 @@
       out[key] = keys.indexOf(key) === -1 ? body[key] : JSON.stringify(body[key]);
     });
     return out;
+  }
+
+  /**
+   * Build a `multipart/form-data` body for a signed file-upload call.
+   *
+   * `call.body` carries the plain form fields (table_name, type, ...);
+   * `call.multipart` names the one file field and carries its bytes
+   * pre-encoded as base64, because JSON cannot carry raw bytes. `fetch` sets
+   * the multipart boundary itself from a `FormData` body, so no
+   * `Content-Type` header is set by the caller — setting one here would fix
+   * the boundary to the wrong value and Superset would refuse the request.
+   *
+   * @param {{body?: Record<string, any>, multipart: {field: string, filename: string,
+   *          content_type?: string, content_base64: string}}} call
+   * @returns {FormData}
+   */
+  function buildMultipartBody(call) {
+    var form = new FormData();
+    var fields = call.body || {};
+    Object.keys(fields).forEach(function (key) {
+      form.append(key, String(fields[key]));
+    });
+    var spec = call.multipart;
+    var binary = atob(spec.content_base64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    var blob = new Blob([bytes], { type: spec.content_type || "application/octet-stream" });
+    form.append(spec.field, blob, spec.filename);
+    return form;
   }
 
   /**
