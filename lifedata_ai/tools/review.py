@@ -90,6 +90,10 @@ class ReviewDashboardDesignTool(Tool):
             except (ValidationError,ValueError):
                 raise ToolError('Invalid publication ID.',code='invalid_configuration')
             if not publication:raise ToolError('No publication owned by you exists.',code='not_found')
+            if (publication.configuration or {}).get('preset') == 'external-app':
+                return {'publication_id':str(publication.id),'chart_count':0,'findings':[],
+                        'verdict':'ok',
+                        'review_scope':'External application; Superset chart review is not applicable.'}
             charts=publication_charts(client,publication)
             findings=review_composition(publication,charts)
             return {'publication_id':str(publication.id),'chart_count':len(charts),'findings':findings,

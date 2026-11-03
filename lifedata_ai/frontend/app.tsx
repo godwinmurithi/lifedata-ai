@@ -33,6 +33,8 @@ import BuikweWorkspace, {WorkspaceConfiguration} from "./buikwe-workspace";
 import Population, { PopulationConfiguration } from "./population";
 import HdssTemplate, { HdssCreator } from "./hdss-template";
 import MasterTemplate from "./master-template";
+import ExternalApp, { ExternalAppCreator } from "./external-app";
+import type { ExternalAppConfiguration } from "./external-app";
 
 echarts.use([
   BarChart,
@@ -55,7 +57,7 @@ type Composition = {encodings?:Record<string,Encoding>;layout_mode?:"flow"|"view
 type ComposedConfiguration = {preset:"composed-dashboard";source_chart_id:number;chart_ids:number[];composition:Composition;design?:DashboardDesign};
 function getComposition(publication?:Publication):Composition|undefined {const config=publication?.configuration;return config && config.preset==="composed-dashboard" ? (config as ComposedConfiguration).composition : undefined;}
 export type Publication = {
-  configuration?: (FacilityConfiguration | PopulationConfiguration | WorkspaceConfiguration | ComposedConfiguration | {preset?: undefined}) & {design?: DashboardDesign};
+  configuration?: (FacilityConfiguration | PopulationConfiguration | WorkspaceConfiguration | ComposedConfiguration | ExternalAppConfiguration | {preset?: undefined}) & {design?: DashboardDesign};
   quality?:{status:string;build_id?:string};
   id: string;
   title: string;
@@ -587,6 +589,14 @@ function Viewer() {
         config={publication.configuration as FacilityConfiguration}
       />
     );
+  if (publication?.configuration?.preset === "external-app")
+    return (
+      <ExternalApp
+        publication={publication}
+        theme={theme}
+        themeControl={themeControl}
+      />
+    );
   const viewportMode = publication?.configuration?.preset === "composed-dashboard" && getComposition(publication)?.layout_mode !== "flow" && !edit;
   const visibleLayout=(publication?.layout || []).filter(item=>!(publication?.configuration?.design?.groups || []).some(group=>group.chart_ids.slice(1).includes(item.chart_id)));
   const viewportColumns=viewport.width>=1000?2:1;
@@ -890,6 +900,7 @@ function Home() {
   const [sort, setSort] = useState<"updated" | "name">("updated");
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [hdssOpen, setHdssOpen] = useState(false);
+  const [externalOpen, setExternalOpen] = useState(false);
   function reload() {
     request<{ items: Publication[] }>(api)
       .then((value) => setLibrary(value.items))
@@ -954,6 +965,9 @@ function Home() {
             <button className="home-cta" onClick={() => setHdssOpen(true)}>
               + New HDSS dashboard
             </button>
+            <button className="home-cta" onClick={() => setExternalOpen(true)}>
+              + Add external app
+            </button>
           </div>
         </div>
         {!!library?.length && (
@@ -1015,6 +1029,7 @@ function Home() {
               <div className="library-grid">
                 {visible.map((item) => {
                   const count = item.chart_count ?? item.layout.length;
+                  const external = item.configuration?.preset === "external-app";
                   return (
                     <a
                       className="library-card"
@@ -1038,8 +1053,10 @@ function Home() {
                           </span>
                         </div>
                         <p className="card-meta">
-                          {count} chart{count === 1 ? "" : "s"} ·{" "}
-                          {item.theme === "dark" ? "dark" : "light"}
+                          {external
+                            ? "External app"
+                            : `${count} chart${count === 1 ? "" : "s"}`}{" "}
+                          · {item.theme === "dark" ? "dark" : "light"}
                         </p>
                         <p className="card-updated">
                           <ClockIcon /> Updated {relativeTime(item.updated_at)}
@@ -1080,6 +1097,14 @@ function Home() {
       {creatorOpen && (
         <Creator
           onClose={() => setCreatorOpen(false)}
+          onPublished={(url) => {
+            location.href = url;
+          }}
+        />
+      )}
+      {externalOpen && (
+        <ExternalAppCreator
+          onClose={() => setExternalOpen(false)}
           onPublished={(url) => {
             location.href = url;
           }}

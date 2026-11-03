@@ -344,3 +344,72 @@ def test_facility_preset_allows_source_without_network(monkeypatch):
     publication.refresh_from_db()
     assert publication.configuration['source_chart_id'] == 12
     assert 'network_chart_id' not in publication.configuration
+
+
+def test_external_app_publish_and_url_validation(monkeypatch):
+    from lifedata_ai.tools.base import ToolError
+    context, client, _ = setup_publication(monkeypatch)
+    before_dash, before_chart = client.get_dashboard.call_count, client.get_chart.call_count
+    result = PublishDashboardTool().run(context, title='CCBU EHS', theme='light',
+                                        configuration={'preset': 'external-app', 'url': 'https://dashboards.lifehealth.app/ccbu-ehs'})
+    publication = DashboardPublication.objects.get(id=result['publication_id'])
+    assert publication.superset_dashboard_id is None
+    assert publication.configuration == {'preset': 'external-app', 'url': 'https://dashboards.lifehealth.app/ccbu-ehs'}
+    assert publication.layout == []
+    # No Superset calls for an external application.
+    assert client.get_dashboard.call_count == before_dash
+    assert client.get_chart.call_count == before_chart
+    # Rejects non-https, credentials, and unapproved hosts.
+    for url in ('http://dashboards.lifehealth.app/x', 'javascript:alert(1)',
+                'https://user:pass@dashboards.lifehealth.app/x', 'https://evil.example.com/x'):
+        with pytest.raises(ToolError, match='External app'):
+            PublishDashboardTool().run(context, title='Bad', theme='light',
+                                       configuration={'preset': 'external-app', 'url': url})
+    # An imported (chart-backed) publication cannot become an external application.
+    _, _, imported = setup_publication(monkeypatch)
+    with pytest.raises(ToolError, match='publish without a Superset dashboard'):
+        PublishDashboardTool().run(context, publication_id=str(imported.id), title='X', theme='light',
+                                   configuration={'preset': 'external-app', 'url': 'https://dashboards.lifehealth.app/ccbu-ehs'})
+    assert DashboardPublication.objects.filter(pk=imported.id, configuration__preset='external-app').count() == 0
+
+
+def test_external_app_visible_to_any_viewer_without_superset(monkeypatch):
+    context, client, _ = setup_publication(monkeypatch)
+    result = PublishDashboardTool().run(context, title='CCBU EHS', theme='light',
+                                        configuration={'preset': 'external-app', 'url': 'https://dashboards.lifehealth.app/ccbu-ehs'})
+    publication = DashboardPublication.objects.get(id=result['publication_id'])
+    # Another authenticated user with no chart access can still see it.
+    client.get_chart.side_effect = SupersetError('Access denied', status_code=403)
+    client.get_dashboard.side_effect = SupersetError('Access denied', status_code=403)
+    monkeypatch.setattr(dashboards, '_client', lambda request: client)
+    response = json.loads(dashboards.library(make_request(username='viewer')).content)
+    assert [item['title'] for item in response['items']] == ['CCBU EHS']
+    assert response['items'][0]['chart_count'] == 0
+    detail = json.loads(dashboards.detail(make_request(username='viewer'), publication.id).content)
+    assert detail['charts'] == []
+    assert detail['can_edit'] is False
+
+
+def test_external_endpoint_owner_scoped(monkeypatch):
+    context, client, _ = setup_publication(monkeypatch)
+    monkeypatch.setattr(dashboards, '_client', lambda request: client)
+    request = make_request('POST', {'title': 'CCBU EHS', 'url': 'https://dashboards.lifehealth.app/ccbu-ehs', 'theme': 'light'}, username='ana')
+    created = dashboards.external(request)
+    assert created.status_code == 201
+    publication_id = json.loads(created.content)['id']
+    publication = DashboardPublication.objects.get(pk=publication_id)
+    assert publication.owner_username == 'ana'
+    # Bad URL rejected.
+    bad = make_request('POST', {'title': 'X', 'url': 'https://evil.example.com/', 'theme': 'light'}, username='ana')
+    assert dashboards.external(bad).status_code == 400
+    # Another user cannot update or delete it.
+    update = make_request('POST', {'publication_id': publication_id, 'title': 'Hijack', 'url': 'https://dashboards.lifehealth.app/ccbu-ehs', 'theme': 'light'}, username='viewer')
+    assert dashboards.external(update).status_code == 404
+    assert dashboards.delete(make_request('DELETE', username='viewer'), publication_id).status_code == 403
+    # Owner updates and deletes.
+    update = make_request('POST', {'publication_id': publication_id, 'title': 'CCBU EHS renamed', 'url': 'https://dashboards.lifehealth.app/ccbu-ehs', 'theme': 'dark'}, username='ana')
+    assert dashboards.external(update).status_code == 200
+    publication.refresh_from_db()
+    assert publication.title == 'CCBU EHS renamed' and publication.theme == 'dark'
+    assert dashboards.delete(make_request('DELETE', username='ana'), publication_id).status_code == 200
+    assert DashboardPublication.objects.filter(pk=publication_id).count() == 0

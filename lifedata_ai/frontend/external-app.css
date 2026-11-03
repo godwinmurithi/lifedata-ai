@@ -1,0 +1,94 @@
+/* External application pages: themed chrome around a full-viewport iframe. */
+.external-app-shell {
+  --bg: #f3f6fa;
+  --card: #ffffff;
+  --text: #24364b;
+  --muted: #65768c;
+  --border: #dde5ee;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+}
+.external-app-shell.dark {
+  --bg: #101827;
+  --card: #192438;
+  --text: #e5edf7;
+  --muted: #a1b0c6;
+  --border: #304057;
+}
+.external-app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+  padding: 10px clamp(12px, 3vw, 28px);
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.external-app-header .brand {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  text-decoration: none;
+  color: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.external-app-header .brand span {
+  font-weight: 400;
+  opacity: 0.6;
+}
+.external-app-header h1 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.external-app-header nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.external-app-header nav a,
+.external-app-header nav button {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.external-app-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  display: block;
+  background: #fff;
+}
+.external-app-missing {
+  margin: 48px;
+  padding: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+@media (max-width: 600px) {
+  .external-app-header {
+    flex-wrap: wrap;
+  }
+  .external-app-header h1 {
+    width: 100%;
+    order: 3;
+  }
+}

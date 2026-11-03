@@ -1,5 +1,29 @@
 """Publication source membership and viewer permissions without a native dashboard."""
+from urllib.parse import urlsplit, urlunsplit
+
 from lifedata_ai.superset_client import SupersetError
+from lifedata_ai.tools.base import ToolError
+
+#: Hosts allowed for external-app publications (embedded in the custom UI via iframe).
+EXTERNAL_URL_ALLOWED_HOSTS = frozenset({'dashboards.lifehealth.app'})
+
+
+def is_external_app(publication) -> bool:
+    return ((publication.configuration or {}).get('preset') == 'external-app')
+
+
+def validate_external_url(url) -> str:
+    """Return a normalised https URL on an approved host, or raise ToolError."""
+    try:
+        parts = urlsplit(str(url))
+    except ValueError:
+        raise ToolError('External app URLs must be valid https addresses.', code='invalid_configuration') from None
+    if parts.scheme != 'https' or not parts.hostname or parts.username or parts.password:
+        raise ToolError('External app URLs must be https addresses without credentials.', code='invalid_configuration')
+    if parts.hostname not in EXTERNAL_URL_ALLOWED_HOSTS:
+        raise ToolError('External app host must be one of: ' + ', '.join(sorted(EXTERNAL_URL_ALLOWED_HOSTS)) + '.',
+                        code='invalid_configuration')
+    return urlunsplit((parts.scheme, parts.netloc, parts.path or '/', parts.query, parts.fragment))
 
 
 def configuration_chart_ids(configuration):
@@ -33,6 +57,10 @@ def configuration_chart_ids(configuration):
 
 
 def publication_charts(client, publication):
+    if is_external_app(publication):
+        # External applications embed a URL, not Superset charts; visible to any
+        # authenticated user and authorised without a source-chart lookup.
+        return []
     if (publication.configuration or {}).get('preset') in ('hdss-site', 'hdss-master'):
         # Template pages bind a registered dataset, not charts: authorise the dataset with the viewer's session.
         from lifedata_ai.hdss.service import authorise

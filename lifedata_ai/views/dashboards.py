@@ -9,7 +9,7 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 
 from lifedata_ai.models import DashboardPublication
-from lifedata_ai.publication_sources import publication_charts
+from lifedata_ai.publication_sources import is_external_app, publication_charts, validate_external_url
 from lifedata_ai.superset_client import SupersetClient, SupersetError
 from lifedata_ai.tools.base import ToolContext, ToolError
 from lifedata_ai.tools.publications import PublishDashboardTool, validate_layout
@@ -199,3 +199,54 @@ def create(request: HttpRequest) -> JsonResponse:
         return _error(exc)
     publication = DashboardPublication.objects.get(id=result['publication_id'])
     return JsonResponse(_payload(publication, request), status=201)
+
+
+@csrf_exempt
+def external(request: HttpRequest) -> JsonResponse:
+    """Create or update an external-app publication (owner-scoped, no Superset sources)."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'method_not_allowed'}, status=405)
+    from django.core.exceptions import ValidationError
+    try:
+        body = json.loads(request.body)
+        publication_id = body.get('publication_id')
+        title = str(body['title']).strip()
+        url = str(body['url']).strip()
+        theme = body.get('theme') or 'light'
+        if not title or theme not in ('light', 'dark'):
+            raise ValueError
+        url = validate_external_url(url)
+    except (ValueError, KeyError, TypeError):
+        return JsonResponse({'error': 'invalid_request'}, status=400)
+    except ToolError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    username = request.superset_identity.username
+    if publication_id:
+        try:
+            publication = DashboardPublication.objects.filter(
+                pk=publication_id, owner_username=username).first()
+        except (ValueError, ValidationError):
+            return JsonResponse({'error': 'invalid_request'}, status=400)
+        if not publication or not is_external_app(publication):
+            return JsonResponse({'error': 'not_found'}, status=404)
+    else:
+        publication = DashboardPublication(owner_username=username, superset_dashboard_id=None, layout=[])
+    publication.title = title
+    publication.theme = theme
+    publication.configuration = {'preset': 'external-app', 'url': url}
+    publication.save()
+    return JsonResponse(_payload(publication, request), status=200 if publication_id else 201)
+
+
+@csrf_exempt
+def delete(request: HttpRequest, pk) -> JsonResponse:
+    """Delete an external-app publication (owner only)."""
+    if request.method != 'DELETE':
+        return JsonResponse({'error': 'method_not_allowed'}, status=405)
+    publication = DashboardPublication.objects.filter(pk=pk).first()
+    if not publication or not is_external_app(publication):
+        return JsonResponse({'error': 'not_found'}, status=404)
+    if publication.owner_username != request.superset_identity.username:
+        return JsonResponse({'error': 'forbidden'}, status=403)
+    publication.delete()
+    return JsonResponse({'deleted': str(pk)})

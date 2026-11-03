@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from django.conf import settings
 
 from lifedata_ai.models import DashboardBuild, DashboardPublication
-from lifedata_ai.publication_sources import publication_charts
+from lifedata_ai.publication_sources import is_external_app, publication_charts
 from lifedata_ai.tools.base import ToolError
 
 
@@ -545,6 +545,22 @@ def independent_visual_review(build, screenshots):
 
 def inspect_build(context, build):
     build.publication.refresh_from_db()
+    if is_external_app(build.publication):
+        # External applications embed a URL, not Superset charts: nothing to
+        # query, screenshot-verify or reconcile. Inspect passes by construction.
+        review = {
+            "queries": [],
+            "findings": [],
+            "automated_passed": True,
+            "visual_review_required": False,
+            "publication_fingerprint": current_fingerprint(build.publication),
+            "numerical_scope": "External application; Superset query verification is not applicable.",
+        }
+        build.fingerprint = review["publication_fingerprint"]
+        build.review = review
+        build.status = "inspected"
+        build.save(update_fields=["fingerprint", "review", "status", "updated_at"])
+        return review, []
     before = current_fingerprint(build.publication, context.superset_client())
     queries, findings = verify_queries(context, build.publication)
     from lifedata_ai.tools.data_profile import verify_expected_metrics, verify_metric_checks
@@ -649,10 +665,12 @@ def finalize_build(context, build, visual_review):
             code="stale_review",
         )
     if not visual_review.get("passed") or not visual_review.get("summary", "").strip():
-        raise ToolError(
-            "Examine the returned screenshots, repair visual findings, then provide a passing visual review.",
-            code="visual_review_required",
-        )
+        if not is_external_app(build.publication):
+            raise ToolError(
+                "Examine the returned screenshots, repair visual findings, then provide a passing visual review.",
+                code="visual_review_required",
+            )
+        visual_review = {"status": "not_applicable", "submitted": visual_review}
     build.review["visual_review"] = visual_review
     build.status = "approved"
     build.save(update_fields=["status", "review", "updated_at"])

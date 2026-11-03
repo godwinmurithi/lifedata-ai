@@ -149,7 +149,9 @@ class PublishDashboardTool(Tool):
         'boundary_chart_id (district, county, subcounty, geometry_geojson), facility_chart_id '
         '(facility_name, lat, lng), and default_facility. Superset calculates sequential funnel '
         'counts; the custom UI provides Overview, Discovery, Profile and authorized List/Detail. '
-        'Donor willingness must not be described as contact consent or medical approval.'
+        'Donor willingness must not be described as contact consent or medical approval. '
+        'For external applications use configuration preset external-app with url (https on an approved host only); '
+        'no source charts are required and any authenticated user can open the embedded page.'
     )
     input_schema = {
         'type': 'object',
@@ -161,7 +163,8 @@ class PublishDashboardTool(Tool):
             'design': DESIGN_SCHEMA,
             'specification': SPECIFICATION_SCHEMA,
             'configuration': {'type': 'object', 'additionalProperties': False,
-                'properties': {'preset': {'enum': ['facility-network', 'population-discovery', 'buikwe-workspace', 'composed-dashboard']},
+                'properties': {'preset': {'enum': ['facility-network', 'population-discovery', 'buikwe-workspace', 'composed-dashboard', 'external-app']},
+                    'url': {'type': 'string', 'format': 'uri', 'maxLength': 2000},
                     'chart_ids': {'type':'array','minItems':1,'maxItems':40,'uniqueItems':True,'items':{'type':'integer','minimum':1}},
                     'composition': COMPOSITION_SCHEMA,
                     'source_chart_id': {'type': 'integer', 'minimum': 1},
@@ -179,7 +182,7 @@ class PublishDashboardTool(Tool):
                     'region_label': {'type': 'string', 'minLength': 1, 'maxLength': 100},
                     'map_bounds': {'type': 'array', 'minItems': 4, 'maxItems': 4,
                                    'items': {'type': 'number'}}},
-                'required': ['preset', 'source_chart_id']},
+                'required': ['preset']},
             'layout': {'type': 'array', 'items': {
                 'type': 'object', 'additionalProperties': False,
                 'properties': {'chart_id': {'type': 'integer', 'minimum': 1},
@@ -208,6 +211,37 @@ class PublishDashboardTool(Tool):
             if dashboard_id is not None and dashboard_id != existing.superset_dashboard_id:
                 raise ToolError('Cannot change the publication source dashboard.', code='invalid_configuration')
             dashboard_id = existing.superset_dashboard_id
+        if (configuration or {}).get('preset') == 'external-app':
+            from lifedata_ai.publication_sources import is_external_app, validate_external_url
+            if dashboard_id is not None:
+                raise ToolError('External applications publish without a Superset dashboard.', code='invalid_configuration')
+            if existing is not None and not is_external_app(existing):
+                raise ToolError('This publication embeds Superset charts and cannot become an external application.', code='invalid_configuration')
+            if set(configuration) != {'preset', 'url'}:
+                raise ToolError('External application configuration requires exactly preset and url.', code='invalid_configuration')
+            url = validate_external_url(configuration['url'])
+            values = {'title': title, 'theme': theme, 'layout': [],
+                      'configuration': {'preset': 'external-app', 'url': url}}
+            previous_snapshot = ({'title': existing.title, 'theme': existing.theme, 'layout': existing.layout,
+                                  'configuration': existing.configuration} if existing else None)
+            if existing:
+                for key, value in values.items():
+                    setattr(existing, key, value)
+                existing.save(update_fields=[*values, 'updated_at'])
+                publication = existing
+            else:
+                publication = DashboardPublication.objects.create(
+                    superset_dashboard_id=None, owner_username=context.identity.username, **values)
+            from lifedata_ai.quality import start_build
+            build = start_build(context, publication, specification=specification, previous_snapshot=previous_snapshot)
+            return {
+                'type': 'published_dashboard', 'publication_id': str(publication.id),
+                'build_id': str(build.id), 'quality_status': 'draft',
+                'title': publication.title, 'chart_count': 0,
+                'url': f'/lifedata-ai/dashboards/{publication.id}/',
+                'library_url': '/lifedata-ai/dashboards/',
+                'message': 'Saved an external application draft. Inspect the returned build_id and complete its quality checks before reporting ready.',
+            }
         if dashboard_id is not None:
             if not existing:
                 existing = DashboardPublication.objects.filter(
