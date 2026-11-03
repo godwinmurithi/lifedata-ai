@@ -9,40 +9,50 @@
  * Everything is scoped under .ld-scope / .ld-panel / .ld-toggle. Superset ships
  * broad global CSS (antd + emotion), so this file sets its own box-sizing,
  * font and line-height instead of inheriting whatever the host page has.
+ *
+ * 2026-11-03 redesign: grounded in the LifeData product shell (navy/teal
+ * vima-adaptive tokens, Jakarta Sans for the brand, Inter for body). The panel
+ * is a floating rounded window on desktop and a bottom sheet on narrow
+ * screens; theme is explicit (light/dark via data-theme on the .ld-scope
+ * roots, toggled from the header) rather than OS-driven only.
  */
+
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Inter:wght@400;500;600&display=swap");
 
 /* --- Design tokens ------------------------------------------------------ */
 /*
  * Both root elements (toggle and panel) carry .ld-scope because they are
  * siblings on <body>; there is no shared wrapper to hang variables off, and a
  * wrapper spanning the viewport would swallow clicks meant for Superset.
+ *
+ * Light tokens are the base. Dark applies when the root carries
+ * [data-theme="dark"] — panel.js sets that attribute explicitly from the
+ * header toggle (persisted), defaulting to the OS preference — and the media
+ * query below is the no-JS fallback so the first paint is never wrong on a
+ * dark system.
  */
 .ld-scope {
   --ld-surface: #ffffff;
-  --ld-surface-raised: #f6f7f9;
-  --ld-surface-sunken: #eef1f4;
-  --ld-border: #e3e6eb;
-  --ld-border-strong: #ccd3db;
-  --ld-text: #1f2733;
-  --ld-text-muted: #5b6675;
-  --ld-accent: #0f7b8a;
-  --ld-accent-hover: #0c6673;
+  --ld-surface-raised: #f6f8fa;
+  --ld-surface-sunken: #eef1f5;
+  --ld-border: #dde5ee;
+  --ld-border-strong: #c3cfdc;
+  --ld-text: #24364b;
+  --ld-text-muted: #65768c;
+  --ld-accent: #087f8c;
+  --ld-accent-hover: #06626b;
   --ld-accent-contrast: #ffffff;
-  --ld-accent-soft: #e6f2f4;
-  --ld-danger: #a52216;
-  --ld-danger-soft: #fdeceb;
-  /* Calm, non-alarming treatment for the error/notice card: something went
-     wrong, but a muted amber reads as "worth a look" rather than "something
-     broke catastrophically" — most of what lands here is transient (a dropped
-     stream, a slow network) rather than a real failure. --ld-danger itself
-     stays defined and is still used for the small inline tool-step dot, which
-     is a minor in-line signal, not a standalone alert. */
+  --ld-accent-soft: #e4f2f3;
+  --ld-ink: #101827;
+  --ld-ink-text: #e5edf7;
+  --ld-danger: #b42318;
+  --ld-danger-soft: #fdecea;
   --ld-notice: #8a5a00;
   --ld-notice-soft: #fdf3e0;
   --ld-notice-border: #e8c27a;
-  --ld-focus: #0f7b8a;
-  --ld-shadow: 0 6px 24px rgba(16, 24, 40, 0.12);
-  --ld-radius: 8px;
+  --ld-focus: #087f8c;
+  --ld-shadow: 0 12px 40px rgba(16, 24, 39, 0.16), 0 2px 8px rgba(16, 24, 39, 0.08);
+  --ld-radius: 10px;
 
   box-sizing: border-box;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -53,33 +63,58 @@
   -webkit-font-smoothing: antialiased;
 }
 
-.ld-scope *,
-.ld-scope *::before,
-.ld-scope *::after {
-  box-sizing: inherit;
+.ld-scope[data-theme="dark"] {
+  --ld-surface: #16202f;
+  --ld-surface-raised: #1b2738;
+  --ld-surface-sunken: #101a29;
+  --ld-border: #2c3b50;
+  --ld-border-strong: #41536c;
+  --ld-text: #e5edf7;
+  --ld-text-muted: #9fb0c6;
+  --ld-accent: #35b1c2;
+  --ld-accent-hover: #4fc4d4;
+  --ld-accent-contrast: #0b141c;
+  --ld-accent-soft: #14343c;
+  --ld-ink: #0d1520;
+  --ld-ink-text: #e5edf7;
+  --ld-danger: #ff9d94;
+  --ld-danger-soft: #3a1f1d;
+  --ld-notice: #e8b85f;
+  --ld-notice-soft: #342a16;
+  --ld-notice-border: #6b5429;
+  --ld-focus: #6fd2e0;
+  --ld-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 @media (prefers-color-scheme: dark) {
-  .ld-scope {
-    --ld-surface: #14181d;
-    --ld-surface-raised: #1b2027;
-    --ld-surface-sunken: #10141a;
-    --ld-border: #2a313a;
-    --ld-border-strong: #3a434e;
-    --ld-text: #e6eaef;
-    --ld-text-muted: #97a2b0;
-    --ld-accent: #3fb3c4;
-    --ld-accent-hover: #55c4d4;
-    --ld-accent-contrast: #0b1114;
-    --ld-accent-soft: #16333a;
+  .ld-scope:not([data-theme="light"]) {
+    --ld-surface: #16202f;
+    --ld-surface-raised: #1b2738;
+    --ld-surface-sunken: #101a29;
+    --ld-border: #2c3b50;
+    --ld-border-strong: #41536c;
+    --ld-text: #e5edf7;
+    --ld-text-muted: #9fb0c6;
+    --ld-accent: #35b1c2;
+    --ld-accent-hover: #4fc4d4;
+    --ld-accent-contrast: #0b141c;
+    --ld-accent-soft: #14343c;
+    --ld-ink: #0d1520;
+    --ld-ink-text: #e5edf7;
     --ld-danger: #ff9d94;
     --ld-danger-soft: #3a1f1d;
     --ld-notice: #e8b85f;
     --ld-notice-soft: #342a16;
     --ld-notice-border: #6b5429;
     --ld-focus: #6fd2e0;
-    --ld-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+    --ld-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
   }
+}
+
+.ld-scope *,
+.ld-scope *::before,
+.ld-scope *::after {
+  box-sizing: inherit;
 }
 
 /* --- Stacking ----------------------------------------------------------- */
@@ -104,25 +139,26 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 14px 9px 12px;
-  border: 1px solid var(--ld-border-strong);
+  padding: 11px 18px 11px 14px;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--ld-surface);
-  color: var(--ld-text);
+  background: var(--ld-accent);
+  color: var(--ld-accent-contrast);
   font: inherit;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   box-shadow: var(--ld-shadow);
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition: background-color 120ms ease, transform 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .ld-toggle:hover {
-  background: var(--ld-surface-raised);
-  border-color: var(--ld-accent);
+  background: var(--ld-accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 44px rgba(16, 24, 39, 0.2), 0 2px 8px rgba(16, 24, 39, 0.08);
 }
 
 .ld-toggle__icon {
-  color: var(--ld-accent);
   flex: none;
 }
 
@@ -133,31 +169,41 @@
 }
 
 /* --- Panel shell -------------------------------------------------------- */
-
+/*
+ * A floating window rather than an edge drawer: the dashboard stays visible
+ * around it, matching how the product presents its cards. Slides in from the
+ * corner with a slight rise.
+ */
 .ld-panel {
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(380px, 100vw);
+  top: auto;
+  right: 16px;
+  bottom: 16px;
+  width: min(400px, calc(100vw - 32px));
+  height: min(720px, calc(100vh - 32px));
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: var(--ld-surface);
-  border-left: 1px solid var(--ld-border);
+  border: 1px solid var(--ld-border);
+  border-radius: 14px;
   box-shadow: var(--ld-shadow);
-  transform: translateX(100%);
+  transform: translateX(calc(100% + 24px));
+  opacity: 0;
   visibility: hidden;
-  transition: transform 160ms ease, visibility 0s linear 160ms;
+  transition: transform 180ms ease, opacity 180ms ease, visibility 0s linear 180ms;
 }
 
 .ld-panel.is-open {
   transform: translateX(0);
+  opacity: 1;
   visibility: visible;
-  transition: transform 160ms ease, visibility 0s;
+  transition: transform 180ms ease, opacity 180ms ease, visibility 0s;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ld-panel,
-  .ld-panel.is-open {
+  .ld-panel.is-open,
+  .ld-toggle {
     transition: none;
   }
 }
@@ -165,35 +211,54 @@
 .ld-panel__header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 10px 10px 14px;
+  gap: 6px;
+  padding: 10px 10px 10px 12px;
   border-bottom: 1px solid var(--ld-border);
-  background: var(--ld-surface-raised);
+  background: var(--ld-surface);
 }
 
 .ld-brand {
-  font-weight: 600;
-  font-size: 13px;
-  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Plus Jakarta Sans", Inter, -apple-system, sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--ld-text);
+}
+
+.ld-brand__mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--ld-accent);
+  color: var(--ld-accent-contrast);
+}
+
+.ld-brand__mark svg {
+  width: 15px;
+  height: 15px;
 }
 
 .ld-badge {
-  margin-left: 6px;
-  padding: 1px 6px;
-  border: 1px solid var(--ld-border-strong);
-  border-radius: 4px;
-  background: var(--ld-surface);
+  margin-left: 2px;
+  padding: 2px 8px;
+  border: 1px solid var(--ld-border);
+  border-radius: 999px;
+  background: var(--ld-surface-raised);
   color: var(--ld-text-muted);
+  font-family: Inter, sans-serif;
   font-size: 10.5px;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   vertical-align: 1px;
 }
 
 .ld-context {
   margin-left: auto;
-  max-width: 40%;
+  max-width: 34%;
   overflow: hidden;
   color: var(--ld-text-muted);
   font-size: 11.5px;
@@ -203,9 +268,9 @@
 }
 
 /*
- * 26x26 is well under the 44x44 minimum tap target, and these sit in a header
+ * 28x28 is well under the 44x44 minimum tap target, and these sit in a header
  * where a mis-tap closes the panel mid-sentence. The visible chip stays small —
- * a 44px button in a 13px header would dominate it — and the hit area is grown
+ * a 44px button in a 15px header would dominate it — and the hit area is grown
  * with a transparent ::before, which costs nothing visually.
  */
 .ld-iconbtn {
@@ -213,12 +278,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   flex: none;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--ld-text-muted);
   font: inherit;
@@ -250,8 +315,19 @@
   padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   background: var(--ld-surface);
+  scrollbar-width: thin;
+  scrollbar-color: var(--ld-border-strong) transparent;
+}
+
+.ld-messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ld-messages::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--ld-border-strong);
 }
 
 .ld-intro {
@@ -260,7 +336,7 @@
 }
 
 .ld-intro p {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 
 .ld-suggestions {
@@ -270,7 +346,7 @@
 }
 
 .ld-suggestion {
-  padding: 5px 10px;
+  padding: 7px 12px;
   border: 1px solid var(--ld-border-strong);
   border-radius: 999px;
   background: var(--ld-surface);
@@ -289,18 +365,17 @@
 .ld-msg {
   position: relative;
   max-width: 100%;
-  padding: 9px 11px;
-  border: 1px solid var(--ld-border);
-  border-radius: var(--ld-radius);
   font-size: 13.5px;
   overflow-wrap: anywhere;
 }
 
 .ld-msg--user {
   align-self: flex-end;
-  max-width: 90%;
-  border-color: transparent;
+  max-width: 88%;
+  padding: 9px 12px;
+  border-radius: 12px 12px 4px 12px;
   background: var(--ld-accent-soft);
+  color: var(--ld-text);
   /* The user's own words are inserted with textContent and never parsed as
      markdown, so their newlines have to survive as whitespace. Assistant text
      goes through markdown.js, which builds real block elements — `pre-wrap`
@@ -309,7 +384,9 @@
 }
 
 .ld-msg--assistant {
-  background: var(--ld-surface);
+  /* No card: the assistant reads as a voice on the surface, and the role
+     label carries the attribution. */
+  background: transparent;
 }
 
 /* --- Rendered markdown -------------------------------------------------- */
@@ -317,7 +394,7 @@
  * A deliberately small subset (see markdown.js): paragraphs, three heading
  * levels, one list level, bold, italic, code, blockquote and tables. No links,
  * no images, no HTML passthrough — model output is untrusted input, and each of
- * those is an injection surface not worth having in a 380px panel.
+ * those is an injection surface not worth having in a 400px panel.
  *
  * Tables are the exception that was wrongly grouped with them. A <table> built
  * from createElement is no more dangerous than a <p>; what made it awkward was
@@ -345,7 +422,7 @@
  * note in that file, and the DOM-walking test that enforces it).
  *
  * The trade is that `display: block` drops the automatic equal-width column
- * algorithm, so columns size to their content. In a 380px panel that is the
+ * algorithm, so columns size to their content. In a 400px panel that is the
  * better behaviour anyway: numbers are the point of these tables, and cells
  * kept on one line with the table moving sideways beats every column squeezed
  * to two characters.
@@ -358,6 +435,8 @@
   border-collapse: collapse;
   font-size: 12px;
   line-height: 1.4;
+  border: 1px solid var(--ld-border);
+  border-radius: 8px;
 }
 
 .ld-msg__body th,
@@ -385,6 +464,7 @@
 .ld-msg__body h4,
 .ld-msg__body h5 {
   margin: 12px 0 5px;
+  font-family: "Plus Jakarta Sans", Inter, sans-serif;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.35;
@@ -412,7 +492,7 @@
   margin: 0 0 8px;
   padding: 8px 10px;
   border: 1px solid var(--ld-border);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--ld-surface-sunken);
   overflow-x: auto;
 }
@@ -432,13 +512,15 @@
 
 .ld-msg__copy {
   position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 22px;
-  height: 22px;
+  top: -4px;
+  right: -2px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: 6px;
   background: transparent;
   color: var(--ld-text-muted);
   font: inherit;
@@ -463,10 +545,8 @@
   display: block;
   margin-bottom: 3px;
   color: var(--ld-text-muted);
-  font-size: 10.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 /* --- Tool activity ------------------------------------------------------ */
@@ -534,7 +614,7 @@
    Deliberately visually distinct from an assistant message: this is the moment
    the user is being asked to authorise something, not read prose. */
 .ld-action {
-  padding: 10px 12px;
+  padding: 11px 13px;
   border: 1px solid var(--ld-accent);
   border-left-width: 3px;
   border-radius: var(--ld-radius);
@@ -553,9 +633,6 @@
   margin-bottom: 4px;
 }
 
-/* `--ld-muted` was never declared — the token is `--ld-text-muted` — so this
-   declaration and the one on `.ld-applied` were both invalid and silently
-   dropped, leaving both elements at the inherited body colour. */
 .ld-action__detail {
   font-size: 11px;
   color: var(--ld-text-muted);
@@ -577,10 +654,10 @@
 .ld-action__cancel,
 .ld-applied__undo {
   font: inherit;
-  padding: 5px 12px;
-  border-radius: var(--ld-radius);
+  padding: 5px 14px;
+  border-radius: 8px;
   cursor: pointer;
-  border: 1px solid var(--ld-border);
+  border: 1px solid var(--ld-border-strong);
   background: var(--ld-surface);
   color: var(--ld-text);
 }
@@ -588,7 +665,7 @@
 .ld-action__apply {
   background: var(--ld-accent);
   border-color: var(--ld-accent);
-  color: #fff;
+  color: var(--ld-accent-contrast);
   font-weight: 600;
 }
 
@@ -624,11 +701,12 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 7px 11px;
+  padding: 8px 12px;
   border: 1px solid var(--ld-border);
   border-radius: var(--ld-radius);
   font-size: 12.5px;
   color: var(--ld-text-muted);
+  background: var(--ld-surface);
 }
 
 .ld-applied__text {
@@ -637,9 +715,9 @@
 
 /* "The thing exists, here it is" is where the product earns its keep. */
 .ld-applied__open {
-  padding: 4px 10px;
+  padding: 4px 12px;
   border: 1px solid var(--ld-accent);
-  border-radius: var(--ld-radius);
+  border-radius: 8px;
   background: var(--ld-accent);
   color: var(--ld-accent-contrast);
   font-weight: 500;
@@ -655,9 +733,9 @@
    destructive action it is — deletion is unundoable, so it must not look like
    Undo, which restores. */
 .ld-applied__delete {
-  padding: 4px 10px;
+  padding: 4px 12px;
   border: 1px solid var(--ld-border-strong);
-  border-radius: var(--ld-radius);
+  border-radius: 8px;
   background: var(--ld-surface);
   color: var(--ld-text-muted);
   font: inherit;
@@ -690,7 +768,7 @@
  */
 
 .ld-ask {
-  padding: 10px 12px;
+  padding: 11px 13px;
   border: 1px solid var(--ld-border);
   border-left: 3px solid var(--ld-accent);
   border-radius: var(--ld-radius);
@@ -722,7 +800,7 @@
   flex-direction: column;
   gap: 2px;
   align-items: flex-start;
-  border-radius: var(--ld-radius);
+  border-radius: 8px;
 }
 
 .ld-ask__option[aria-pressed="true"] {
@@ -741,9 +819,9 @@
 
 .ld-ask__continue {
   margin-top: 10px;
-  padding: 5px 14px;
+  padding: 6px 16px;
   border: 1px solid var(--ld-accent);
-  border-radius: var(--ld-radius);
+  border-radius: 8px;
   background: var(--ld-accent);
   color: var(--ld-accent-contrast);
   font: inherit;
@@ -855,11 +933,13 @@
 
 .ld-history__delete {
   flex: none;
+  display: grid;
+  place-items: center;
   width: 26px;
   height: 26px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: 6px;
   background: none;
   color: var(--ld-text-muted);
   font: inherit;
@@ -887,7 +967,7 @@
  */
 
 .ld-error {
-  padding: 9px 11px;
+  padding: 10px 12px;
   border: 1px solid var(--ld-notice-border);
   border-radius: var(--ld-radius);
   background: var(--ld-notice-soft);
@@ -923,9 +1003,9 @@
 
 .ld-error__action {
   margin-top: 7px;
-  padding: 4px 10px;
+  padding: 4px 12px;
   border: 1px solid currentColor;
-  border-radius: 5px;
+  border-radius: 6px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -959,25 +1039,32 @@
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-top: 1px solid var(--ld-border);
-  background: var(--ld-surface-raised);
+  background: var(--ld-surface);
 }
 
 .ld-input {
   flex: 1 1 auto;
-  min-height: 34px;
+  min-height: 38px;
   max-height: 140px;
-  padding: 7px 9px;
+  padding: 8px 12px;
   border: 1px solid var(--ld-border-strong);
-  border-radius: 6px;
-  background: var(--ld-surface);
+  border-radius: 10px;
+  background: var(--ld-surface-raised);
   color: var(--ld-text);
   font: inherit;
   font-size: 13.5px;
   line-height: 1.4;
   resize: none;
   overflow-y: auto;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.ld-input:focus {
+  outline: none;
+  border-color: var(--ld-accent);
+  box-shadow: 0 0 0 3px var(--ld-accent-soft);
 }
 
 .ld-input::placeholder {
@@ -988,24 +1075,26 @@
   opacity: 0.6;
 }
 
-.ld-voice {
+.ld-voice,
+.ld-attach {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   padding: 0;
-  border: 1px solid var(--ld-border-strong);
-  border-radius: 6px;
-  background: var(--ld-surface);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
   color: var(--ld-text-muted);
   cursor: pointer;
 }
 
-.ld-voice:hover {
+.ld-voice:hover,
+.ld-attach:hover {
   color: var(--ld-text);
-  border-color: var(--ld-accent);
+  background: var(--ld-surface-sunken);
 }
 
 .ld-voice.is-listening {
@@ -1023,14 +1112,16 @@
 
 .ld-send {
   flex: none;
-  padding: 8px 14px;
+  min-width: 62px;
+  padding: 9px 16px;
   border: 1px solid var(--ld-accent);
-  border-radius: 6px;
+  border-radius: 10px;
   background: var(--ld-accent);
   color: var(--ld-accent-contrast);
   font: inherit;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
 .ld-send:hover:not(:disabled) {
@@ -1062,9 +1153,112 @@
 .ld-footnote {
   margin: 0;
   padding: 0 14px 10px;
-  background: var(--ld-surface-raised);
+  background: var(--ld-surface);
   color: var(--ld-text-muted);
   font-size: 11px;
+}
+
+/* --- Attachments -------------------------------------------------------- */
+
+.ld-attachments {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 12px 0;
+  background: var(--ld-surface);
+}
+
+.ld-attachments:empty {
+  display: none;
+}
+
+.ld-attachment {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background: var(--ld-surface-raised);
+  border: 1px solid var(--ld-border);
+  color: var(--ld-text);
+  border-radius: 8px;
+  padding: 5px 6px;
+  max-width: 100%;
+  margin-bottom: 0;
+}
+
+.ld-attachment img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.ld-attachment span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 210px;
+  font-size: 12px;
+}
+
+.ld-attachment button {
+  border: 0;
+  background: transparent;
+  color: var(--ld-text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px;
+  display: grid;
+  place-items: center;
+}
+
+.ld-attachment button:hover {
+  color: var(--ld-danger);
+}
+
+/* --- Publication card --------------------------------------------------- */
+
+.ld-publication {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--ld-border);
+  border-left: 3px solid var(--ld-accent);
+  border-radius: var(--ld-radius);
+  background: var(--ld-surface-raised);
+  padding: 12px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.ld-publication strong {
+  font-family: "Plus Jakarta Sans", Inter, sans-serif;
+  font-weight: 600;
+  color: var(--ld-text);
+}
+
+.ld-publication a {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--ld-accent);
+  border-radius: 8px;
+  background: var(--ld-accent);
+  color: var(--ld-accent-contrast);
+  text-decoration: none;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.ld-publication a:hover {
+  background: var(--ld-accent-hover);
+  border-color: var(--ld-accent-hover);
+}
+
+.ld-publication a svg {
+  width: 13px;
+  height: 13px;
 }
 
 /* --- Focus and screen-reader helpers ------------------------------------ */
@@ -1090,10 +1284,6 @@
 
 /* --- Narrow viewports --------------------------------------------------- */
 /*
- * There was not one `@media (max-width)` query in this file. A fixed 380px
- * right-hand drawer on a 360px phone covers the whole application, and the
- * toggle it replaces sits under the panel it opened.
- *
  * Under 640px the panel becomes a bottom sheet: it keeps the transcript,
  * composer and action rail, gives back the top third of the screen so the user
  * can still see the dashboard being built, and drops the header chips that have
@@ -1108,9 +1298,12 @@
     width: 100%;
     height: 72vh;
     border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
     border-top: 1px solid var(--ld-border);
-    border-radius: var(--ld-radius) var(--ld-radius) 0 0;
+    border-radius: 14px 14px 0 0;
     transform: translateY(100%);
+    opacity: 1;
   }
 
   .ld-panel.is-open {
@@ -1141,7 +1334,8 @@
     min-height: 44px;
   }
 
-  .ld-voice {
+  .ld-voice,
+  .ld-attach {
     width: 44px;
   }
 
@@ -1157,7 +1351,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 7px 11px;
+  padding: 8px 12px;
   border: 1px dashed var(--ld-accent);
   border-radius: var(--ld-radius);
   font-size: 12.5px;
@@ -1166,11 +1360,11 @@
 
 .ld-stale__reload {
   font: inherit;
-  padding: 4px 10px;
-  border-radius: var(--ld-radius);
+  padding: 5px 12px;
+  border-radius: 8px;
   border: 1px solid var(--ld-accent);
   background: var(--ld-accent);
-  color: #fff;
+  color: var(--ld-accent-contrast);
   cursor: pointer;
 }
 
@@ -1179,10 +1373,11 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px;
-  border: 1px solid var(--ld-border, #e0e0e0);
+  padding: 11px;
+  border: 1px solid var(--ld-border);
   border-radius: var(--ld-radius);
-  margin: 8px 0;
+  margin: 0;
+  background: var(--ld-surface);
 }
 
 .ld-canvas__title {
@@ -1198,17 +1393,7 @@
 .ld-canvas__frame {
   width: 100%;
   height: 320px;
-  border: 1px solid var(--ld-border, #e0e0e0);
-  border-radius: 4px;
+  border: 1px solid var(--ld-border);
+  border-radius: 8px;
   background: #fff;
 }
-
-.ld-scope .ld-attach { border: 1px solid #ccd4dc; border-radius: 8px; background: transparent; font-size: 22px; width: 34px; flex-shrink: 0; cursor: pointer; }
-.ld-scope .ld-attachments { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 12px; }
-.ld-scope .ld-attachment { display: flex; gap: 6px; align-items: center; background: #edf2f7; color: #263442; border-radius: 8px; padding: 6px; max-width: 100%; margin-bottom: 6px; }
-.ld-scope .ld-attachment img { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; }
-.ld-scope .ld-attachment span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 210px; font-size: 12px; }
-.ld-scope .ld-attachment button { border: 0; background: transparent; cursor: pointer; font-size: 18px; }
-
-.ld-scope .ld-publication { display: flex; flex-direction: column; gap: 10px; border: 1px solid #cadce9; border-radius: 10px; padding: 14px; margin: 10px 12px; }
-.ld-scope .ld-publication a { color: #1976d2; text-decoration: none; font-size: 13px; }

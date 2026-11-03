@@ -50,7 +50,7 @@
   var EXECUTE_MCP_ACTION_URL = ORCHESTRATOR + "/api/execute-mcp-action/";
   var UNDO_URL = ORCHESTRATOR + "/api/undo/";
   var CONVERSATIONS_URL = ORCHESTRATOR + "/api/conversations/";
-  var STYLESHEET_URL = ORCHESTRATOR + "/static/panel/panel.css";
+  var STYLESHEET_URL = ORCHESTRATOR + "/static/panel/panel.css?v=20261103-redesign";
   var MARKDOWN_URL = ORCHESTRATOR + "/static/panel/markdown.js";
 
   /**
@@ -62,6 +62,7 @@
 
   var OPEN_STATE_KEY = "lifedata-ai.panel.open";
   var CONVERSATION_KEY = "lifedata-ai.panel.conversation";
+  var THEME_KEY = "lifedata:panel-theme";
   var MAX_ERROR_DETAIL = 300;
 
   /**
@@ -1118,6 +1119,15 @@
   }
 
   function buildUi() {
+    // Stroke icon paths (24x24, 1.8 stroke, currentColor — see icon()).
+    var SPARKLE = "M12 3l1.8 4.4 4.4 1.8-4.4 1.8L12 15.4l-1.8-4.4-4.4-1.8 4.4-1.8L12 3z M19 15l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1z";
+    var SUN = "M12 16a4 4 0 100-8 4 4 0 000 8z M12 3v2 M12 19v2 M3 12h2 M19 12h2 M5.6 5.6l1.4 1.4 M17 17l1.4 1.4 M18.4 5.6L17 7 M7 17l-1.4 1.4";
+    var MOON = "M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z";
+    var CLOCK = "M12 21a9 9 0 100-18 9 9 0 000 18z M12 7v5l3 2";
+    var PLUS = "M12 5v14 M5 12h14";
+    var CROSS = "M6 6l12 12 M18 6L6 18";
+    var PAPERCLIP = "M21 12.5l-8.5 8.5a6 6 0 01-8.5-8.5l9-9a4 4 0 015.7 5.7l-9 9a2 2 0 01-2.8-2.8l8.5-8.5";
+
     var toggle = el(
       "button",
       {
@@ -1130,7 +1140,7 @@
       },
       [
         (function () {
-          var glyph = icon("M21 11.5a8.4 8.4 0 0 1-9 8.4L3 21l1.1-4.1A8.4 8.4 0 1 1 21 11.5Z");
+          var glyph = icon(SPARKLE);
           glyph.setAttribute("class", "ld-toggle__icon");
           return glyph;
         })(),
@@ -1139,26 +1149,29 @@
     );
 
     var contextLabel = el("div", { class: "ld-context", id: "lifedata-ai-context" });
+    var themeButton = el("button", {
+      type: "button",
+      class: "ld-iconbtn",
+      "aria-label": "Switch to dark theme",
+      title: "Theme",
+    }, [icon(SUN)]);
     var historyButton = el("button", {
       type: "button",
       class: "ld-iconbtn",
       "aria-label": "Show earlier conversations",
       title: "Earlier conversations",
-      text: "☰",
-    });
+    }, [icon(CLOCK)]);
     var newButton = el("button", {
       type: "button",
       class: "ld-iconbtn",
       "aria-label": "Start a new conversation",
       title: "New conversation",
-      text: "＋",
-    });
+    }, [icon(PLUS)]);
     var closeButton = el("button", {
       type: "button",
       class: "ld-iconbtn",
       "aria-label": "Close Vima",
-      text: "×",
-    });
+    }, [icon(CROSS)]);
 
     var messages = el("div", {
       class: "ld-messages",
@@ -1232,8 +1245,8 @@
     var fileInput = el("input", { type: "file", multiple: "", class: "ld-visually-hidden",
       accept: ".png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.xlsx,.csv,.tsv,.txt,.md,.json,.log,.yaml,.yml,.html,.htm",
       "aria-label": "Attach images or files" });
-    var attachButton = el("button", { type: "button", class: "ld-attach", text: "+",
-      title: "Attach images or files", "aria-label": "Attach images or files" });
+    var attachButton = el("button", { type: "button", class: "ld-attach",
+      title: "Attach images or files", "aria-label": "Attach images or files" }, [icon(PAPERCLIP)]);
     var attachments = el("div", { class: "ld-attachments", "aria-live": "polite" });
     var composer = el(
       "form",
@@ -1263,10 +1276,12 @@
       [
         el("header", { class: "ld-panel__header" }, [
           el("div", { class: "ld-brand" }, [
+            el("span", { class: "ld-brand__mark", "aria-hidden": "true" }, [icon(SPARKLE)]),
             document.createTextNode("Vima"),
-            el("span", { class: "ld-badge", text: "your session" }),
+            el("span", { class: "ld-badge", text: "AI assistant" }),
           ]),
           contextLabel,
+          themeButton,
           historyButton,
           newButton,
           closeButton,
@@ -1287,10 +1302,33 @@
     document.body.appendChild(toggle);
     document.body.appendChild(panel);
 
+    // Explicit light/dark on BOTH .ld-scope roots (toggle and panel are
+    // siblings). Defaults to the saved choice, then the OS preference; the
+    // header button persists the user's explicit choice.
+    function applyTheme(theme, persist) {
+      toggle.setAttribute("data-theme", theme);
+      panel.setAttribute("data-theme", theme);
+      themeButton.replaceChildren(icon(theme === "dark" ? SUN : MOON));
+      themeButton.setAttribute("aria-label", theme === "dark" ? "Switch to light theme" : "Switch to dark theme");
+      if (persist) {
+        stored(THEME_KEY, theme);
+      }
+    }
+    var savedTheme = stored(THEME_KEY);
+    var systemDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var initialTheme = savedTheme === "light" || savedTheme === "dark"
+      ? savedTheme
+      : (systemDark ? "dark" : "light");
+    applyTheme(initialTheme, false);
+    themeButton.addEventListener("click", function () {
+      applyTheme(panel.getAttribute("data-theme") === "dark" ? "light" : "dark", true);
+    });
+
     return {
       toggle: toggle,
       panel: panel,
       contextLabel: contextLabel,
+      themeButton: themeButton,
       historyButton: historyButton,
       newButton: newButton,
       closeButton: closeButton,
@@ -1382,7 +1420,6 @@
               class: "ld-msg__copy",
               "aria-label": "Copy this answer",
               title: "Copy",
-              text: "⧉",
               onclick: function (event) {
                 var button = event.currentTarget;
                 // Copy `raw`, not the rendered DOM: what the user wants in
@@ -1390,11 +1427,11 @@
                 copyText(raw).then(function (ok) {
                   button.textContent = ok ? "✓" : "×";
                   window.setTimeout(function () {
-                    button.textContent = "⧉";
+                    button.replaceChildren(icon("M9 9h11v11H9z M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1"));
                   }, 1200);
                 });
               },
-            })
+            }, [icon("M9 9h11v11H9z M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1")])
           );
         }
         append(bubble);
@@ -2309,7 +2346,6 @@
             class: "ld-history__delete",
             "aria-label": "Delete this conversation",
             title: "Delete",
-            text: "×",
             onclick: function () {
               fetch(CONVERSATIONS_URL + row.id + "/", {
                 method: "DELETE",
@@ -2325,7 +2361,7 @@
                   transcript.addError({ title: "Could not delete that conversation." });
                 });
             },
-          }),
+          }, [icon("M6 6l12 12 M18 6L6 18")]),
         ]);
         list.appendChild(entry);
       });
@@ -2398,7 +2434,10 @@
       window.dispatchEvent(new CustomEvent("lifedata:publication-updated", { detail: data }));
       var card = el("div", { class: "ld-publication" }, [
         el("strong", { text: data.title || "Dashboard published" }),
-        el("a", { href: data.url, text: "Open custom dashboard →" }),
+        el("a", { href: data.url }, [
+          icon("M14 5h5v5 M19 5l-9 9 M19 13v5a1 1 0 01-1 1H6a1 1 0 01-1-1V6a1 1 0 011-1h5"),
+          document.createTextNode("Open custom dashboard"),
+        ]),
       ]);
       refs.messages.appendChild(card);
     }
@@ -2415,7 +2454,7 @@
           chip.appendChild(el("img", { src: url, alt: file.name }));
         }
         chip.appendChild(el("span", { text: file.name }));
-        var remove = el("button", { type: "button", text: "×", "aria-label": "Remove " + file.name });
+        var remove = el("button", { type: "button", "aria-label": "Remove " + file.name }, [icon("M6 6l12 12 M18 6L6 18")]);
         remove.addEventListener("click", function () { state.files.splice(index, 1); renderAttachments(); });
         chip.appendChild(remove);
         refs.attachments.appendChild(chip);
