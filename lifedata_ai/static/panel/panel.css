@@ -854,12 +854,11 @@
 .ld-status {
   display: none;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-top: 1px solid var(--ld-border);
-  background: var(--ld-surface-raised);
+  gap: 8px;
+  padding: 2px 2px 4px;
+  background: transparent;
   color: var(--ld-text-muted);
-  font-size: 11.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1034,37 +1033,45 @@
 }
 
 /* --- Composer ----------------------------------------------------------- */
-
+/*
+ * One rounded capsule instead of a bordered input strip: the textarea is
+ * borderless inside a raised container that gains the focus ring as a whole,
+ * with the send slot as a circular accent button on the right.
+ */
 .ld-composer {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--ld-border);
-  background: var(--ld-surface);
+  gap: 6px;
+  margin: 8px 12px 12px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--ld-border-strong);
+  border-radius: 14px;
+  background: var(--ld-surface-raised);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.ld-composer:focus-within {
+  border-color: var(--ld-accent);
+  box-shadow: 0 0 0 3px var(--ld-accent-soft);
 }
 
 .ld-input {
   flex: 1 1 auto;
-  min-height: 38px;
+  min-height: 30px;
   max-height: 140px;
-  padding: 8px 12px;
-  border: 1px solid var(--ld-border-strong);
-  border-radius: 10px;
-  background: var(--ld-surface-raised);
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
   color: var(--ld-text);
   font: inherit;
   font-size: 13.5px;
   line-height: 1.4;
   resize: none;
   overflow-y: auto;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
 .ld-input:focus {
   outline: none;
-  border-color: var(--ld-accent);
-  box-shadow: 0 0 0 3px var(--ld-accent-soft);
 }
 
 .ld-input::placeholder {
@@ -1081,11 +1088,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: 10px;
+  border: 0;
+  border-radius: 9px;
   background: transparent;
   color: var(--ld-text-muted);
   cursor: pointer;
@@ -1099,7 +1106,6 @@
 
 .ld-voice.is-listening {
   background: var(--ld-danger-soft);
-  border-color: var(--ld-danger);
   color: var(--ld-danger);
   animation: ld-pulse 1.1s ease-in-out infinite;
 }
@@ -1112,14 +1118,15 @@
 
 .ld-send {
   flex: none;
-  min-width: 62px;
-  padding: 9px 16px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   border: 1px solid var(--ld-accent);
-  border-radius: 10px;
+  border-radius: 50%;
   background: var(--ld-accent);
   color: var(--ld-accent-contrast);
-  font: inherit;
-  font-weight: 600;
   cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease;
 }
@@ -1148,14 +1155,6 @@
   border-color: var(--ld-danger);
   color: var(--ld-danger);
   background: var(--ld-surface);
-}
-
-.ld-footnote {
-  margin: 0;
-  padding: 0 14px 10px;
-  background: var(--ld-surface);
-  color: var(--ld-text-muted);
-  font-size: 11px;
 }
 
 /* --- Attachments -------------------------------------------------------- */
@@ -1328,15 +1327,19 @@
 
   /* Thumb-sized on a touch screen, where these are the things a user
      actually presses. */
-  .ld-input,
-  .ld-voice,
-  .ld-send {
+  .ld-input {
     min-height: 44px;
   }
 
   .ld-voice,
   .ld-attach {
     width: 44px;
+    height: 44px;
+  }
+
+  .ld-send {
+    width: 44px;
+    height: 44px;
   }
 
   .ld-suggestion {

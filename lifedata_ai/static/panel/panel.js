@@ -50,7 +50,7 @@
   var EXECUTE_MCP_ACTION_URL = ORCHESTRATOR + "/api/execute-mcp-action/";
   var UNDO_URL = ORCHESTRATOR + "/api/undo/";
   var CONVERSATIONS_URL = ORCHESTRATOR + "/api/conversations/";
-  var STYLESHEET_URL = ORCHESTRATOR + "/static/panel/panel.css?v=20261103-redesign";
+  var STYLESHEET_URL = ORCHESTRATOR + "/static/panel/panel.css?v=20261103-redesign-v2";
   var MARKDOWN_URL = ORCHESTRATOR + "/static/panel/markdown.js";
 
   /**
@@ -64,6 +64,10 @@
   var CONVERSATION_KEY = "lifedata-ai.panel.conversation";
   var THEME_KEY = "lifedata:panel-theme";
   var MAX_ERROR_DETAIL = 300;
+
+  // Composer send slot swaps between these two while a turn runs (see setBusy).
+  var SEND_ARROW_PATH = "M12 19V5 M5 12l7-7 7 7";
+  var STOP_PATH = "M8 8h8v8H8z";
 
   /**
    * Suggestions phrased as executive intents and keyed off the page.
@@ -1214,14 +1218,13 @@
       id: "lifedata-ai-input",
       rows: "1",
       placeholder: "Ask for a chart, or a dashboard…",
-      "aria-describedby": "lifedata-ai-footnote",
     });
 
     // One slot, two states. Stop used to live in the thinking row, which is
     // destroyed on the first text delta — so once the model started talking
     // there was no way to cancel, even though a build commonly speaks and then
-    // works for another minute.
-    var send = el("button", { type: "submit", class: "ld-send", text: "Send" });
+    // works for another minute. Icon-only; setBusy swaps arrow for stop.
+    var send = el("button", { type: "submit", class: "ld-send", "aria-label": "Send message" }, [icon(SEND_ARROW_PATH)]);
 
     // Hidden entirely rather than shown-disabled when the browser has no
     // SpeechRecognition (only Chromium-family browsers ship it, prefixed, as
@@ -1278,7 +1281,6 @@
           el("div", { class: "ld-brand" }, [
             el("span", { class: "ld-brand__mark", "aria-hidden": "true" }, [icon(SPARKLE)]),
             document.createTextNode("Vima"),
-            el("span", { class: "ld-badge", text: "AI assistant" }),
           ]),
           contextLabel,
           themeButton,
@@ -1288,16 +1290,14 @@
         ]),
         messages,
         actions,
-        status,
         attachments,
         composer,
-        el("p", {
-          class: "ld-footnote",
-          id: "lifedata-ai-footnote",
-          text: "Aggregates only. No patient-level records are sent to the model.",
-        }),
       ]
     );
+
+    // The working indicator belongs in the transcript, directly under the
+    // latest message — not as a strip above the composer (see setStatus).
+    messages.appendChild(status);
 
     document.body.appendChild(toggle);
     document.body.appendChild(panel);
@@ -1365,6 +1365,11 @@
     /** @param {HTMLElement} node */
     function append(node) {
       refs.messages.appendChild(node);
+      // Keep the running indicator at the very bottom of the transcript while
+      // it is visible, below whatever was appended last.
+      if (refs.status.classList.contains("is-visible")) {
+        refs.messages.appendChild(refs.status);
+      }
       scroll();
       return node;
     }
@@ -1982,6 +1987,12 @@
     function setStatus(text) {
       refs.statusText.textContent = text || "";
       refs.status.classList.toggle("is-visible", Boolean(text));
+      // The indicator lives INSIDE the transcript, directly under the latest
+      // content — never as a strip above the composer. Re-appending moves it
+      // to the end every time it appears, so streaming replies land below it.
+      if (text) {
+        refs.messages.appendChild(refs.status);
+      }
     }
 
     function startStatusClock(label) {
@@ -2231,7 +2242,8 @@
       // during a two-minute build the user could not draft their next question
       // — and the clarification card's free-text escape hatch would have been
       // unusable. `submit()` guards on busy, so nothing races.
-      refs.send.textContent = stoppable ? "Stop" : "Send";
+      refs.send.replaceChildren(icon(stoppable ? STOP_PATH : SEND_ARROW_PATH));
+      refs.send.setAttribute("aria-label", stoppable ? "Stop generating" : "Send message");
       refs.send.classList.toggle("is-stop", stoppable);
       refs.send.disabled = busy && !stoppable;
       refs.messages.setAttribute("aria-busy", busy ? "true" : "false");
