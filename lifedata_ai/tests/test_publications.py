@@ -413,3 +413,25 @@ def test_external_endpoint_owner_scoped(monkeypatch):
     assert publication.title == 'CCBU EHS renamed' and publication.theme == 'dark'
     assert dashboards.delete(make_request('DELETE', username='ana'), publication_id).status_code == 200
     assert DashboardPublication.objects.filter(pk=publication_id).count() == 0
+
+
+def test_page_context_enrichment_exposes_publication_datasets(monkeypatch):
+    context, client, publication = setup_publication(monkeypatch)
+    publication.configuration = {'preset': 'external-app',
+                                 'url': 'https://dashboards.lifehealth.app/ccbu-ehs',
+                                 'dataset_ids': [276, 277]}
+    publication.save(update_fields=['configuration'])
+    context.page_context = {'page_type': 'dashboard', 'publication_id': str(publication.id)}
+    client.get_dataset.return_value = {'id': 276, 'table_name': 'ccbu_ehs_incidents',
+                                       'schema': 'lifedata_sandbox', 'database': {'id': 4}}
+    from lifedata_ai.tools.superset_read import GetPageContextTool
+    result = GetPageContextTool().run(context)
+    assert result['available'] is True
+    assert result['publication']['title'] == 'Service dashboard'
+    assert result['publication']['preset'] == 'external-app'
+    assert result['publication']['dataset_ids'] == [276, 277]
+    assert result['publication']['datasets'][0]['table_name'] == 'ccbu_ehs_incidents'
+    # A missing dataset id degrades gracefully instead of failing the tool.
+    client.get_dataset.side_effect = SupersetError('Access denied', status_code=403)
+    result = GetPageContextTool().run(context)
+    assert result['publication']['datasets'] == []

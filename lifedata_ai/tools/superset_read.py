@@ -1099,7 +1099,10 @@ class GetPageContextTool(Tool):
         "first whenever the user says 'this chart', 'this dashboard', 'here' or "
         "similar, so you resolve the reference correctly. The selected widget is a "
         "hint from the browser, not authority — confirm the object by name with "
-        "get_chart or get_dashboard before acting on it."
+        "get_chart or get_dashboard before acting on it. On custom dashboard pages "
+        "the response also carries the publication's title, preset, external url "
+        "and the dataset ids declared for that page (when present), so questions "
+        "about an external application can be answered from its backing datasets."
     )
     mode = ToolMode.READ
     input_schema: dict[str, Any] = {
@@ -1127,9 +1130,50 @@ class GetPageContextTool(Tool):
                 ),
             }
 
-        return {
+        result = {
             "available": True,
             "source": source,
             "user": context.username,
             "page": page_context,
         }
+        publication_id = page_context.get("publication_id")
+        if publication_id:
+            publication = None
+            try:
+                from django.core.exceptions import ValidationError
+                from lifedata_ai.models import DashboardPublication
+                publication = DashboardPublication.objects.filter(
+                    pk=publication_id).first()
+            except (ValueError, ValidationError):
+                publication = None
+            if publication is not None:
+                configuration = publication.configuration or {}
+                dataset_ids = configuration.get("dataset_ids") or []
+                datasets = []
+                if dataset_ids:
+                    client = context.superset_client()
+                    for identifier in dataset_ids:
+                        if type(identifier) is not int or identifier < 1:
+                            continue
+                        try:
+                            datasets.append(client.get_dataset(identifier))
+                        except SupersetError:
+                            continue
+                result["publication"] = {
+                    "id": str(publication.id),
+                    "title": publication.title,
+                    "theme": publication.theme,
+                    "preset": configuration.get("preset"),
+                    "url": configuration.get("url"),
+                    "dataset_ids": dataset_ids,
+                    "datasets": [
+                        {
+                            "id": dataset.get("id"),
+                            "table_name": dataset.get("table_name"),
+                            "schema": dataset.get("schema"),
+                            "database_id": (dataset.get("database") or {}).get("id"),
+                        }
+                        for dataset in datasets
+                    ],
+                }
+        return result
