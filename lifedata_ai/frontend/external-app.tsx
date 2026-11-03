@@ -198,34 +198,15 @@ export function ExternalAppCreator({
 export default function ExternalApp({
   publication,
   theme,
-  themeControl,
 }: {
   publication: Publication;
   theme: "light" | "dark";
-  themeControl: React.ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const config = configuration(publication);
   const url = readyUrl(config?.url);
   return (
     <main className={`external-app-shell ${theme}`}>
-      <header className="external-app-header">
-        <a className="brand" href="/lifedata-ai/dashboards/">
-          LifeData<span>Dashboards</span>
-        </a>
-        <h1>{publication.title}</h1>
-        <nav>
-          {themeControl}
-          {url && (
-            <a href={url} target="_blank" rel="noopener noreferrer">
-              Open in new tab
-            </a>
-          )}
-          {publication.can_edit && (
-            <button onClick={() => setEditing(true)}>Edit app</button>
-          )}
-        </nav>
-      </header>
       {url ? (
         <iframe
           className="external-app-frame"
@@ -241,6 +222,17 @@ export default function ExternalApp({
           This external application URL is missing or not a valid https
           address.
         </div>
+      )}
+      {publication.can_edit && (
+        <button
+          type="button"
+          className="external-app-edit"
+          title="Edit external application"
+          aria-label="Edit external application"
+          onClick={() => setEditing(true)}
+        >
+          ⚙ Edit
+        </button>
       )}
       {editing && (
         <ExternalForm

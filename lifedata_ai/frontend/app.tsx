@@ -590,13 +590,7 @@ function Viewer() {
       />
     );
   if (publication?.configuration?.preset === "external-app")
-    return (
-      <ExternalApp
-        publication={publication}
-        theme={theme}
-        themeControl={themeControl}
-      />
-    );
+    return <ExternalApp publication={publication} theme={theme} />;
   const viewportMode = publication?.configuration?.preset === "composed-dashboard" && getComposition(publication)?.layout_mode !== "flow" && !edit;
   const visibleLayout=(publication?.layout || []).filter(item=>!(publication?.configuration?.design?.groups || []).some(group=>group.chart_ids.slice(1).includes(item.chart_id)));
   const viewportColumns=viewport.width>=1000?2:1;
