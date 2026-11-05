@@ -2,7 +2,7 @@
 
 from django.urls import path
 from django.views.generic import RedirectView
-from lifedata_ai.views import boundaries, composition, hdss
+from lifedata_ai.views import boundaries, composition
 
 from lifedata_ai.views import (
     action_result,
@@ -20,7 +20,6 @@ app_name = "lifedata_ai"
 
 urlpatterns = [
     path('boundaries/', boundaries.page, name='boundary-catalogue-page'),
-    path('dashboard-design-preview/', boundaries.design_preview, name='dashboard-design-preview'),
     path('api/boundaries/', boundaries.catalogue, name='boundary-catalogue'),
     path('api/boundaries/<str:release_id>/', boundaries.geometry, name='boundary-geometry'),
     path("", RedirectView.as_view(url="/lifedata-ai/dashboards/", permanent=False), name="home"),
@@ -30,13 +29,6 @@ urlpatterns = [
     # Session-required.
     path("dashboards/", dashboards.page, name="dashboard-library-page"),
     path("dashboards/<uuid:pk>/", dashboards.page, name="dashboard-page"),
-    # hdss-site template: per-card aggregates for a filter state (never rows), plus template management.
-    path("dashboards/<uuid:pk>/query", hdss.query, name="hdss-query"),
-    path("dashboards/<uuid:pk>/query/", hdss.query),
-    path("api/hdss/templates/", hdss.templates, name="hdss-templates"),
-    path("api/hdss/dashboards/", hdss.create, name="hdss-create"),
-    path("api/hdss/dashboards/<uuid:pk>/spec/", hdss.spec, name="hdss-spec"),
-    path("api/hdss/dashboards/<uuid:pk>/status/", hdss.status, name="hdss-status"),
     path("api/publications/", dashboards.library, name="publication-library"),
     path("api/publications/creatable/", dashboards.creatable, name="publication-creatable"),
     path("api/publications/create/", dashboards.create, name="publication-create"),

@@ -20,12 +20,6 @@ def page(request):
     )
 
 
-def design_preview(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "method_not_allowed"}, status=405)
-    return render(request, "lifedata_ai/design_preview.html")
-
-
 def catalogue(request):
     if request.method != "GET":
         return JsonResponse({"error": "method_not_allowed"}, status=405)

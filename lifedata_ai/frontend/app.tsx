@@ -31,8 +31,6 @@ import Facilities, { FacilityConfiguration } from "./facilities";
 import { DashboardDesign, DesignContext, designTokens, responseColor, ResponseDonut, ChartTabs, DesignLibrary, syncDashboardFilters } from "./design-system";
 import BuikweWorkspace, {WorkspaceConfiguration} from "./buikwe-workspace";
 import Population, { PopulationConfiguration } from "./population";
-import HdssTemplate, { HdssCreator } from "./hdss-template";
-import MasterTemplate from "./master-template";
 import ExternalApp, { ExternalAppCreator } from "./external-app";
 import type { ExternalAppConfiguration } from "./external-app";
 
@@ -570,10 +568,6 @@ function Viewer() {
       setPreferredTheme(next);
       try { localStorage.setItem(`lifedata:dashboard-theme:${publicationId}`, next); } catch {}
     }}>{theme === "dark" ? "☀ Light mode" : "☾ Dark mode"}</button>;
-  if ((publication?.configuration as { preset?: string } | undefined)?.preset === "hdss-master")
-    return <MasterTemplate publicationId={publication!.id} title={publication!.title} canEdit={publication!.can_edit} />;
-  if ((publication?.configuration as { preset?: string } | undefined)?.preset === "hdss-site")
-    return <HdssTemplate publicationId={publication!.id} title={publication!.title} canEdit={publication!.can_edit} />;
   if (publication?.configuration?.preset === "buikwe-workspace")
     return <BuikweWorkspace publication={publication} theme={theme} themeControl={themeControl}/>;
   if (publication?.configuration?.preset === "population-discovery")
@@ -893,7 +887,6 @@ function Home() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"updated" | "name">("updated");
   const [creatorOpen, setCreatorOpen] = useState(false);
-  const [hdssOpen, setHdssOpen] = useState(false);
   const [externalOpen, setExternalOpen] = useState(false);
   function reload() {
     request<{ items: Publication[] }>(api)
@@ -955,9 +948,6 @@ function Home() {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button className="home-cta" onClick={() => setCreatorOpen(true)}>
               + New dashboard
-            </button>
-            <button className="home-cta" onClick={() => setHdssOpen(true)}>
-              + New HDSS dashboard
             </button>
             <button className="home-cta" onClick={() => setExternalOpen(true)}>
               + Add external app
@@ -1087,7 +1077,6 @@ function Home() {
           )
         )}
       </section>
-      {hdssOpen && <HdssCreator onClose={() => setHdssOpen(false)} />}
       {creatorOpen && (
         <Creator
           onClose={() => setCreatorOpen(false)}

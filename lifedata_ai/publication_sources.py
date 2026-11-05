@@ -61,11 +61,6 @@ def publication_charts(client, publication):
         # External applications embed a URL, not Superset charts; visible to any
         # authenticated user and authorised without a source-chart lookup.
         return []
-    if (publication.configuration or {}).get('preset') in ('hdss-site', 'hdss-master'):
-        # Template pages bind a registered dataset, not charts: authorise the dataset with the viewer's session.
-        from lifedata_ai.hdss.service import authorise
-        authorise(client, publication)
-        return []
     if publication.superset_dashboard_id is not None:
         if not client.get_dashboard(publication.superset_dashboard_id):
             raise SupersetError('Dashboard not found.', status_code=404)

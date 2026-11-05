@@ -4,10 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "build": "esbuild app.tsx --bundle --minify --loader:.png=file --define:process.env.NODE_ENV='\"production\"' --outdir=../static/dashboards",
-    "typecheck": "tsc -p tsconfig.json",
-    "test:hdss": "esbuild hdss-model.ts --bundle --format=cjs --platform=node --outfile=tests/.build/hdss-model.cjs --log-level=warning && esbuild hdss-template.tsx --bundle --format=cjs --platform=node --external:react --external:react-dom --alias:leaflet=./tests/leaflet-stub.cjs --outfile=tests/.build/hdss-view.cjs --log-level=warning && node tests/hdss_acceptance.mjs",
-    "gen:master": "node tools/dc2tsx.mjs ../../docs/design/master/design_master_dashboard.dc.html master-view.tsx",
-    "test:master": "node tools/dc2tsx.mjs ../../docs/design/master/design_master_dashboard.dc.html tests/.build/master-view.gen.tsx && esbuild master-model.ts --bundle --format=cjs --platform=node --outfile=tests/.build/master-model.cjs --log-level=warning && esbuild master-view.tsx --bundle --format=cjs --platform=node --external:react --external:react-dom --alias:leaflet=./tests/leaflet-stub.cjs --outfile=tests/.build/master-view.cjs --log-level=warning && node tests/master_acceptance.mjs"
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

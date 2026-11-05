@@ -274,9 +274,7 @@ def _login_or_unauthenticated(request, message):
     path = request.path.rstrip("/")
     page_prefixes = (
         "/lifedata-ai/dashboards/",
-        "/lifedata-ai/dashboard-template-preview/",
         "/lifedata-ai/boundaries",
-        "/lifedata-ai/dashboard-design-preview",
     )
     is_page = path in {"/lifedata-ai", "/lifedata-ai/dashboards"} or path.startswith(page_prefixes)
     if request.method == "GET" and is_page:

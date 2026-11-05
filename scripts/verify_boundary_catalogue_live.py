@@ -27,11 +27,6 @@ def main():
     page = session.get(base + "boundaries/", timeout=45)
     page.raise_for_status()
     assert "African boundary catalogue" in page.text
-    preview = session.get(base + 'dashboard-design-preview/', timeout=15)
-    preview.raise_for_status()
-    image = session.get(base + 'static/previews/dashboard-design-20261020/adaptive-navy-teal-desktop.png', timeout=15)
-    image.raise_for_status()
-    assert image.content.startswith(b'\x89PNG')
     anonymous = requests.get(base + "api/boundaries/", allow_redirects=False, timeout=30)
     assert anonymous.status_code in (302, 401, 403)
     print(
